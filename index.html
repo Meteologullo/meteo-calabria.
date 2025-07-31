@@ -1558,6 +1558,7 @@ function openOverride(){
   $('#overrideJSON').value = JSON.stringify(HOURLY_OVERRIDE,null,2);
 }
 function closeOverride(){ $('#overridePanel').style.display="none"; }
+document.addEventListener('DOMContentLoaded', () => {
 $('#btnSaveOverride').onclick = ()=>{
   try{
     HOURLY_OVERRIDE = JSON.parse($('#overrideJSON').value||"{}");
@@ -1567,6 +1568,7 @@ $('#btnSaveOverride').onclick = ()=>{
   }catch(e){ alert("JSON non valido: "+e.message); }
 };
 $('#btnCancelOverride').onclick = closeOverride;
+});
 
 // Merge override into forecast row builder
 function applyOverride(hh, field, original){
@@ -2082,6 +2084,7 @@ const SYNC = {
   // URL dell'endpoint serverless che ti preparo qui sotto (Cloudflare/Vercel/Netlify)
   writeEndpoint: "https://shrill-queen-a96d.agn19278.workers.dev"
 };
+window.SYNC = SYNC;
 
 // =========================
 // Utility base
