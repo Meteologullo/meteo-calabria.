@@ -2268,6 +2268,25 @@ window.addEventListener('DOMContentLoaded', ()=>{
   if(btnSync) btnSync.addEventListener('click', pushAllToRemote);
 });
 </script>
+
+<script>
+/* Hook manuale “Sincronizza (invio)” */
+window.addEventListener('DOMContentLoaded', () => {
+  const btnSync = document.getElementById('btnSync');
+  if (btnSync && typeof pushAllToRemote === 'function') {
+    btnSync.onclick = () => {
+      btnSync.disabled = true;
+      const oldTxt = btnSync.textContent;
+      btnSync.textContent = '...';
+      pushAllToRemote().finally(()=>{
+        btnSync.disabled = false;
+        btnSync.textContent = oldTxt;
+      });
+    };
+  }
+});
+</script>
+
 </body>
 </html>
 <script>
