@@ -2071,6 +2071,74 @@ if(typeof btnSaveForecast !== "undefined" && btnSaveForecast){
 </script>
 
 
+
+
+
+<script>
+// === AUTO-SYNC: invia automaticamente le modifiche al Worker ===
+// se true, ogni salvataggio chiama scheduleSync; il flush invia dopo 1.2s di inattività.
+window.SYNC_AUTOSAVE = true;
+(function(){
+  if(!window.SYNC_AUTOSAVE) return;
+
+  // Debounce queue: riusa quella esistente o crea una minima
+  if(typeof window.scheduleSync !== 'function'){
+    let syncTimer=null, syncQueue={};
+    window.scheduleSync = function(file, data, message){
+      syncQueue[file] = Object.assign({}, (syncQueue[file]?.data||{}), data);
+      syncQueue[file].__message = message || ("sync: " + file);
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(flushSync, 1200);
+    };
+    async function flushSync(){
+      const ep = (window.SYNC && window.SYNC.writeEndpoint) || "";
+      for(const [file, payload] of Object.entries(syncQueue)){ 
+        try{
+          const msg = payload.__message || ("sync: "+file);
+          delete payload.__message;
+          await fetch(ep, { method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({ file: "data/"+file, data: payload, message: msg })
+          });
+        }catch(e){ console.warn("Auto-sync fallita per", file, e); }
+      }
+      syncQueue = {};
+    }
+  }
+
+  // Hook helper: avvolge una funzione e chiama scheduleSync dopo l'esecuzione
+  function hookAfter(obj, name, handler){
+    const orig = obj && obj[name];
+    if(typeof orig !== 'function') return false;
+    obj[name] = function(...args){
+      const res = orig.apply(this, args);
+      try{ handler.apply(this, args); }catch(e){ console.warn("autosync hook error", name, e); }
+      return res;
+    };
+    return true;
+  }
+
+  // 1) override icone V3 (day/night per data/uid/segmento)
+  hookAfter(window, 'saveDailyIconOverrideV3', function(dateKey, uid, seg, obj){
+    window.scheduleSync("daily_icon_v3.json", { [dateKey]: { [uid]: { [seg]: obj } } }, `override v3 ${dateKey} ${uid} ${seg}`);
+  });
+
+  // 2) override v2 (tmax/tmin/codice)
+  hookAfter(window, 'saveDailyOverrideV2', function(dateKey, uid, obj){
+    window.scheduleSync("daily_override_v2.json", { [dateKey]: { [uid]: obj } }, `override v2 ${dateKey} ${uid}`);
+  });
+
+  // 3) layout/posizioni/marker size
+  hookAfter(window, 'saveState', function(){
+    try{
+      const st = (typeof PERSIST!=='undefined') ? { positions: PERSIST.positions||{}, markerSize: PERSIST.markerSize||null, custom: PERSIST.custom||[] } : {};
+      window.scheduleSync("state.json", st, "state update");
+    }catch(e){}
+  });
+
+  // 4) se esistono bottoni manuali, lasciali: nessun conflitto.
+})();
+</script>
+
 <!-- === Sync (GitHub) — copia e incolla === -->
 <script>
 // =========================
@@ -2200,73 +2268,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
   if(btnSync) btnSync.addEventListener('click', pushAllToRemote);
 });
 </script>
-
-
-<script>
-// === AUTO-SYNC: invia automaticamente le modifiche al Worker ===
-// se true, ogni salvataggio chiama scheduleSync; il flush invia dopo 1.2s di inattività.
-window.SYNC_AUTOSAVE = true;
-(function(){
-  if(!window.SYNC_AUTOSAVE) return;
-
-  // Debounce queue: riusa quella esistente o crea una minima
-  if(typeof window.scheduleSync !== 'function'){
-    let syncTimer=null, syncQueue={};
-    window.scheduleSync = function(file, data, message){
-      syncQueue[file] = Object.assign({}, (syncQueue[file]?.data||{}), data);
-      syncQueue[file].__message = message || ("sync: " + file);
-      clearTimeout(syncTimer);
-      syncTimer = setTimeout(flushSync, 1200);
-    };
-    async function flushSync(){
-      const ep = (window.SYNC && window.SYNC.writeEndpoint) || "";
-      for(const [file, payload] of Object.entries(syncQueue)){ 
-        try{
-          const msg = payload.__message || ("sync: "+file);
-          delete payload.__message;
-          await fetch(ep, { method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({ file: "data/"+file, data: payload, message: msg })
-          });
-        }catch(e){ console.warn("Auto-sync fallita per", file, e); }
-      }
-      syncQueue = {};
-    }
-  }
-
-  // Hook helper: avvolge una funzione e chiama scheduleSync dopo l'esecuzione
-  function hookAfter(obj, name, handler){
-    const orig = obj && obj[name];
-    if(typeof orig !== 'function') return false;
-    obj[name] = function(...args){
-      const res = orig.apply(this, args);
-      try{ handler.apply(this, args); }catch(e){ console.warn("autosync hook error", name, e); }
-      return res;
-    };
-    return true;
-  }
-
-  // 1) override icone V3 (day/night per data/uid/segmento)
-  hookAfter(window, 'saveDailyIconOverrideV3', function(dateKey, uid, seg, obj){
-    window.scheduleSync("daily_icon_v3.json", { [dateKey]: { [uid]: { [seg]: obj } } }, `override v3 ${dateKey} ${uid} ${seg}`);
-  });
-
-  // 2) override v2 (tmax/tmin/codice)
-  hookAfter(window, 'saveDailyOverrideV2', function(dateKey, uid, obj){
-    window.scheduleSync("daily_override_v2.json", { [dateKey]: { [uid]: obj } }, `override v2 ${dateKey} ${uid}`);
-  });
-
-  // 3) layout/posizioni/marker size
-  hookAfter(window, 'saveState', function(){
-    try{
-      const st = (typeof PERSIST!=='undefined') ? { positions: PERSIST.positions||{}, markerSize: PERSIST.markerSize||null, custom: PERSIST.custom||[] } : {};
-      window.scheduleSync("state.json", st, "state update");
-    }catch(e){}
-  });
-
-  // 4) se esistono bottoni manuali, lasciali: nessun conflitto.
-})();
-</script>
-
 </body>
 </html>
 <script>
