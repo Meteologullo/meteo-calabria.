@@ -2302,5 +2302,41 @@ syncQueue[file].__message = message || ("sync: " + file);
 </script>
 
 
+<div id="debugPanel" style="margin-top:12px;padding:8px;border:1px dashed #aaa;border-radius:8px;font-size:12px">
+  <b>Stato sincronizzazione</b>
+  <div>readBase: <code id="dbgReadBase"></code></div>
+  <div>writeEndpoint: <code id="dbgWrite"></code></div>
+  <div>Ultimo esito: <span id="dbgResult">—</span></div>
+  <button id="btnTestWrite" style="margin-top:6px">Test scrittura</button>
+</div>
+<script>
+  // Popola i campi di stato
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const rb = (window.SYNC && window.SYNC.readBase) || '';
+    const we = (window.SYNC && window.SYNC.writeEndpoint) || '';
+    const $ = id => document.getElementById(id);
+    if($('dbgReadBase')) $('dbgReadBase').textContent = rb;
+    if($('dbgWrite')) $('dbgWrite').textContent = we || '(non impostato)';
+    const testBtn = $('btnTestWrite');
+    if(testBtn){
+      testBtn.addEventListener('click', async ()=>{
+        const ep = we;
+        if(!ep){ $('dbgResult').textContent = 'writeEndpoint non impostato'; return; }
+        $('dbgResult').textContent = 'Invio...';
+        try{
+          const res = await fetch(ep, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ file:'data/state.json', data:{ _ping: Date.now() }, message:'ping' })
+          });
+          const text = await res.text();
+          $('dbgResult').textContent = res.ok ? 'OK' : ('Errore HTTP '+res.status+': '+text);
+        }catch(e){
+          $('dbgResult').textContent = 'Errore: '+(e && e.message ? e.message : e);
+        }
+      });
+    }
+  });
+</script>
 </body>
 </html>
