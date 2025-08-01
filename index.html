@@ -115,13 +115,23 @@ body.modal-open{overflow:hidden}
 
 /* === Map Control Panel (imported) === */
 #panel{
-  position:absolute;left:0;right:0;bottom:0;z-index:20;
-  background:rgba(255,255,255,.95);color:#004070;
-  padding:22px 22px 30px;border-top-left-radius:18px;border-top-right-radius:18px;
-  transform:translateY(110%);transition:transform .35s ease;
-  box-shadow:0 -6px 24px rgba(0,0,0,.35);backdrop-filter:blur(8px);
-  overflow-y:auto;max-height:85vh;font-family:'Inter',sans-serif;
+  position:absolute; right:12px; top:84px; bottom:96px; width:360px; z-index:20;
+  background:rgba(255,255,255,.95); color:#004070;
+  padding:16px 16px 18px; border-radius:18px;
+  transform:translateX(120%); transition:transform .28s ease, opacity .28s ease;
+  box-shadow:0 10px 30px rgba(0,0,0,.25); backdrop-filter:blur(8px);
+  overflow-y:auto; max-height:calc(100% - 180px); opacity:.98;
 }
+#panel.open{ transform:translateX(0); }
+#panel.peek{ width:48px; padding:8px; overflow:hidden; }
+#panel .toolbar{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+#panel .toolbar label{display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600;}
+@media(max-width:820px){
+  #panel{ left:0; right:0; top:auto; bottom:0; width:auto; border-radius:18px 18px 0 0; transform:translateY(110%); }
+  #panel.open{ transform:translateY(0); }
+  #panel.peek{ width:auto; height:42px; }
+}
+
 #panel.open{transform:translateY(0);}
 #handle{width:50px;height:6px;background:#bbb;border-radius:3px;margin:0 auto 12px;}
 #panel h3{margin:12px 0 6px;font-size:18px;font-weight:800;font-family:'Baloo 2',cursive;}
@@ -487,6 +497,11 @@ table.hourly td:nth-child(2), table.hourly th:nth-child(2){
   <!-- === Map Control Panel === -->
   <div id="panel">
     <div id="handle"></div>
+    <div class="toolbar">
+      <label><input type="checkbox" id="chkPin"> 📌 Fissa pannello</label>
+      <button id="btnPeek" title="Riduci pannello">👁️</button>
+    </div>
+
 
     <h3>Modifica Giorno</h3>
     <label>Giorno
@@ -509,6 +524,12 @@ table.hourly td:nth-child(2), table.hourly th:nth-child(2){
     <label>Dimensione marker
       <input type="range" id="inpMarkerSize" min="24" max="64">
     </label>
+
+    <label>Dimensione marker (solo selezionato)
+      <input type="range" id="inpMarkerSizeOne" min="16" max="96" step="1">
+    </label>
+    <button id="btnResetSize" style="margin-top:6px;">↩︎ Reimposta dimensione del marker selezionato</button>
+
     <div class="row">
       <button id="btnSaveMarker">Salva marker</button>
       <button id="btnDeleteMarker">🗑️ Elimina marker</button>
@@ -911,6 +932,8 @@ function render(){
   data.points.forEach(p=>{
     const mk=document.createElement('div');
     mk.className='marker';
+    mk.dataset.uid = (p.uid || (typeof uidForCity==='function' ? uidForCity(p.city) : (p.city||'')));
+
     mk.style.left=p.x+'%';
     mk.style.top=p.y+'%';
     
@@ -1626,7 +1649,30 @@ document.getElementById('fab').addEventListener('contextmenu',e=>{
             b.type='button';
             b.title=ic; b.dataset.icon=ic; b.innerHTML = (typeof buildDirectIconHTML_NOEMOJI === 'function') ? buildDirectIconHTML_NOEMOJI(ic) : ic;
             if(ic===selected) b.classList.add('active');
-            b.addEventListener('click',()=>{ inpIcon.value=ic; buildIconPicker(ic); });
+            b.addEventListener('click',()=>{ 
+            inpIcon.value=ic; buildIconPicker(ic);
+            // Preview live e salvataggio immediato dell'icona del marker selezionato
+            try{
+              if(editIdx!==null){
+                const mk=document.querySelector('#mapArea .marker[data-idx="'+editIdx+'"]');
+                if(mk){
+                  mk.innerHTML = (typeof buildDirectIconHTML_NOEMOJI === 'function') ? buildDirectIconHTML_NOEMOJI(ic) : mk.innerHTML;
+                }
+                const pt=DAYS[curDay].points[editIdx];
+                const uid=pt.uid || uidForCity(pt.city);
+                const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
+                const _key=_d.toISOString().slice(0,10);
+                const seg = night ? 'night' : 'day';
+                if (typeof saveDailyIconOverrideV3 === 'function') {
+                  saveDailyIconOverrideV3(_key, uid, seg, { icon: ic });
+                }
+                if (!night && typeof saveDailyOverrideV2 === 'function') {
+                  saveDailyOverrideV2(_key, uid, { icon: ic });
+                }
+                saveState();
+              }
+            }catch(e){ console.warn('autosave icon failed', e); }
+          });
             iconPicker.appendChild(b);
           });
         }
@@ -1708,6 +1754,7 @@ const selDay=$('#selDay'), inpDayName=$('#inpDayName'), inpIcon=$('#inpIcon'),
         btnSaveMarker=$('#btnSaveMarker'), btnDeleteMarker=$('#btnDeleteMarker'),
         btnSaveLayout=$('#btnSaveLayout'), btnReset=$('#btnReset'),
         btnSaveForecast=$('#btnSaveForecast');
+const inpMarkerSizeOne=$('#inpMarkerSizeOne'), btnResetSize=$('#btnResetSize'), chkPin=$('#chkPin'), btnPeek=$('#btnPeek');
 
 // ——— Persist per-day tmax/tmin (V2) ———
 btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist */
@@ -1783,7 +1830,7 @@ btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist
     const mk=this; const idx=+this.dataset.idx;
     const rect=mk.parentElement.getBoundingClientRect();
     mk.setPointerCapture(ev.pointerId);
-    const move=e=>{
+    const move=e=>{ e.preventDefault && e.preventDefault(); 
       const x=((e.clientX-rect.left)/rect.width)*100;
       const y=((e.clientY-rect.top)/rect.height)*100;
       mk.style.left=Math.min(Math.max(0,x),100)+'%';
@@ -1815,11 +1862,25 @@ btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist
     inpTmax.value=pt.tmax||'';
     inpTmin.value=pt.tmin||'';
     panel.classList.add('open');
+    // Evidenzia selezione e carica dimensione personalizzata
+    try{
+      const pt=DAYS[curDay].points[editIdx];
+      document.querySelectorAll('#mapArea .marker.selected').forEach(n=>n.classList.remove('selected'));
+      const mk=document.querySelector('#mapArea .marker[data-idx="'+editIdx+'"]');
+      if(mk) mk.classList.add('selected');
+      const uid = pt.uid || uidForCity(pt.city);
+      const st = (PERSIST && PERSIST.positions && PERSIST.positions[uid]) ? PERSIST.positions[uid] : null;
+      const fallback = (typeof PERSIST==='object' && PERSIST && typeof PERSIST.markerSize==='number') ? PERSIST.markerSize : 36;
+      if(typeof inpMarkerSizeOne!=="undefined" && inpMarkerSizeOne){
+        inpMarkerSizeOne.value = (st && typeof st.size==='number') ? st.size : fallback;
+      }
+    }catch(err){}        
+
     e.stopPropagation();
   }
 
   /* —— Chiudi pannello cliccando fuori —— */
-  $('#widget').addEventListener('click',()=>panel.classList.remove('open'));
+  $('#widget').addEventListener('click',()=>{ if(!(chkPin && chkPin.checked)) panel.classList.remove('open'); });
   panel.addEventListener('click',e=>e.stopPropagation());
 
   /* —— Salva marker —— */
@@ -1827,6 +1888,16 @@ btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist
 if(editIdx===null) return toast('Nessun marker selezionato');
     const pt=DAYS[curDay].points[editIdx];
     const uid = pt.uid || uidForCity(pt.city);
+    // Salva override dimensione singola
+    try{
+      const val = parseInt(inpMarkerSizeOne && inpMarkerSizeOne.value, 10);
+      if(!isNaN(val)){
+        if(!PERSIST.positions) PERSIST.positions = {};
+        if(!PERSIST.positions[uid]) PERSIST.positions[uid] = {};
+        PERSIST.positions[uid].size = val;
+      }
+    }catch(e){}
+
     const newIcon = (inpIcon.value.trim()||pt.icon);
     // aggiorna dati tabella
     const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
@@ -1867,6 +1938,39 @@ pt.city=selCity.value;
   });
 
   /* —— Slider dimensione marker —— */
+
+  /* —— Pinna pannello —— */
+  if(chkPin){ chkPin.addEventListener('change',()=>{}); }
+
+  /* —— Peek (riduci pannello) —— */
+  if(btnPeek){
+    btnPeek.addEventListener('click',()=>{
+      panel.classList.toggle('peek');
+    });
+  }
+
+  /* —— Slider dimensione marker (solo selezionato, anteprima live) —— */
+  if (typeof inpMarkerSizeOne !== "undefined" && inpMarkerSizeOne){
+    inpMarkerSizeOne.addEventListener('input', e=>{
+      if(editIdx===null) return;
+      const mk = document.querySelector('#mapArea .marker[data-idx="'+editIdx+'"]');
+      if(mk){ mk.style.setProperty('--marker-size', e.target.value+'px'); }
+    });
+  }
+  /* —— Reset dimensione solo per il marker selezionato —— */
+  if (typeof btnResetSize !== "undefined" && btnResetSize){
+    btnResetSize.addEventListener('click', ()=>{
+      if(editIdx===null) return toast('Nessun marker selezionato');
+      const pt = DAYS[curDay].points[editIdx];
+      const uid = pt.uid || uidForCity(pt.city);
+      if(PERSIST.positions && PERSIST.positions[uid] && 'size' in PERSIST.positions[uid]){
+        delete PERSIST.positions[uid].size;
+      }
+      saveState(); render();
+      toast('Dimensione ripristinata al valore predefinito');
+    });
+  }
+
   inpMarkerSize.addEventListener('input',e=>{
     document.documentElement.style.setProperty('--marker-size',e.target.value+'px');
     PERSIST.markerSize = parseInt(e.target.value,10);
@@ -2232,6 +2336,14 @@ window.addEventListener('DOMContentLoaded', ()=>{
       if(nowDay!==lastDay){ lastDay=nowDay; try{ loadGlobalStoresFromRemote(); }catch(e){} }
     }, 60*1000);
   })();
+
+    // Applica override dimensione solo per questo marker (se presente)
+    try{
+      const uid = mk.dataset.uid;
+      const st = (typeof PERSIST==="object" && PERSIST && PERSIST.positions) ? PERSIST.positions[uid] : null;
+      const sz = st && typeof st.size === 'number' ? st.size : null;
+      if(sz){ mk.style.setProperty('--marker-size', sz + 'px'); }
+    }catch(e){}    
 });
 </script>
 
