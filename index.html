@@ -2219,6 +2219,19 @@ window.addEventListener('DOMContentLoaded', ()=>{
   const btnSync = document.getElementById('btnSync');
   if(btnPull) btnPull.addEventListener('click', loadGlobalStoresFromRemote);
   if(btnSync) btnSync.addEventListener('click', pushAllToRemote);
+  // AUTO: carica subito i dati remoti all'apertura
+  try{ loadGlobalStoresFromRemote(); }catch(e){ console.warn('Auto-pull failed', e); }
+  // AUTO: ripeti ogni 15 minuti per riflettere eventuali aggiornamenti
+  setInterval(()=>{ try{ loadGlobalStoresFromRemote(); }catch(e){} }, 15*60*1000);
+  // AUTO: al cambio giorno (mezzanotte) ricarica
+  (function(){
+    const fmt = d=> d.toISOString().slice(0,10);
+    let lastDay = fmt(new Date());
+    setInterval(()=>{
+      const nowDay = fmt(new Date());
+      if(nowDay!==lastDay){ lastDay=nowDay; try{ loadGlobalStoresFromRemote(); }catch(e){} }
+    }, 60*1000);
+  })();
 });
 </script>
 
