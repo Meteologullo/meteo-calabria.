@@ -2123,40 +2123,58 @@ async function loadGlobalStoresFromRemote(){
     toast("Configura SYNC.readBase prima di usare 'Carica da remoto'", false);
     return;
   }
-  try{
-    const urls = ["daily_icon_v3.json","daily_override_v2.json","state.json"].map(n=> SYNC.readBase + n + "?t="+Date.now());
-    const [v3r, v2r, str] = await Promise.all(urls.map(u=>fetch(u)));
-    const v3 = v3r.ok ? await v3r.json() : {};
-    const v2 = v2r.ok ? await v2r.json() : {};
-    const st = str.ok ? await str.json() : {};
-
-    window.DAILY_ICON_OVERRIDE_V3 = deepMerge(window.DAILY_ICON_OVERRIDE_V3||{}, v3||{});
-    window.DAILY_OVERRIDE_V2      = deepMerge(window.DAILY_OVERRIDE_V2||{}, v2||{});
-    if(typeof PERSIST!=='undefined'){
-      PERSIST.positions = deepMerge(PERSIST.positions||{}, st.positions||{});
-      if(typeof st.markerSize==='number'){
-        PERSIST.markerSize = st.markerSize;
-        document.documentElement.style.setProperty('--marker-size', PERSIST.markerSize+'px');
-        const s = document.getElementById('inpMarkerSize'); if(s){ s.value = PERSIST.markerSize; }
-      }
-      if(Array.isArray(st.custom)) PERSIST.custom = st.custom.slice();
-    }
-    // aggiorna cache locale
+  const bases = (function(){
+    const b = SYNC.readBase;
+    // toggle presence of trailing dot in repo name
+    const toggled = b.replace(/\/([^\/]+?)(\.?)(\/main\/data\/?)/, (m, name, dot, tail)=> {
+      return dot ? `/${name}${tail}` : `/${name}.${tail}`;
+    });
+    return b===toggled ? [b] : [b, toggled];
+  })();
+  let parsed = null, lastErr = null;
+  for (const base of bases){
     try{
-      localStorage.setItem("dailyIconOverrideV3", JSON.stringify(window.DAILY_ICON_OVERRIDE_V3||{}));
-      localStorage.setItem("dailyOverrideV2", JSON.stringify(window.DAILY_OVERRIDE_V2||{}));
-      if(typeof PERSIST!=='undefined'){
-        localStorage.setItem("CALABRIA_MAP_STATE_V2", JSON.stringify(PERSIST||{}));
+      const urls = ["daily_icon_v3.json","daily_override_v2.json","state.json"].map(n=> base + n + "?t="+Date.now());
+      const [v3r, v2r, str] = await Promise.all(urls.map(u=>fetch(u, {cache:"no-store"})));
+      if(!v3r.ok && !v2r.ok && !str.ok){
+        // try next base
+        continue;
       }
-    }catch(e){}
-
-    if(typeof render==='function') render();
-    toast("Dati caricati da remoto.");
-  }catch(err){
-    console.error(err); toast("Errore nel caricamento remoto", false);
+      const v3 = v3r.ok ? await v3r.json() : {};
+      const v2 = v2r.ok ? await v2r.json() : {};
+      const st = str.ok ? await str.json() : {};
+      parsed = {v3, v2, st};
+      break;
+    }catch(e){ lastErr = e; }
   }
+  if(!parsed){
+    console.error(lastErr);
+    toast("Errore nel caricamento remoto", false);
+    return;
+  }
+  const {v3, v2, st} = parsed;
+  window.DAILY_ICON_OVERRIDE_V3 = deepMerge(window.DAILY_ICON_OVERRIDE_V3||{}, v3||{});
+  window.DAILY_OVERRIDE_V2      = deepMerge(window.DAILY_OVERRIDE_V2||{}, v2||{});
+  if(typeof PERSIST!=='undefined'){
+    PERSIST.positions = deepMerge(PERSIST.positions||{}, st.positions||{});
+    if(typeof st.markerSize==='number'){
+      PERSIST.markerSize = st.markerSize;
+      document.documentElement.style.setProperty('--marker-size', PERSIST.markerSize+'px');
+      const s = document.getElementById('inpMarkerSize'); if(s){ s.value = PERSIST.markerSize; }
+    }
+    if(Array.isArray(st.custom)) PERSIST.custom = st.custom.slice();
+  }
+  // aggiorna cache locale
+  try{
+    localStorage.setItem("dailyIconOverrideV3", JSON.stringify(window.DAILY_ICON_OVERRIDE_V3||{}));
+    localStorage.setItem("dailyOverrideV2", JSON.stringify(window.DAILY_OVERRIDE_V2||{}));
+    if(typeof PERSIST!=='undefined'){
+      localStorage.setItem("CALABRIA_MAP_STATE_V2", JSON.stringify(PERSIST||{}));
+    }
+  }catch(e){}
+  if(typeof render==='function') render();
+  toast("Dati caricati da remoto.");
 }
-
 // =========================
 // Scrittura globale (push)
 // =========================
@@ -2189,7 +2207,7 @@ async function pushAllToRemote(){
     await pushOne("state.json", st, "sync: state");
     toast("Sincronizzazione completata ✔");
   }catch(e){
-    console.error(e); toast("Errore in sincronizzazione", false);
+    console.error(e); toast("Errore in sincronizzazione: "+(e && e.message ? e.message : e), false);
   }
 }
 
@@ -2216,8 +2234,8 @@ window.SYNC_AUTOSAVE = true;
   if(typeof window.scheduleSync !== 'function'){
     let syncTimer=null, syncQueue={};
     window.scheduleSync = function(file, data, message){
-      syncQueue[file] = Object.assign({}, (syncQueue[file]?.data||{}), data);
-      syncQueue[file].__message = message || ("sync: " + file);
+      syncQueue[file] = Object.assign({}, (syncQueue[file]||{}), data);
+syncQueue[file].__message = message || ("sync: " + file);
       clearTimeout(syncTimer);
       syncTimer = setTimeout(flushSync, 1200);
     };
@@ -2270,24 +2288,6 @@ window.SYNC_AUTOSAVE = true;
 })();
 </script>
 
-
-<script>
-/* Hook manuale “Sincronizza (invio)” */
-window.addEventListener('DOMContentLoaded', () => {
-  const btnSync = document.getElementById('btnSync');
-  if (btnSync && typeof pushAllToRemote === 'function') {
-    btnSync.onclick = () => {
-      btnSync.disabled = true;
-      const oldTxt = btnSync.textContent;
-      btnSync.textContent = '...';
-      pushAllToRemote().finally(()=>{
-        btnSync.disabled = false;
-        btnSync.textContent = oldTxt;
-      });
-    };
-  }
-});
-</script>
 
 </body>
 </html>
