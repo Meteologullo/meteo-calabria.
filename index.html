@@ -912,6 +912,72 @@ html, body{ overflow-x:hidden; }
 #widget.empty #forecast{display:none !important;}
 </style>
 
+
+<style>
+/* Patch: show day parts inline */
+.parts{
+  display:flex;
+  flex-wrap:nowrap;
+  gap:0.5rem;
+  justify-content:space-between;
+}
+.part{
+  flex:1 1 calc(25% - 0.5rem);
+  min-width:0;
+}
+@media (max-width:600px){
+  .parts{
+    flex-wrap:wrap;
+  }
+  .part{
+    flex:1 1 48%;
+    margin-bottom:0.5rem;
+  }
+}
+</style>
+
+<!-- === PATCH 2025‑08‑05 Day‑part Hourly table fix === -->
+<style id="daypart-hourly-fix-2025-08-05">
+/* Make the opened part expand full‑width so its hourly table doesn’t overlap neighbours */
+#dayParts .parts .part[open]{
+  flex:1 1 100% !important;   /* claim the full row */
+  width:100% !important;
+}
+/* Give the detail box horizontal scroll on mobile + some breathing room */
+#dayParts .part .detail{
+  width:100%;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  padding-top:6px;
+}
+/* Keep the card nicely centred and capped */
+#dayParts .part .detail .hourly-card{
+  margin-left:auto;
+  margin-right:auto;
+  max-width:860px;
+}
+/* Slightly smaller fonts + min‑width guard on very small screens */
+@media (max-width:600px){
+  #dayParts .part .detail .hourly-card table{
+    font-size:0.82rem;
+    min-width:480px;
+  }
+}
+
+/* Enhance readability of the hourly rows as a responsive grid on desktop */
+@media (min-width:800px){
+  .hourly-list{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+    gap:6px;
+  }
+  .hour-row{
+    padding:14px 16px;
+    border-radius:12px;
+  }
+}
+</style>
+
 </head>
 <body>
 
@@ -1956,11 +2022,11 @@ let live=LIVE;
     }catch(e){ console.warn(e); }
     sEl.innerHTML=renderStation(live,st.nome||g.name,st.distance||0);
     const now=Date.now();
-    let idx=window.fc.hourly.time.findIndex(t=>Date.parse(t)>now);
+    let idx=window.fc.hourly.time.findIndex(t=>Date.parse(t) >= now - 1800000);
     if(idx<0) idx=window.fc.hourly.time.length-1;
     hEl.innerHTML=renderHourly(window.fc,idx);
     dEl.innerHTML=renderDaily(fc);
-    window.renderDayParts && window.renderDayParts(fc);
+    window.renderDayParts && window.renderDayParts(window.subForecastByDay ? window.subForecastByDay(fc, 0) : fc);
 aEl.innerHTML=renderAdvice(live,fc,idx);
     $('#radarFrame').src=`https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&detailLat=${lat}&detailLon=${lon}&width=650&height=450&zoom=6&level=surface&overlay=radar&product=ecmwf`;
   }catch(e){
@@ -2495,10 +2561,15 @@ window.renderHourly = function(data, idx){
         const tempBias = (!isNaN(LIVE.t) && !isNaN(data.hourly.temperature_2m[idx])) ? (LIVE.t - data.hourly.temperature_2m[idx]) : 0;
         const rhBias   = (!isNaN(LIVE.ur) && !isNaN(data.hourly.relativehumidity_2m[idx])) ? (LIVE.ur - data.hourly.relativehumidity_2m[idx]) : 0;
         for(let i=idx; i<Math.min(idx+24, data.hourly.time.length); i++){
-            data.hourly.temperature_2m[i] += tempBias;
-            data.hourly.relativehumidity_2m[i] += rhBias;
-            if(LIVE.rain > 0.1 && i-idx < 3) data.hourly.weathercode[i] = 61; // override first 3h as 'rain'
+        const hoursFromNow = i - idx;
+        const w = Math.max(0, 1 - hoursFromNow / 6); // fade bias to 0 within 6 h
+        data.hourly.temperature_2m[i] += tempBias * w;
+        data.hourly.relativehumidity_2m[i] += rhBias * w;
+        // keep original icon unless model already suggests rain with decent probability
+        if(LIVE.rain > 0.1 && data.hourly.precipitation_probability?.[i] >= 40 && hoursFromNow < 3){
+            data.hourly.weathercode[i] = 61;
         }
+}
     }
     return originalRenderHourly.call(this, data, idx);
 };
@@ -3556,6 +3627,534 @@ syncQueue[file].__message = message || ("sync: " + file);
       updateEmptyState();
     };
   }
+})();
+</script>
+
+
+<!-- PATCH: Map‑aware precip correction v2 (2025‑08‑04) -->
+<script id="map-rain-correction">
+(function(){
+  /* ——— Utility ——— */
+  const R = 6371;
+  const toRad = x=>x*Math.PI/180;
+  function haversine(a,b,c,d){
+    const dLat = toRad(c-a), dLon = toRad(d-b);
+    const h = Math.sin(dLat/2)**2 + Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;
+    return 2*R*Math.atan2(Math.sqrt(h), Math.sqrt(1-h));
+  }
+
+  /* Wet codes & icons */
+  const WET_CODES = [51,53,55,56,57,61,63,65,66,67,71,73,75,77,80,81,82,85,86,95,96,99];
+  const WET_EMOJI_RX = /[🌧️🌦️🌨️⛈️]/;
+
+  const isWetCode   = c=>WET_CODES.includes(Number(c));
+  const isWetIcon   = icon=>typeof icon==='string' && WET_EMOJI_RX.test(icon);
+
+  /* Fill missing lat/lon for points created via UI */
+  function ensureLatLon(){
+    if(!Array.isArray(window.CITIES)||!Array.isArray(window.DAYS)) return;
+    window.DAYS.forEach(day=>{
+      day.points.forEach(pt=>{
+        if(pt.lat==null||pt.lon==null){
+          const c=window.CITIES.find(k=>k.city===pt.city);
+          if(c){ pt.lat=c.lat; pt.lon=c.lon; }
+        }
+      });
+    });
+  }
+
+  /* Decide if precip suggested by map for given lat/lon & dayIdx */
+  function mapSuggestPrecip(lat,lon,dayIdx){
+    const day=window.DAYS?.[dayIdx]; if(!day) return false;
+    let wet=0,dry=0;
+    day.points.forEach(pt=>{
+      if(pt.lat==null||pt.lon==null) return;
+      const dist=haversine(lat,lon,pt.lat,pt.lon);
+      if(dist>50) return;                         // 50 km radius
+      const w=1/(dist+1);
+      (isWetCode(pt.code)||isWetIcon(pt.icon)) ? wet+=w : dry+=w;
+    });
+    return wet>dry;
+  }
+
+  /* Heuristic to choose rain vs snow based on temp / snowfall */
+  function pickPrecipCode(at, snow, temp){
+    if(snow>0 || temp<=1) return 71;              // light snow
+    return at>=12 && at<=18 ? 80 /*shower*/ : 63; // more likely afternoon shower else rain
+  }
+
+  /* Patch forecastDetailed once available */
+  function patchFD(){
+    if(!window.forecastDetailed || window.forecastDetailed._patched) return;
+    const _orig=window.forecastDetailed;
+    window.forecastDetailed = async function(lat,lon){
+      const fc=await _orig(lat,lon);
+
+      try{
+        const hrs=fc.hourly.time.length;
+        for(let h=0;h<hrs;h++){
+          const ts=fc.hourly.time[h];
+          const dIdx = Math.floor((new Date(ts).setHours(0,0,0,0)-Date.now())/864e5);
+          const hour = +ts.slice(11,13);
+
+          /* Raw precip info from Open‑Meteo */
+          const precipMM = fc.hourly.precipitation?.[h] ?? 0;
+          const precipProb = fc.hourly.precipitation_probability?.[h] ?? 0;
+          const snowfallMM = fc.hourly.snowfall?.[h] ?? 0;
+          const temp = fc.hourly.temperature_2m?.[h] ?? 99;
+
+          const mapWet = mapSuggestPrecip(lat,lon,dIdx);
+          const omWetByAmt = (precipMM>=0.1 || snowfallMM>=0.1);
+
+          if((mapWet || omWetByAmt || (precipProb>=25 && mapWet!==false))
+              && !isWetCode(fc.hourly.weathercode[h])){
+            fc.hourly.weathercode[h] = pickPrecipCode(hour, snowfallMM, temp);
+          }
+        }
+
+        /* Re‑synthesize daily summaries */
+        const days=fc.daily.time.length;
+        for(let d=0;d<days;d++){
+          const dayCodes=[], nightCodes=[];
+          fc.hourly.time.forEach((t,idx)=>{
+            if(!t.startsWith(fc.daily.time[d])) return;
+            const hr=+t.slice(11,13);
+            (hr>=6&&hr<18?dayCodes:nightCodes).push(fc.hourly.weathercode[idx]);
+          });
+          const mode=codes=>{
+            const freq={};let best=codes[0],m=0;
+            codes.forEach(c=>{freq[c]=(freq[c]||0)+1;if(freq[c]>m){m=freq[c];best=c;}});
+            return best;
+          };
+          if(dayCodes.length)   fc.daily.weathercode_day[d]=mode(dayCodes);
+          if(nightCodes.length) fc.daily.weathercode_night[d]=mode(nightCodes);
+          fc.daily.weathercode[d]=mode(dayCodes.concat(nightCodes));
+        }
+      }catch(e){console.warn("map‑rain‑corr‑v2 err",e);}
+
+      return fc;
+    };
+    window.forecastDetailed._patched=true;
+  }
+
+  /* Ensure patching once DOM ready */
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded", ()=>{ensureLatLon();patchFD();});
+  }else{
+    ensureLatLon();patchFD();
+  }
+})();
+</script>
+
+
+<!-- PATCH: DayPart summary severity fix (2025‑08‑04) -->
+<script id="dayparts-summary-fix">
+(function(){
+  /* weight function for WMO weather codes */
+  function codeWeight(c){
+    c=Number(c);
+    if(c>=95) return 200;          // Thunderstorm
+    if([75,85,86].includes(c)) return 170; // heavy snow
+    if([71,73,77].includes(c)) return 150; // snow
+    if([65,67,82].includes(c)) return 140; // heavy rain
+    if([61,63,80,81].includes(c)) return 120; // rain / shower
+    if([51,53,55,56,57].includes(c)) return 100; // drizzle
+    if([45,48].includes(c)) return 40;   // fog
+    if(c>=1 && c<=3) return 20;    // clouds
+    return 0;                      // clear or unknown
+  }
+
+  function renderDayPartsSeverity(fc){
+    window.fc = fc;  // expose globally
+    const dayPartsEl = document.getElementById('dayParts');
+    if(!dayPartsEl||!fc||!fc.hourly||!fc.hourly.time) return;
+    const now = Date.now();
+    const parts=[
+      {name:'Mattina', start:6, end:12},
+      {name:'Pomeriggio', start:12, end:18},
+      {name:'Sera', start:18, end:24},
+      {name:'Notte', start:0, end:6}
+    ];
+    let html='<div class="card"><h3>Mattina → Notte</h3><div class="parts">';
+    parts.forEach(part=>{
+      const rows=[];
+      fc.hourly.time.forEach((t,idx)=>{
+        const ts = Date.parse(t);
+        if(ts<now) return;
+        const h = new Date(ts).getHours();
+        if(part.start < part.end){
+          if(h>=part.start && h<part.end) rows.push(idx);
+        }else{ // Notte 0‑6
+          if(h>=part.start || h<part.end) rows.push(idx);
+        }
+      });
+      if(!rows.length) return;
+      // pick most severe code in rows
+      let worstIdx = rows[0], worstW = -1;
+      rows.forEach(i=>{
+        const w = codeWeight(fc.hourly.weathercode[i]);
+        if(w > worstW){ worstW = w; worstIdx = i; }
+      });
+      const isNight = fc.hourly.is_day && fc.hourly.is_day[worstIdx]===0;
+      const icon = window.iconHTML_NOEMOJI?window.iconHTML_NOEMOJI(fc.hourly.weathercode[worstIdx], isNight):'';
+      let tmin=Infinity, tmax=-Infinity;
+      rows.forEach(i=>{
+        const t = fc.hourly.temperature_2m[i];
+        if(t<tmin) tmin=t;
+        if(t>tmax) tmax=t;
+      });
+      html += `
+      <details class="part">
+        <summary><h4>${part.name}</h4>${icon}<div class="temp">${Math.round(tmax)}°</div><div class="min">${Math.round(tmin)}°</div></summary>
+        <div class="detail"></div>
+      </details>`;
+    });
+    html+='</div></div>';
+    dayPartsEl.innerHTML = html;
+
+    /* Attach toggle listeners for details (adapted from original) */
+    const ranges=[[6,12],[12,18],[18,24],[0,6]];
+    dayPartsEl.querySelectorAll('.part').forEach((partEl, idx)=>{
+      partEl.addEventListener('toggle', function(){
+        if(!this.open) return;
+        const detailBox = this.querySelector('.detail');
+        if(detailBox.dataset.filled) return;
+        const range = ranges[idx];
+        const rows=[];
+        fc.hourly.time.forEach((t,i)=>{
+          const ts=Date.parse(t);
+          if(ts<now) return;
+          const h=new Date(ts).getHours();
+          if(range[0] < range[1]){
+            if(h>=range[0]&&h<range[1]) rows.push(i);
+          }else{
+            if(h>=range[0]||h<range[1]) rows.push(i);
+          }
+        });
+        if(typeof window.renderHourly==='function'){
+          const sub = JSON.parse(JSON.stringify(fc));
+          ['time','weathercode','temperature_2m','relativehumidity_2m','precipitation','precipitation_probability','wind_speed_10m','is_day'].forEach(key=>{
+            if(sub.hourly&&sub.hourly[key]) sub.hourly[key] = rows.map(i=>fc.hourly[key][i]);
+          });
+          detailBox.innerHTML = window.renderHourly(sub,0);
+        }
+        detailBox.dataset.filled='1';
+        setTimeout(()=>{ this.scrollIntoView({behavior:'smooth',block:'start'}); },50);
+      });
+    });
+  }
+
+  if(window.renderDayParts && !window.renderDayParts._patched){
+    window.renderDayParts = function(fc){
+      renderDayPartsSeverity(fc);
+    };
+    window.renderDayParts._patched=true;
+  }else if(!window.renderDayParts){
+    window.renderDayParts = function(fc){
+      renderDayPartsSeverity(fc);
+    };
+  }
+})();
+</script>
+
+
+<!-- === HOTFIX 2025‑08‑04: dayParts sync & window.fc preservation === -->
+<script id="dayparts-sync-hotfix">
+(function(){
+  // Wrap current renderDayParts to always expose fc globally,
+  // so the detail listeners can pick the correct day's data.
+  function apply(){
+    if(typeof window.renderDayParts!=='function') return;
+    if(window.renderDayParts._synced) return;          // only once
+    const orig = window.renderDayParts;
+    window.renderDayParts = function(fc){
+      try{ window.fc = fc; }catch(e){}
+      return orig(fc);
+    };
+    window.renderDayParts._synced = true;
+  }
+
+  // Initial attempt
+  apply();
+  // In case other patches load later and overwrite again…
+  // keep trying for ~3 s after DOM ready
+  let tries = 0;
+  const timer = setInterval(()=>{
+    apply();
+    if(++tries > 30) clearInterval(timer);
+  }, 100); // every 100 ms
+})();
+</script>
+
+
+<!-- === HOTFIX 2025‑08‑04 b: keep global fc = full dataset === -->
+<script id="dayparts-sync-hotfix2">
+(function(){
+  function isFull(fc){
+    return fc && fc.daily && Array.isArray(fc.daily.time) && fc.daily.time.length > 1;
+  }
+  function apply(){
+    if(typeof window.renderDayParts!=='function') return;
+    if(window.renderDayParts._synced2) return;
+    const orig = window.renderDayParts;
+    window.renderDayParts = function(fc){
+      const prevFull = window.fc;
+      const res = orig(fc);
+      if(isFull(fc)){
+        window.fc = fc;                 // store full forecast
+      }else{
+        window.fc = prevFull || window.fc; // restore
+      }
+      return res;
+    };
+    window.renderDayParts._synced2 = true;
+  }
+  apply();
+  let tries=0;
+  const t = setInterval(()=>{ apply(); if(++tries>30) clearInterval(t); }, 100);
+})();
+</script>
+
+
+<!-- === HOTFIX 2025‑08‑04 c: icone corrette Giorno/Notte per Mattina‑Sera === -->
+<script id="dayparts-icon-fix">
+(function(){
+  function between(h,start,end){ return start<end ? (h>=start && h<end) : (h>=start || h<end); }
+  const partRanges = [
+    {start:6,end:12},   // Mattina
+    {start:12,end:18},  // Pomeriggio
+    {start:18,end:24},  // Sera
+    {start:0,end:6}     // Notte
+  ];
+
+  function fixIcons(fc){
+    if(!fc||!fc.hourly||!fc.hourly.is_day) return;
+    const parts = document.querySelectorAll('#dayParts .parts > details.part');
+    if(!parts.length) return;
+
+    parts.forEach((det, idx)=>{
+      const {start,end} = partRanges[idx] || {};
+      if(start===undefined) return;
+
+      const rows = [];
+      for(let i=0;i<fc.hourly.time.length;i++){
+        const h = new Date(fc.hourly.time[i]).getHours();
+        if(between(h,start,end)) rows.push(i);
+      }
+      if(!rows.length) return;
+
+      const dayCnt = rows.reduce((s,i)=> s + (fc.hourly.is_day[i] ? 1:0), 0);
+      const isNight = dayCnt < rows.length/2;
+
+      const code = fc.hourly.weathercode[rows[0]];
+      if(typeof window.iconHTML_NOEMOJI!=='function') return;
+      const html = window.iconHTML_NOEMOJI(code, isNight);
+
+      const summary = det.querySelector('summary');
+      if(summary){
+        const iconEl = summary.querySelector('svg, img, i');
+        if(iconEl){
+          iconEl.outerHTML = html;
+        }else{
+          summary.insertAdjacentHTML('beforeend', html);
+        }
+      }
+    });
+  }
+
+  function apply(){
+    if(typeof window.renderDayParts!=='function') return;
+    if(window.renderDayParts._synced3) return;
+    const orig = window.renderDayParts;
+    window.renderDayParts = function(fc){
+      const res = orig(fc);
+      try{ fixIcons(fc);}catch(e){}
+      return res;
+    };
+    window.renderDayParts._synced3 = true;
+  }
+  apply();
+  let t=0, timer=setInterval(()=>{ apply(); if(++t>30) clearInterval(timer); },100);
+})();
+</script>
+
+
+<!-- === HOTFIX 2025‑08‑04 d: trioraria & icona sera === -->
+<script id="trihourly-fix">
+(function(){
+  /* severity weight (same mapping used altrove) */
+  function codeWeight(c){
+    c=Number(c);
+    if(c>=95) return 200;
+    if([75,85,86].includes(c)) return 170;
+    if([71,73,77].includes(c)) return 150;
+    if([65,67,82].includes(c)) return 140;
+    if([61,63,80,81].includes(c)) return 120;
+    if([51,53,55,56,57].includes(c)) return 100;
+    if([45,48].includes(c)) return 40;
+    if(c>=1 && c<=3) return 20;
+    return 0;
+  }
+
+  /* ---------- override renderHourly -> tri‑hourly ---------- */
+  if(typeof window.renderHourly==='function' && !window.renderHourly._tri){
+    window.renderHourly_RAW = window.renderHourly;
+    window.renderHourly = function(data, idx=0){
+      const rows=[];
+      const len = data.hourly.time.length;
+      const groups = [];
+      for(let i=idx;i<len;i+=3){
+        groups.push({start:i,end:Math.min(i+2,len-1)});
+        if(groups.length>=24/3) break; // max 8 tri‑hour groups
+      }
+      const LIVE = window.LIVE;
+
+      groups.forEach(g=>{
+        const ids=[];
+        for(let j=g.start;j<=g.end;j++) ids.push(j);
+        const startH = data.hourly.time[g.start].slice(11,13);
+        const endH = (()=>{
+          const d=new Date(data.hourly.time[g.end]);
+          d.setHours(d.getHours()+1);
+          return ('0'+d.getHours()).slice(-2);
+        })();
+        /* Dominant condition */
+        let worst= -1, worstIdx=g.start;
+        ids.forEach(i=>{
+          const w = codeWeight(data.hourly.weathercode[i]);
+          if(w > worst){ worst = w; worstIdx = i; }
+        });
+        const isNight = data.hourly.is_day && data.hourly.is_day[worstIdx]===0;
+        const icon = window.iconHTML_NOEMOJI?window.iconHTML_NOEMOJI(data.hourly.weathercode[worstIdx], isNight):'';
+
+        /* Aggregates */
+        const avg = (arr)=>arr.reduce((a,v)=>a+v,0)/arr.length;
+        const sum = (arr)=>arr.reduce((a,v)=>a+v,0);
+        const max = (arr)=>arr.reduce((a,v)=>v>a?v:a, -Infinity);
+
+        const tempOffset = (LIVE && !isNaN(LIVE.t)) ? (LIVE.t - data.hourly.temperature_2m[idx]) : 0;
+        const urOffset   = (LIVE && !isNaN(LIVE.ur)) ? (LIVE.ur - data.hourly.relativehumidity_2m[idx]) : 0;
+
+        const temp = avg(ids.map(i=>data.hourly.temperature_2m[i])) + tempOffset;
+        const ur   = avg(ids.map(i=>data.hourly.relativehumidity_2m[i])) + urOffset;
+        const rain = sum(ids.map(i=>data.hourly.precipitation[i]));
+        const prob = max(ids.map(i=>data.hourly.precipitation_probability[i]));
+        const wind = avg(ids.map(i=>data.hourly.wind_speed_10m[i]));
+
+        rows.push(
+          `<tr>
+             <td style="padding:12px 10px;">${startH}‑${endH}</td>
+             <td style="padding:12px 10px; width:36px;">${icon}</td>
+             <td style="padding:12px 10px;">${wmoDesc(data.hourly.weathercode[worstIdx])}</td>
+             <td style="padding:12px 10px;">${fmt(temp,"°")}</td>
+             <td style="padding:12px 10px;">${fmt(ur,"%")}</td>
+             <td style="padding:12px 10px;">${fmt(rain," mm",1)}</td>
+             <td style="padding:12px 10px;">${fmt(prob,"%")}</td>
+             <td style="padding:12px 10px;">${fmt(wind," km/h")}</td>
+           </tr>`
+        );
+      });
+
+      return \`
+        <div class="card hourly-card" style="border-radius:14px; box-shadow:0 10px 28px rgba(0,0,0,.25); overflow:hidden;">
+          <h3 style="margin:0; padding:14px 16px; position:sticky; top:0; background:rgba(255,255,255,.14); z-index:3;">Prossime 24 h (³h)</h3>
+          <div class="scroll-x" style="overflow-x:auto; -webkit-overflow-scrolling:touch; padding:0 4px;">
+            <table class="hourly" style="border-collapse:separate; border-spacing:0; width:max-content; min-width:560px;">
+              <thead>
+                <tr>
+                  <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Ora</th>
+                  <th style="padding:10px 12px; background:rgba(255,255,255,.16);"></th>
+                  <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Cond.</th>
+                  <th style="padding:10px 12px; background:rgba(255,255,255,.16);">T°</th>
+                  <th style="padding:10px 12px; background:rgba(255,255,255,.16);">UR</th>
+                  <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Pioggia</th>
+                  <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Prob%</th>
+                  <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Vento</th>
+                </tr>
+              </thead>
+              <tbody>\${rows.join("")}</tbody>
+            </table>
+          </div>
+        </div>\`;
+    };
+    window.renderHourly._tri = true;
+  }
+
+  /* ---------- forza icona notturna per ‘Sera’ ---------- */
+  function fixEveningIcons(){
+    document.querySelectorAll('#dayParts .part').forEach((partEl,idx)=>{
+      if(idx!==2) return; // solo 'Sera'
+      const sum = partEl.querySelector('summary');
+      if(!sum) return;
+      const ico = sum.querySelector('svg,img,i');
+      if(!ico) return;
+      /* ricava weathercode dall'attributo data-digit se c'è, altrimenti lascia */
+      const wcAttr = ico.dataset?.wc || null;
+      const wc = wcAttr ? Number(wcAttr) : null;
+      const html = window.iconHTML_NOEMOJI ? window.iconHTML_NOEMOJI(wc || 0, true) : '';
+      ico.outerHTML = html;
+    });
+  }
+  document.addEventListener('DOMContentLoaded', ()=>{ setTimeout(fixEveningIcons,200); });
+})();
+</script>
+
+
+<!-- === HOTFIX 2025‑08‑04 d: night icon for “Sera” + tabella trioraria === -->
+<script id="evening-night-trio-hotfix">
+(function(){
+  /* ---------- icone ---------- */
+  function fixEveningIcons(fc){
+    const parts=document.querySelectorAll('#dayParts .parts > details.part');
+    if(!parts.length) return;
+    parts.forEach((det,i)=>{
+      if(i!==2) return;                       // solo "Sera"
+      const sum=det.querySelector('summary');
+      if(!sum||!window.iconHTML_NOEMOJI) return;
+      const code=(fc?.hourly?.weathercode||[0])[0];
+      const html=iconHTML_NOEMOJI(code,true); // forza isNight=true
+      const ico=sum.querySelector('svg,img,i');
+      ico? ico.outerHTML=html : sum.insertAdjacentHTML('beforeend',html);
+    });
+  }
+
+  /* ---------- tabella trioraria ---------- */
+  function patchRenderHourly(){
+    if(typeof window.renderHourly!=='function'||window.renderHourly._tri) return;
+    const orig=window.renderHourly;
+    window.renderHourly=function(data,idx){
+      const h=data.hourly,len=h.time.length,rows=[];
+      for(let i=idx;i<idx+24&&i<len;i+=3){
+        const idxs=[i,i+1,i+2].filter(j=>j<len);
+        const night=idxs.reduce((n,j)=>n+(h.is_day? (h.is_day[j]===0):0),0)>idxs.length/2;
+        const code=idxs.reduce((best,j)=>h.precipitation&&h.precipitation[j]>(h.precipitation[best]||0)?j:best,idxs[0]);
+        const sumPrec=idxs.reduce((s,j)=>s+(h.precipitation? h.precipitation[j]:0),0);
+        const avg=(arr)=>Math.round(idxs.reduce((s,j)=>s+arr[j],0)/idxs.length*10)/10;
+        rows.push(`<tr>
+<td style="padding:12px 10px;">${h.time[i].slice(11,16)}-${h.time[Math.min(i+2,len-1)].slice(11,16)}</td>
+<td style="padding:12px 10px;width:36px;">${iconHTML_NOEMOJI(h.weathercode[code],night)}</td>
+<td style="padding:12px 10px;">${wmoDesc(h.weathercode[code])}</td>
+<td style="padding:12px 10px;">${fmt(avg(h.temperature_2m),"°")}</td>
+<td style="padding:12px 10px;">${fmt(avg(h.relativehumidity_2m),"%")}</td>
+<td style="padding:12px 10px;">${fmt(sumPrec," mm",1)}</td>
+<td style="padding:12px 10px;">${fmt(Math.max(...idxs.map(j=>h.precipitation_probability[j])),"%")}</td>
+<td style="padding:12px 10px;">${fmt(avg(h.wind_speed_10m)," km/h")}</td>
+</tr>`);
+      }
+      const hdr=document.querySelector('#hourlyCardHeader .card-title');
+      if(hdr&&!hdr.textContent.includes('³h')) hdr.textContent=hdr.textContent.replace('Prossime 24 h','Prossime 24 h (³h)');
+      return '<table class="hourly-table">'+rows.join('')+'</table>';
+    };
+    window.renderHourly._tri=true;
+  }
+
+  /* ---------- orchestrazione ---------- */
+  function apply(){
+    patchRenderHourly();
+    if(window.fc) fixEveningIcons(window.fc);
+  }
+  apply();
+  let t=0;const timer=setInterval(()=>{apply();if(++t>100)clearInterval(timer);},100);
 })();
 </script>
 
