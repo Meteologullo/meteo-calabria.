@@ -978,6 +978,30 @@ html, body{ overflow-x:hidden; }
 }
 </style>
 
+<style id="tri-modal-css">
+@media (max-width:700px){
+  .triModal{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.55);backdrop-filter:blur(4px);z-index:1400;
+  }
+  .triModal.hidden{display:none;}
+  .triModal .box{
+    position:relative;background:var(--glass);backdrop-filter:blur(var(--blur));
+    border-radius:var(--radius);padding:1rem 1.2rem;max-width:92vw;max-height:80vh;
+    overflow-y:auto;color:var(--text);
+  }
+  #triModalClose{
+    position:absolute;top:8px;right:12px;border:none;background:none;
+    font-size:1.6rem;color:var(--text);cursor:pointer;
+  }
+  .card .parts::after{
+    content:'Tocca un pannello per la previsione tri‑oraria';
+    display:block;margin-top:4px;font-size:0.75rem;text-align:center;color:var(--text-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+}
+</style>
+
 </head>
 <body>
 
@@ -3780,7 +3804,8 @@ syncQueue[file].__message = message || ("sync: " + file);
       const rows=[];
       fc.hourly.time.forEach((t,idx)=>{
         const ts = Date.parse(t);
-        if(ts<now) return;
+        // MODO: show past hours also
+        // if(ts<now) return;
         const h = new Date(ts).getHours();
         if(part.start < part.end){
           if(h>=part.start && h<part.end) rows.push(idx);
@@ -3823,7 +3848,8 @@ syncQueue[file].__message = message || ("sync: " + file);
         const rows=[];
         fc.hourly.time.forEach((t,i)=>{
           const ts=Date.parse(t);
-          if(ts<now) return;
+          // MODO: show past hours also
+        // if(ts<now) return;
           const h=new Date(ts).getHours();
           if(range[0] < range[1]){
             if(h>=range[0]&&h<range[1]) rows.push(i);
@@ -4155,6 +4181,183 @@ syncQueue[file].__message = message || ("sync: " + file);
   }
   apply();
   let t=0;const timer=setInterval(()=>{apply();if(++t>100)clearInterval(timer);},100);
+})();
+</script>
+
+<div id="triModal" class="triModal hidden" role="dialog" aria-modal="true">
+  <div class="box" id="triModalBox">
+    <button id="triModalClose" aria-label="Chiudi">✕</button>
+  </div>
+</div>
+<!-- end tri‑hourly modal -->
+
+<script id="tri-modal-js">
+(function(){
+  const mq = window.matchMedia('(max-width:700px)');
+  const isMobile = () => mq.matches;
+
+  function openModal(innerHTML){
+    const modal=document.getElementById('triModal');
+    const box=document.getElementById('triModalBox');
+    box.querySelectorAll('.inject').forEach(n=>n.remove());
+    const wrap=document.createElement('div');
+    wrap.className='inject';
+    wrap.innerHTML=innerHTML;
+    box.appendChild(wrap);
+    modal.classList.remove('hidden');
+    document.body.style.overflow='hidden';
+  }
+  function closeModal(){
+    document.getElementById('triModal').classList.add('hidden');
+    document.body.style.overflow='';
+  }
+
+  // intercetta click sui summary dei pannelli
+  document.addEventListener('click', function(e){
+    const summary = e.target.closest('details.part > summary');
+    if(!summary || !isMobile()) return;
+
+    e.preventDefault();
+    const part = summary.parentElement;
+
+    // forza open per far popolare .detail
+    part.open = true;
+
+    // leggero delay per dare tempo allo script originale
+    setTimeout(function(){
+      const detail = part.querySelector('.detail');
+      const html = (detail && detail.innerHTML.trim()) ? detail.innerHTML
+        : '<p style="padding:1rem;text-align:center">— dati non disponibili —</p>';
+      openModal(html);
+      part.open = false;
+    }, 60);
+  }, true);
+
+  // chiusura
+  document.addEventListener('click', function(e){
+    if(e.target.id==='triModal' || e.target.id==='triModalClose') closeModal();
+  });
+})();
+</script>
+
+
+<!-- PATCH 2025‑08‑05 final: ensure day‑parts icons use worst phenomenon -->
+<script id="dayparts-icon-severity-2025-08-05">
+(function(){
+  function codeWeight(c){
+    c=Number(c);
+    if(c>=95) return 200;
+    if([75,85,86].includes(c)) return 170;
+    if([71,73,77].includes(c)) return 150;
+    if([65,67,82].includes(c)) return 140;
+    if([61,63,80,81].includes(c)) return 120;
+    if([51,53,55,56,57].includes(c)) return 100;
+    if([45,48].includes(c)) return 40;
+    if(c>=1 && c<=3) return 20;
+    return 0;
+  }
+
+  function recomputeIcons(fc){
+    if(!fc||!fc.hourly||!fc.hourly.time) return;
+    const parts=[{start:6,end:12},{start:12,end:18},{start:18,end:24},{start:0,end:6}];
+    const summaries=document.querySelectorAll('#dayParts summary');
+    summaries.forEach((sum,idx)=>{
+      if(idx>=parts.length) return;
+      const part=parts[idx];
+      const rows=[];
+      fc.hourly.time.forEach((t,i)=>{
+        const h=new Date(t).getHours();
+        if(part.start<part.end){
+          if(h>=part.start&&h<part.end) rows.push(i);
+        }else{
+          if(h>=part.start||h<part.end) rows.push(i);
+        }
+      });
+      if(!rows.length) return;
+      let worstIdx=rows[0], worstW=-1;
+      rows.forEach(i=>{
+        const w=codeWeight(fc.hourly.weathercode[i]);
+        if(w>worstW){worstW=w; worstIdx=i;}
+      });
+      const isNight=fc.hourly.is_day&&fc.hourly.is_day[worstIdx]===0;
+      const html=window.iconHTML_NOEMOJI?window.iconHTML_NOEMOJI(fc.hourly.weathercode[worstIdx],isNight):'';
+      if(html){
+        const curIcon=sum.querySelector('svg,img');
+        if(curIcon) curIcon.outerHTML=html;
+      }
+    });
+  }
+
+  function patch(){
+    if(typeof window.renderDayParts!=='function') return;
+    if(window.renderDayParts._sev2) return;
+    const orig=window.renderDayParts;
+    window.renderDayParts=function(fc){
+      const res = orig(fc);
+      try{ recomputeIcons(fc||window.fc); }catch(e){}
+      return res;
+    };
+    window.renderDayParts._sev2=true;
+    // run once in case first render already happened
+    setTimeout(()=>{ try{ recomputeIcons(window.fc); }catch(e){} },500);
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    patch();
+    // in case other scripts overwrite renderDayParts later
+    let attempts=0;
+    const timer=setInterval(()=>{
+      patch();
+      if(++attempts>30) clearInterval(timer);
+    },100);
+  });
+})();
+</script>
+
+<!-- PATCH 2025‑08‑06: 7‑day strip worst‑phenomenon icon -->
+<script id="seven-day-severity-fix">
+(function(){
+  function codeWeight(c){
+    c = Number(c);
+    if(c >= 95) return 200;
+    if([75,85,86].includes(c)) return 170;
+    if([71,73,77].includes(c)) return 150;
+    if([65,67,82].includes(c)) return 140;
+    if([61,63,80,81].includes(c)) return 120;
+    if([51,53,55,56,57].includes(c)) return 100;
+    if([45,48].includes(c)) return 40;
+    if(c >= 1 && c <= 3) return 20;
+    return 0;
+  }
+
+  if(typeof window.renderDaily === 'function' && !window.renderDaily._sev){
+    const orig = window.renderDaily;
+    window.renderDaily = function(fc){
+      try {
+        const dayCnt = (fc && fc.daily && fc.daily.time ? fc.daily.time.length : 0);
+        const worstCodes = new Array(dayCnt).fill(0);
+        for(let d = 0; d < dayCnt; d++) {
+          let worstW = -1, worstC = fc.daily.weathercode[d];
+          for(let i = 0; i < fc.hourly.time.length; i++) {
+            if(fc.hourly.time[i].startsWith(fc.daily.time[d])) {
+              const w = codeWeight(fc.hourly.weathercode[i]);
+              if(w > worstW) { worstW = w; worstC = fc.hourly.weathercode[i]; }
+            }
+          }
+          worstCodes[d] = worstC;
+        }
+        const backup = fc.daily.weathercode.slice();
+        fc.daily.weathercode = worstCodes;
+        const html = orig(fc);
+        fc.daily.weathercode = backup;
+        return html;
+      } catch(e) {
+        console.warn('7‑day severity patch error', e);
+        return orig(fc);
+      }
+    };
+    window.renderDaily._sev = true;
+  }
 })();
 </script>
 
