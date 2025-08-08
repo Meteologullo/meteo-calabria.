@@ -1071,6 +1071,7 @@ html, body{ overflow-x:hidden; }
       <button id="btnAddMarker">➕ Nuovo marker</button>
       <button id="btnSaveLayout">💾 Layout</button>
     </div>
+<div class="row"><button id="btnRestoreAuto">↩︎ Ripristina icona automatica (giorno+notte)</button></div>
 
     
     <div id="iconList" class="icon-list"></div>
@@ -2561,7 +2562,89 @@ pt.city=selCity.value;
   }catch(e){}
 
 })();
-</script>
+
+  
+  /* —— Ripristina icona automatica (per città selezionata) —— */
+  (function(){
+    const btn = document.getElementById('btnRestoreAuto');
+    if(!btn) return;
+    
+btn.addEventListener('click', async ()=>{
+  try{
+    
+if(typeof editIdx==='undefined' || editIdx===null || isNaN(editIdx)){
+  // Fallback: prova a dedurre l'indice dal DOM (marker con .selected o il primo evidenziato/hoverato)
+  var _mk = document.querySelector('#mapArea .marker.selected') || document.querySelector('#mapArea .marker[data-idx]');
+  if(_mk && !isNaN(+_mk.dataset.idx)){
+    editIdx = +_mk.dataset.idx;
+  } else {
+    alert('Clicca prima un marker sulla mappa.');
+    return;
+  }
+}
+
+    const dayObj = DAYS && DAYS[curDay];
+    if(!dayObj || !Array.isArray(dayObj.points)){ alert('Dati giorno non disponibili.'); return; }
+    const pt = dayObj.points[editIdx];
+    if(!pt){ alert('Marker non trovato.'); return; }
+
+    // 1) Chiave data = oggi + curDay
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+curDay);
+    const key = d.toISOString().slice(0,10);
+
+    // 2) Pulisci override V3 (day+night) + V2 (icon/code)
+    const uid = pt.uid || (typeof uidForCity==='function' ? uidForCity(pt.city) : pt.city);
+    if(typeof clearDailyIconOverrideV3==='function'){
+      try{ clearDailyIconOverrideV3(key, uid, 'day'); }catch(e){}
+      try{ clearDailyIconOverrideV3(key, uid, 'night'); }catch(e){}
+    }
+    try{
+      if(window.DAILY_OVERRIDE && DAILY_OVERRIDE[key] && DAILY_OVERRIDE[key][pt.city]){
+        delete DAILY_OVERRIDE[key][pt.city].icon;
+        delete DAILY_OVERRIDE[key][pt.city].code;
+        localStorage.setItem("dailyOverride", JSON.stringify(DAILY_OVERRIDE));
+      }
+    }catch(e){}
+
+    // 3) Rimuovi icona custom persistita
+    try{
+      if(window.PERSIST && PERSIST.positions && PERSIST.positions[uid]){
+        delete PERSIST.positions[uid].icon;
+        saveState && saveState();
+      }
+    }catch(e){}
+
+    // 4) Ricalcola codice WMO automatico con le coordinate
+    let codeAuto = pt.code;
+    try{
+      const fc = await forecast(pt.lat, pt.lon);
+      const times = (fc && fc.daily && fc.daily.time) ? fc.daily.time : [];
+      let dIdx = times.findIndex(t => (t||'').slice(0,10) === key);
+      if(dIdx < 0) dIdx = 0;
+      codeAuto = (fc.daily.weathercode_day && fc.daily.weathercode_day[dIdx] !== undefined)
+                  ? fc.daily.weathercode_day[dIdx]
+                  : (fc.daily.weathercode && fc.daily.weathercode[dIdx] !== undefined
+                      ? fc.daily.weathercode[dIdx]
+                      : (fc.daily.weathercode_night ? fc.daily.weathercode_night[dIdx] : undefined));
+    }catch(e){
+      console.warn('forecast fetch failed, fallback to existing code', e);
+    }
+
+    // 5) Imposta code auto e rimuovi icona custom dal punto (solo per il giorno corrente)
+    if(codeAuto !== undefined){
+      pt.code = Number(codeAuto);
+      delete pt.icon;
+    }
+
+    // 6) Re-render mappa + pannelli dettagli
+    try{ render && render(); }catch(e){}
+    try{ document.dispatchEvent(new CustomEvent('forceHourlyRerender')); }catch(e){}
+    toast && toast('Icona automatica ripristinata per ' + (pt.city||'selezione'));
+  }catch(e){
+    alert('Errore nel ripristino automatico: ' + (e.message||e));
+  }
+});
+})();</script>
 
 <!-- Hidden override editor -->
 <div id="overridePanel" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center">
@@ -4361,5 +4444,313 @@ syncQueue[file].__message = message || ("sync: " + file);
 })();
 </script>
 
+
+<script id="map-auto-sync-patch-v5">
+(function(){
+  // === ALWAYS-ON map → automatiche sync (v5) ===
+
+  // Normalize strings (Italian accents → ascii)
+  function norm(s){
+    try{
+      s = (""+s).toLowerCase().trim();
+      s = s.normalize ? s.normalize('NFD').replace(/[\u0300-\u036f]/g,'') : s;
+      s = s.replace(/[’']/g,"'").replace(/\s+/g,' ');
+      return s;
+    }catch(e){ return (s||""); }
+  }
+  function baseFromQuery(q){
+    if(!q) return "";
+    let s = norm(q);
+    if(s.includes(',')) s = s.split(',')[0];
+    if(s.includes('-')) s = s.split('-')[0];
+    return s.trim();
+  }
+  function uidForQuery(q){
+    try{
+      const name = baseFromQuery(q);
+      if(window.uidForCity) return window.uidForCity(name);
+      return 'city:'+name;
+    }catch(e){ return ""; }
+  }
+  function uidFromDaysByName(q){
+    try{
+      const name = baseFromQuery(q);
+      const day = (Array.isArray(window.DAYS) && window.DAYS.length)
+        ? window.DAYS[(typeof window.curDay==='number'&&isFinite(window.curDay))? window.curDay : 0]
+        : null;
+      if(!day || !Array.isArray(day.points)) return "";
+      // exact normalized match first
+      for(const p of day.points){
+        if(norm(p.city)===name) return p.uid || (window.uidForCity? window.uidForCity(p.city): 'city:'+norm(p.city));
+      }
+      // startsWith fallback
+      for(const p of day.points){
+        if(norm(p.city).startsWith(name)) return p.uid || (window.uidForCity? window.uidForCity(p.city): 'city:'+norm(p.city));
+      }
+      return "";
+    }catch(e){ return ""; }
+  }
+  function uidNearestToFC(fc){
+    try{
+      const day = (Array.isArray(window.DAYS) && window.DAYS.length)
+        ? window.DAYS[(typeof window.curDay==='number'&&isFinite(window.curDay))? window.curDay : 0]
+        : null;
+      if(!day || !Array.isArray(day.points) || !fc) return "";
+      let best=null, bestd=1e18;
+      for(const p of day.points){
+        if(typeof p.lat!=='number'||typeof p.lon!=='number') continue;
+        const d=(p.lat-fc.latitude)*(p.lat-fc.latitude)+(p.lon-fc.longitude)*(p.lon-fc.longitude);
+        if(d<bestd){ bestd=d; best=p; }
+      }
+      return best ? (best.uid || (window.uidForCity? window.uidForCity(best.city): 'city:'+norm(best.city))) : "";
+    }catch(e){ return ""; }
+  }
+
+  function dateKeyFromCurDay(){
+    const d=new Date(); d.setHours(0,0,0,0);
+    try{
+      const off = (typeof window.curDay==='number' && isFinite(window.curDay)) ? window.curDay : 0;
+      d.setDate(d.getDate()+off);
+    }catch(e){}
+    return d.toISOString().slice(0,10);
+  }
+
+  function getIconOverride(dateKey, uid, seg){
+    try{
+      if(typeof window.getDailyIconOverrideV3==='function'){
+        const o=window.getDailyIconOverrideV3(dateKey, uid, seg);
+        return (o && o.icon) ? o.icon : null;
+      }
+    }catch(e){}
+    return null;
+  }
+
+  function macroFromIcon(iconFile){ if(!iconFile) return null; const s = (""+iconFile).toLowerCase();
+    if(s.includes('tempor')) return 'thunder';
+    if(s.includes('piogg') || s.includes('rovesci') || s.includes('piovaschi') || s.includes('rain')) return 'rain';
+    if(s.includes('neve') || s.includes('snow')) return 'snow';
+    if(s.includes('nebbia') || s.includes('foschia') || s.includes('mist') || s.includes('fog')) return 'fog';
+    if(s.includes('nuvol')) return s.includes('parz')||s.includes('poco') ? 'partly' : 'cloudy';
+    if(s.includes('sereno') || s.includes('clear') || s.includes('sun')) return 'clear';
+    return 'cloudy';
+  }
+  function inferWMOFromIcon(iconFile, isNight){ if(!iconFile) return null; const s=(""+iconFile).toLowerCase();
+    if(s.includes('tempor') || s.includes('thunder')) return 95;
+    if(s.includes('moderata')) return 63;
+    if(s.includes('debole')) return 61;
+    if(s.includes('piovaschi') || s.includes('rovesci')) return 80;
+    if(s.includes('pioggia') || s.includes('rain')) return 61;
+    if(s.includes('neve') || s.includes('snow')) return 71;
+    if(s.includes('ghiaccio') || s.includes('grandine')) return 67;
+    if(s.includes('nebbia') || s.includes('foschia') || s.includes('mist') || s.includes('fog')) return 45;
+    if(s.includes('nuvoloso') || s.includes('cloud')) return s.includes('parz')||s.includes('poco') ? 2 : 3;
+    if(s.includes('sereno') || s.includes('clear') || s.includes('sun')) return 0;
+    return 2;
+  }
+
+  function pickBestHourInWindow(fc, start, end, segment, want){
+    let best={i:-1,score:-1e12};
+    for(let i=start;i<end && i<fc.hourly.time.length;i++){
+      const isSeg = (segment==='night') ? (fc.hourly.is_day && fc.hourly.is_day[i]===0)
+                                        : (fc.hourly.is_day && fc.hourly.is_day[i]===1);
+      if(!isSeg) continue;
+      const mm   = Number((fc.hourly.precipitation||[])[i] ?? 0);
+      const pr   = Number((fc.hourly.precipitation_probability||[])[i] ?? 0);
+      const ur   = Number((fc.hourly.relativehumidity_2m||[])[i] ?? 0);
+      const t    = Number((fc.hourly.temperature_2m||[])[i] ?? 9999);
+      const wind = Number((fc.hourly.wind_speed_10m||[])[i] ?? 0);
+      let score=-1e6;
+      switch(want){
+        case 'thunder': score=(mm*1000)+(pr*8)+(wind*0.5); break;
+        case 'rain': score=(mm*1000)+(pr*10); break;
+        case 'snow': score=((t<=1.2?5000:-5000))+(mm*1000)+(100-Math.abs(t-0)); break;
+        case 'fog': score=(ur*8)-(mm*300)-(wind*5)+(100-(pr||0)); break;
+        case 'cloudy': score=(pr*6)+(ur*3)+(mm*50); break;
+        case 'partly': score=(100-Math.abs(ur-60))+(100-(pr||0))-(mm*100); break;
+        default: score=(100-(pr||0))-(mm*200)-(ur*0.5);
+      }
+      if(score>best.score) best={i,score};
+    }
+    if(best.i<0) return null;
+    if(want==='thunder'){ const mm=Number((fc.hourly.precipitation||[])[best.i] ?? 0); const pr=Number((fc.hourly.precipitation_probability||[])[best.i] ?? 0); if(mm<=0 && pr<20) return null; }
+    if(want==='snow'){ const t=Number((fc.hourly.temperature_2m||[])[best.i] ?? 9999); if(!(t<=1.2)) return null; }
+    return best.i;
+  }
+
+  function computeOverrides(fc, idx, uid){
+    const out={};
+    try{
+      const key = dateKeyFromCurDay();
+      const dayIcon   = getIconOverride(key, uid, 'day');
+      const nightIcon = getIconOverride(key, uid, 'night');
+      if(!dayIcon && !nightIcon) return out;
+      const endIdx=Math.min(idx+24, fc.hourly.time.length);
+      if(dayIcon){ const want=macroFromIcon(dayIcon); const i=pickBestHourInWindow(fc, idx, endIdx, 'day', want); if(i!=null){ const code=inferWMOFromIcon(dayIcon,false); if(code!=null) out[i]=code; } }
+      if(nightIcon){ const want=macroFromIcon(nightIcon); const i=pickBestHourInWindow(fc, idx, endIdx, 'night', want); if(i!=null){ const code=inferWMOFromIcon(nightIcon,true); if(code!=null) out[i]=code; } }
+    }catch(e){}
+    return out;
+  }
+
+  function applyOverrides(fc, idx, uid){
+    try{
+      if(!fc || !fc.hourly) return fc;
+      const map = computeOverrides(fc, idx, uid);
+      if(!Object.keys(map).length) return fc;
+      const clone = JSON.parse(JSON.stringify(fc));
+      for(const k in map){
+        const i = +k;
+        if(i>=0 && i<clone.hourly.weathercode.length){
+          clone.hourly.weathercode[i] = map[k];
+        }
+      }
+      return clone;
+    }catch(e){ return fc; }
+  }
+
+  function autoIdx(fc){
+    const now=Date.now();
+    let idx = 0;
+    try{
+      idx = fc.hourly.time.findIndex(t=>Date.parse(t)>=now-1800000);
+      if(idx<0) idx = Math.max(0, fc.hourly.time.length-24);
+    }catch(e){ idx = 0; }
+    return idx;
+  }
+
+  function deriveUID(q, fc){
+    let uid = uidForQuery(q);
+    const viaDays = uidFromDaysByName(q);
+    if(viaDays) uid = viaDays;
+    if(!uid) uid = uidNearestToFC(fc) || uid;
+    return uid || "";
+  }
+
+  // --- Wrap save/clear to auto-rerender detail panels ---
+  (function wrapOverrideFns(){
+    try{
+      const _save = window.saveDailyIconOverrideV3;
+      if(typeof _save==='function' && !_save.__wrap){
+        window.saveDailyIconOverrideV3 = function(k,u,s,obj){
+          const r = _save.apply(this, arguments);
+          try{ document.dispatchEvent(new CustomEvent('forceHourlyRerender')); }catch(e){}
+          return r;
+        };
+        window.saveDailyIconOverrideV3.__wrap = true;
+      }
+      const _clear = window.clearDailyIconOverrideV3;
+      if(typeof _clear==='function' && !_clear.__wrap){
+        window.clearDailyIconOverrideV3 = function(k,u,s){
+          const r = _clear.apply(this, arguments);
+          try{ document.dispatchEvent(new CustomEvent('forceHourlyRerender')); }catch(e){}
+          return r;
+        };
+        window.clearDailyIconOverrideV3.__wrap = true;
+      }
+    }catch(e){}
+  })();
+
+  // --- Monkey patches ---
+  (function patchRenderHourly(){
+    if(window.__renderHourlyPatchedV5) return;
+    if(typeof window.renderHourly!=='function') return;
+    const orig = window.renderHourly;
+    window.renderHourly = function(fc, idx){
+      try{
+        const uid = window.currentUID || deriveUID(window.lastQuery||"", fc);
+        const patched = applyOverrides(fc, typeof idx==='number'? idx : autoIdx(fc), uid);
+        return orig(patched, idx);
+      }catch(e){ return orig(fc, idx); }
+    };
+    window.__renderHourlyPatchedV5 = true;
+  })();
+
+  (function patchRun(){
+    if(window.__runPatchedV5 || typeof window.run!=='function') return;
+    const orig = window.run;
+    window.run = async function(q){
+      const res = await orig(q);
+      try{
+        window.lastQuery = q;
+        window.currentUID = deriveUID(q, window.fc) || window.currentUID || "";
+        // force day parts if present
+        if(typeof window.renderDayParts==='function'){
+          const sub = (typeof window.subForecastByDay==='function') ? window.subForecastByDay(window.fc, 0) : window.fc;
+          window.renderDayParts(sub);
+        }
+      }catch(e){}
+      return res;
+    };
+    window.__runPatchedV5 = true;
+  })();
+
+  // manual rerender listener
+  document.addEventListener('forceHourlyRerender', function(){
+    try{
+      if(typeof window.renderHourly==='function' && window.fc){
+        const idx = autoIdx(window.fc);
+        const hEl = document.getElementById('hourly');
+        if(hEl) hEl.innerHTML = window.renderHourly(window.fc, idx);
+      }
+      if(typeof window.renderDayParts==='function' && window.fc){
+        const sub = (typeof window.subForecastByDay==='function') ? window.subForecastByDay(window.fc, 0) : window.fc;
+        window.renderDayParts(sub);
+      }
+    }catch(e){}
+  }, false);
+})();
+</script>
+
+<script id="restore-auto-v6">
+(function(){
+  function dateKeyFromCurDay(){
+    const d=new Date(); d.setHours(0,0,0,0);
+    try{
+      const off=(typeof window.curDay==='number' && isFinite(window.curDay))? window.curDay:0;
+      d.setDate(d.getDate()+off);
+    }catch(e){}
+    return d.toISOString().slice(0,10);
+  }
+  function findPointByCity(city){
+    try{
+      const day = Array.isArray(window.DAYS)? window.DAYS[ (typeof window.curDay==='number'&&isFinite(window.curDay))? window.curDay:0 ] : null;
+      if(!day || !Array.isArray(day.points)) return null;
+      return day.points.find(p=> String(p.city||'')===String(city||'')) || null;
+    }catch(e){ return null; }
+  }
+  function toast(msg){
+    try{
+      const t=document.getElementById('toast'); if(!t){ alert(msg); return; }
+      t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1700);
+    }catch(e){ alert(msg); }
+  }
+  function handleRestore(){
+    try{
+      const sel = document.getElementById('selCity');
+      const city = sel ? (sel.value || (sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].text)) : "";
+      if(!city){ return toast('Scegli prima una città nel pannello'); }
+      const pt = findPointByCity(city);
+      if(!pt){ return toast('Nessun punto trovato per '+city); }
+      const uid = pt.uid || (window.uidForCity? window.uidForCity(pt.city): 'city:'+String(pt.city||'').toLowerCase());
+      const key = dateKeyFromCurDay();
+      if(typeof window.clearDailyIconOverrideV3==='function'){
+        window.clearDailyIconOverrideV3(key, uid, 'day');
+        window.clearDailyIconOverrideV3(key, uid, 'night');
+      }
+      // optional: clear icon field if present
+      if(pt && typeof pt==='object' && 'icon' in pt){ try{ delete pt.icon; }catch(_e){} }
+      if(typeof window.saveState==='function') window.saveState();
+      if(typeof window.render==='function') window.render();
+      document.dispatchEvent(new CustomEvent('forceHourlyRerender'));
+      toast('Ripristinata icona automatica per '+city);
+    }catch(err){
+      alert('Errore nel ripristino automatico: '+(err && err.message ? err.message : err));
+    }
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    const btn = document.getElementById('btnRestoreAuto');
+    if(btn){ btn.addEventListener('click', handleRestore, false); }
+  });
+})();
+</script>
 </body>
 </html>
