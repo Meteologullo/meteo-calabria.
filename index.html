@@ -4752,5 +4752,53 @@ syncQueue[file].__message = message || ("sync: " + file);
   });
 })();
 </script>
+
+<script>
+/* === Auto-resize messenger for Wix iframe (invia l'altezza reale al parent) === */
+(function(){
+  if (window.__HEIGHT_MESSENGER_INSTALLED__) return;
+  window.__HEIGHT_MESSENGER_INSTALLED__ = true;
+
+  function sendHeight(){
+    try {
+      var h = Math.max(
+        document.body.scrollHeight,
+        document.documentElement.scrollHeight
+      );
+      parent.postMessage({ type:'HEIGHT', value:h }, '*');
+    } catch(e){}
+  }
+
+  // invia all'avvio, al resize e quando cambia il layout
+  window.addEventListener('load', sendHeight);
+  window.addEventListener('resize', sendHeight);
+
+  // osserva cambi di contenuto (es. risultati ricerca che aprono la sezione di giù)
+  var ro;
+  try {
+    ro = new ResizeObserver(sendHeight);
+    ro.observe(document.body);
+  } catch(e) {
+    // fallback minimale se il browser non supporta ResizeObserver
+    document.addEventListener('DOMSubtreeModified', function(){
+      // throttling grezzo:
+      if (window.__hm_t__) cancelAnimationFrame(window.__hm_t__);
+      window.__hm_t__ = requestAnimationFrame(sendHeight);
+    }, false);
+  }
+
+  // Se usi librerie mappa che necessitano di ridisegno quando cambia lo spazio
+  window.addEventListener('resize', function(){
+    try {
+      if (window.map && typeof window.map.invalidateSize === 'function') window.map.invalidateSize();
+      else if (window.map && typeof window.map.resize === 'function') window.map.resize();
+    } catch(e){}
+  });
+
+  // API opzionale: da altre parti del codice puoi chiamare questa per forzare il ricalcolo
+  window.sendContainerHeightToParent = sendHeight;
+})();
+</script>
+
 </body>
 </html>
