@@ -1451,7 +1451,7 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 <script id="intro-previsioni-link">
 // Consenti di impostare l'URL della MLG Map da una variabile globale senza toccare l'HTML
 (function(){
-  var url = window.MLG_MAP_URL || "https://meteologullo.github.io/mappamlg/";
+  var url = window.MLG_MAP_URL || "https://www.meteologullo.com/stazioni-meteorologiche-mlg";
   var btn = document.getElementById("btnMlgMap");
   if(btn) btn.href = url;
   document.querySelectorAll('#pageIntro a[data-mlg-map="1"]').forEach(function(a){ a.href = url; });
@@ -1759,16 +1759,16 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 <section id="pageIntro" class="panel intro" aria-label="Introduzione sezione Previsioni">
   <h2 class="intro-title">Sezione <span style="white-space:nowrap">Previsioni</span></h2>
   <p class="intro-text">
-    In questa pagina trovi le <strong>previsioni per le prossime ore e i prossimi giorni</strong>.
-    La <strong>mappa sottostante</strong> è <strong>elaborata da MLG – Meteo&nbsp;Lo&nbsp;Gullo</strong> (non è una mappa automatica).
+    Benvenuti su www.meteologullo.com. In questa pagina trovate le <strong>previsioni per le prossime ore e i prossimi giorni</strong>.
+    La <strong>mappa sottostante</strong> è <strong>curata da MLG – Meteo&nbsp;Lo&nbsp;Gullo</strong> (non è una mappa automatica).
   </p>
   <p class="intro-text">
-    Le previsioni ottenute cercando una località nella barra sono a base automatica ma
+    Le previsioni ottenute cercando una località nella barra sono generate automaticamente ma
     <strong>controllate da MLG</strong>, rappresentano un’<strong>innovazione</strong> e sono
     <strong>integrate</strong> con i dati delle nostre stazioni meteorologiche (rete <em>MLG&nbsp;Map</em>).
   </p>
   <div class="intro-cta">
-    <a id="btnMlgMap" class="btn-mlg-map" href="https://meteologullo.github.io/mappamlg/" target="_blank" rel="noopener">
+    <a id="btnMlgMap" class="btn-mlg-map" href="https://www.meteologullo.com/stazioni-meteorologiche-mlg" target="_blank" rel="noopener">
       <i class="fa-solid fa-map-location-dot"></i> Apri MLG&nbsp;Map
     </a>
     <span class="intro-note">Lì trovi <strong>tutti i dati in tempo reale</strong> dell’intero territorio regionale.</span>
