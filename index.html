@@ -1570,8 +1570,114 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
     wrap.appendChild(label); wrap.appendChild(input);
     document.body.appendChild(wrap);
   }
+
+  // === Font-comp override via URL/localStorage ===
+  const KEY_FA = "faScaleOverrides.v1";
+  function applyFaScales(map, persist=true){
+    if(!map) return;
+    const root = document.documentElement;
+    const set = (k,v)=>{ if(v>0){ root.style.setProperty(k, String(v)); } }
+    // keys: faScale (all), faScaleSolid, faScaleRegular, faScaleLight, faScaleDuotone, faScaleFallback
+    if(map.faScale){ set('--fa-scale-solid', map.faScale); set('--fa-scale-regular', map.faScale); set('--fa-scale-light', map.faScale); set('--fa-scale-duotone', map.faScale); set('--fa-scale-fallback', map.faScale); }
+    if(map.faScaleSolid){ set('--fa-scale-solid', map.faScaleSolid); }
+    if(map.faScaleRegular){ set('--fa-scale-regular', map.faScaleRegular); }
+    if(map.faScaleLight){ set('--fa-scale-light', map.faScaleLight); }
+    if(map.faScaleDuotone){ set('--fa-scale-duotone', map.faScaleDuotone); }
+    if(map.faScaleFallback){ set('--fa-scale-fallback', map.faScaleFallback); }
+    if(persist){ try{ localStorage.setItem(KEY_FA, JSON.stringify(map)); }catch(e){} }
+  }
+  // parse URL params
+  const FA_KEYS = ['faScale','faScaleSolid','faScaleRegular','faScaleLight','faScaleDuotone','faScaleFallback'];
+  const faFromUrl = {};
+  for (const k of FA_KEYS){
+    const v = PARAMS.get(k);
+    if(v!==null){
+      const n = parseFloat(v);
+      if(n>0) faFromUrl[k] = n;
+    }
+  }
+  if(Object.keys(faFromUrl).length) applyFaScales(faFromUrl, /*persist*/true);
+  else{
+    try{
+      const saved = JSON.parse(localStorage.getItem(KEY_FA) || '{}');
+      if(saved && Object.keys(saved).length) applyFaScales(saved, /*persist*/false);
+    }catch(e){}
+  }
+  // Expose helper
+  window.setFaScale = (overrides)=>applyFaScales(overrides||{}, true);
+
 })();
 </script>
+
+
+<style id="fa-compensator-2025-08-12">
+/* === Font Icon Visual Compensator (2025-08-12) ===
+   Obiettivo: allineare visivamente le icone Font Awesome alle immagini normalizzate.
+   - Usa trasformazione in-place (non cambia la box, quindi nessun impatto su layout/overlap)
+   - Clip attivo per evitare bleed
+*/
+:root{
+  /* Valori di default prudenziali (mobile leggermente più "pompato") */
+  --fa-scale-solid: 1.12;
+  --fa-scale-regular: 1.14;
+  --fa-scale-light: 1.18;
+  --fa-scale-duotone: 1.10;
+  --fa-scale-fallback: 1.12;
+}
+
+#mapArea .marker{ overflow: hidden; }
+
+#mapArea .marker i,
+#mapArea .marker .fa-solid,
+#mapArea .marker .fa-regular,
+#mapArea .marker .fa-light,
+#mapArea .marker .fa-duotone,
+#mapArea .marker .fa{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* Mappa le classi FA su variabili dedicate; se non matcha, usa fallback */
+#mapArea .marker .fa-solid{ --fa-comp-scale: var(--fa-scale-solid); }
+#mapArea .marker .fa-regular{ --fa-comp-scale: var(--fa-scale-regular); }
+#mapArea .marker .fa-light{ --fa-comp-scale: var(--fa-scale-light); }
+#mapArea .marker .fa-duotone{ --fa-comp-scale: var(--fa-scale-duotone); }
+#mapArea .marker i:not(.fa-solid):not(.fa-regular):not(.fa-light):not(.fa-duotone),
+#mapArea .marker .fa{ --fa-comp-scale: var(--fa-scale-fallback); }
+
+/* Applica la compensazione con un leggero limite superiore per evitare clipping eccessivo */
+@media (max-width:600px){
+  #mapArea .marker i,
+  #mapArea .marker .fa-solid,
+  #mapArea .marker .fa-regular,
+  #mapArea .marker .fa-light,
+  #mapArea .marker .fa-duotone,
+  #mapArea .marker .fa{
+    transform: scale( clamp(0.85, var(--fa-comp-scale), 1.22) );
+  }
+}
+@media (min-width:601px){
+  /* Desktop: compensazione più soft, ma comunque attiva */
+  :root{
+    --fa-scale-solid: 1.08;
+    --fa-scale-regular: 1.10;
+    --fa-scale-light: 1.14;
+    --fa-scale-duotone: 1.06;
+    --fa-scale-fallback: 1.10;
+  }
+  #mapArea .marker i,
+  #mapArea .marker .fa-solid,
+  #mapArea .marker .fa-regular,
+  #mapArea .marker .fa-light,
+  #mapArea .marker .fa-duotone,
+  #mapArea .marker .fa{
+    transform: scale( clamp(0.9, var(--fa-comp-scale), 1.16) );
+  }
+}
+</style>
 
 </head>
 
