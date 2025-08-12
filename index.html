@@ -1217,6 +1217,7 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   const ICONS = new Set();                // all <img.weather-icon> we touched
   let globalMin = Infinity;               // smallest detected visual box (max of cw,ch)
   let ready = false;
+  const GROUPS = new Map(); // key: targetPx -> {min: Infinity}
 
   function computeBounds(img){
     const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
@@ -1249,7 +1250,11 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
     }
   }
 
-  function targetBoxPx(){
+  function targetBoxPx(el){
+    const elStyle = (el && el.nodeType===1) ? getComputedStyle(el) : null;
+    const base = (elStyle ? parseFloat(elStyle.getPropertyValue('--marker-size')) : NaN) || parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--marker-size')) || 36;
+    const styleRoot = getComputedStyle(document.documentElement);
+    const userScale = parseFloat(styleRoot.getPropertyValue('--marker-scale-user')) || 1;
     const styleRoot = getComputedStyle(document.documentElement);
     const userScale = parseFloat(styleRoot.getPropertyValue('--marker-scale-user')) || 1;
     // Desktop/mobile base from CSS variable, fall back to 36
@@ -1312,14 +1317,14 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
       // Update global min visual size (largest side of visual content)
       const vis = Math.max(bounds.cw, bounds.ch);
       if(vis && isFinite(vis) && vis > 0){
-        if(vis < globalMin){
-          globalMin = vis;
-          queueReprocessAll();
-        }else if(globalMin === Infinity){
-          globalMin = vis;
-        }
+        const t = targetBoxPx(el);
+        let g = GROUPS.get(t); if(!g){ g = { min: Infinity }; GROUPS.set(t, g); }
+        if(vis < g.min){ g.min = vis; queueReprocessAll(); }
+        else if(g.min === Infinity){ g.min = vis; }
       }
-      const target = Math.min(targetBoxPx(), globalMin || targetBoxPx());
+      const t = targetBoxPx(el);
+      let g = GROUPS.get(t); if(!g){ g = { min: Infinity }; GROUPS.set(t, g); }
+      const target = Math.min(t, g.min || t);
       normalizeWithBounds(el, ghost, bounds, target);
     };
 
@@ -1337,7 +1342,9 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
     reprocessQueued = true;
     const run = ()=>{
       reprocessQueued = false;
-      const target = Math.min(targetBoxPx(), globalMin || targetBoxPx());
+      const t = targetBoxPx(el);
+      let g = GROUPS.get(t); if(!g){ g = { min: Infinity }; GROUPS.set(t, g); }
+      const target = Math.min(t, g.min || t);
       ICONS.forEach(el=>{
         const url = el.dataset.orig || el.currentSrc || el.src;
         if(!url) return;
@@ -1384,6 +1391,11 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
+  try{
+    window.addEventListener('markerSizeChanged', ()=>{ GROUPS.clear(); queueReprocessAll(); }, {passive:true});
+    window.addEventListener('markerScaleChanged', ()=>{ GROUPS.clear(); queueReprocessAll(); }, {passive:true});
+  }catch(e){}
+
     // Double-pass after load to ensure final uniform size on late assets (esp. mobile)
     try{
       setTimeout(queueReprocessAll, 250);
@@ -1456,10 +1468,10 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   --marker-size-mobile: clamp(14px, 3.6vw, 26px);
 }
 @media (min-width:601px){
-  :root{ --marker-size: var(--marker-size-desktop) !important; }
+  :root{ --marker-size: var(--marker-size-desktop); }
 }
 @media (max-width:600px){
-  :root{ --marker-size: var(--marker-size-mobile) !important; }
+  :root{ --marker-size: var(--marker-size-mobile); }
 
   /* Shrink FA and IMG boxes slightly vs old 1.4x ratio to prevent overlaps */
   #mapArea .marker i,
@@ -1468,14 +1480,14 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   #mapArea .marker .fa-light,
   #mapArea .marker .fa-duotone,
   #mapArea .marker .fa{
-    font-size: calc(var(--marker-size) * 1.05) !important;
-    width: calc(var(--marker-size) * 1.05) !important;
-    height: calc(var(--marker-size) * 1.05) !important;
-    line-height: var(--marker-size) !important;
+    font-size: calc(var(--marker-size-el) * 1.05) !important;
+    width: calc(var(--marker-size-el) * 1.05) !important;
+    height: calc(var(--marker-size-el) * 1.05) !important;
+    line-height: var(--marker-size-el) !important;
   }
   #mapArea .marker img.weather-icon{
-    width: calc(var(--marker-size) * 1.05) !important;
-    height: calc(var(--marker-size) * 1.05) !important;
+    width: calc(var(--marker-size-el) * 1.05) !important;
+    height: calc(var(--marker-size-el) * 1.05) !important;
   }
 
   /* Stop floating animation that can visually increase overlap */
@@ -1494,6 +1506,7 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   --marker-box-factor: 1.05; /* harmonizes visual box vs real glyph size */
 }
 /* Apply the user scale to icon boxes */
+#mapArea .marker{ --marker-size-el: var(--marker-size-local, var(--marker-size)); }
 #mapArea .marker i,
 #mapArea .marker .fa-solid,
 #mapArea .marker .fa-regular,
@@ -1501,12 +1514,12 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 #mapArea .marker .fa-duotone,
 #mapArea .marker .fa,
 #mapArea .marker img.weather-icon{
-  width: calc(var(--marker-size) * var(--marker-box-factor) * var(--marker-scale-user)) !important;
-  height: calc(var(--marker-size) * var(--marker-box-factor) * var(--marker-scale-user)) !important;
+  width: calc(var(--marker-size-el) * var(--marker-box-factor) * var(--marker-scale-user)) !important;
+  height: calc(var(--marker-size-el) * var(--marker-box-factor) * var(--marker-scale-user)) !important;
 }
 #mapArea .marker i{
-  font-size: calc(var(--marker-size) * var(--marker-box-factor) * var(--marker-scale-user)) !important;
-  line-height: calc(var(--marker-size) * var(--marker-scale-user)) !important;
+  font-size: calc(var(--marker-size-el) * var(--marker-box-factor) * var(--marker-scale-user)) !important;
+  line-height: calc(var(--marker-size-el) * var(--marker-scale-user)) !important;
 }
 </style>
 
@@ -1678,6 +1691,56 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   }
 }
 </style>
+
+
+<script id="marker-size-api-2025-08-12">
+(function(){
+  const d = document, root = d.documentElement;
+  function px(v){ return (typeof v==='number') ? (v+'px') : (''+v); }
+  function dispatch(){ try{ window.dispatchEvent(new CustomEvent('markerSizeChanged')); }catch(e){} }
+
+  function setMarkerSize(v){
+    root.style.setProperty('--marker-size', px(v));
+    dispatch();
+    try{ if(window._reprocessWeatherIcons) window._reprocessWeatherIcons(); }catch(e){}
+  }
+
+  function setMarkerSizeFor(elOrSelector, v){
+    const els = [];
+    if(typeof elOrSelector === 'string'){
+      document.querySelectorAll(elOrSelector).forEach(e=>els.push(e));
+    }else if(elOrSelector && typeof elOrSelector.length === 'number'){
+      for(const e of elOrSelector){ els.push(e); }
+    }else if(elOrSelector && elOrSelector.nodeType === 1){
+      els.push(elOrSelector);
+    }
+    for(const el of els){
+      const box = el.closest ? (el.closest('#mapArea .marker') || el) : el;
+      box.style.setProperty('--marker-size-local', px(v));
+    }
+    dispatch();
+    try{ if(window._reprocessWeatherIcons) window._reprocessWeatherIcons(); }catch(e){}
+  }
+
+  function bindMarkerSizeInput(inputOrSelector, opts){
+    const el = typeof inputOrSelector==='string' ? document.querySelector(inputOrSelector) : inputOrSelector;
+    if(!el) return;
+    const min = (opts && opts.min) || 12, max = (opts && opts.max) || 64;
+    const update = ()=>{
+      let v = parseFloat(el.value);
+      if(!(v>0)) return;
+      v = Math.max(min, Math.min(max, v));
+      setMarkerSize(v);
+    };
+    el.addEventListener('input', update);
+    el.addEventListener('change', update);
+  }
+
+  window.setMarkerSize = setMarkerSize;
+  window.setMarkerSizeFor = setMarkerSizeFor;
+  window.bindMarkerSizeInput = bindMarkerSizeInput;
+})();
+</script>
 
 </head>
 
