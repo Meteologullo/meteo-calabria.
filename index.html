@@ -1250,11 +1250,13 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   }
 
   function targetBoxPx(){
+    const styleRoot = getComputedStyle(document.documentElement);
+    const userScale = parseFloat(styleRoot.getPropertyValue('--marker-scale-user')) || 1;
     // Desktop/mobile base from CSS variable, fall back to 36
     const style = getComputedStyle(document.documentElement);
     const base = parseFloat(style.getPropertyValue('--marker-size')) || 36;
     // Keep our output box modest to prevent crowding; previous code used *1.4
-    return Math.max(16, Math.round(base * 1.1));
+    return Math.max(8, Math.round(base * 1.1 * userScale));
   }
 
   function rasterizeCrop(img, bounds, target, allowUpscale){
@@ -1291,7 +1293,7 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
     }
   }
 
-  function processElement(el, maybeReprocessAll){
+  function processElement(el){
     if(!el || el.dataset.normIgnore) return;
     const url = el.dataset.orig || el.currentSrc || el.src;
     if(!url) return;
@@ -1312,8 +1314,7 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
       if(vis && isFinite(vis) && vis > 0){
         if(vis < globalMin){
           globalMin = vis;
-          // Optionally reprocess previously normalized icons to the new smaller target
-          if(maybeReprocessAll) queueReprocessAll();
+          queueReprocessAll();
         }else if(globalMin === Infinity){
           globalMin = vis;
         }
@@ -1368,8 +1369,8 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
     for(const m of list){
       for(const n of m.addedNodes || []){
         if(n.nodeType !== 1) continue;
-        if(n.matches && n.matches('#mapArea .marker img.weather-icon')) processElement(n, /*reprocessAll*/ true);
-        scan(n, /*reprocessAll*/ true);
+        if(n.matches && n.matches('#mapArea .marker img.weather-icon')) processElement(n); queueReprocessAll();
+        scan(n); queueReprocessAll();
       }
     }
   });
@@ -1377,12 +1378,21 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   function init(){
     if(ready) return;
     ready = true;
-    scan(document, /*reprocessAll*/ false);
+    scan(document);
     try{ mo.observe(document.body, { childList:true, subtree:true }); }catch(e){}
   }
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
+    // Double-pass after load to ensure final uniform size on late assets (esp. mobile)
+    try{
+      setTimeout(queueReprocessAll, 250);
+      setTimeout(queueReprocessAll, 1000);
+    }catch(e){}
+    
+  ;window._reprocessWeatherIcons = queueReprocessAll;
+  try{ window.addEventListener('markerScaleChanged', ()=>queueReprocessAll(), {passive:true}); }catch(e){}
+  
 })();
 </script>
 
@@ -1472,6 +1482,96 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   #mapArea .marker i{ animation: none !important; }
 }
 </style>
+
+
+<style id="marker-scale-user-2025-08-12">
+/* === User-controlled marker scale (2025-08-12) ===
+   - Default keeps desktop as-is; mobile can be tuned via --marker-scale-user
+   - You can override at runtime: document.documentElement.style.setProperty('--marker-scale-user','0.75')
+*/
+:root{
+  --marker-scale-user: 1;
+  --marker-box-factor: 1.05; /* harmonizes visual box vs real glyph size */
+}
+/* Apply the user scale to icon boxes */
+#mapArea .marker i,
+#mapArea .marker .fa-solid,
+#mapArea .marker .fa-regular,
+#mapArea .marker .fa-light,
+#mapArea .marker .fa-duotone,
+#mapArea .marker .fa,
+#mapArea .marker img.weather-icon{
+  width: calc(var(--marker-size) * var(--marker-box-factor) * var(--marker-scale-user)) !important;
+  height: calc(var(--marker-size) * var(--marker-box-factor) * var(--marker-scale-user)) !important;
+}
+#mapArea .marker i{
+  font-size: calc(var(--marker-size) * var(--marker-box-factor) * var(--marker-scale-user)) !important;
+  line-height: calc(var(--marker-size) * var(--marker-scale-user)) !important;
+}
+</style>
+
+
+<script id="marker-scale-controller-2025-08-12">
+(function(){
+  const PARAMS = new URLSearchParams(location.search);
+  const KEY = "markerScaleUser";
+  const clamp = v => Math.min(1, Math.max(0.4, v)); // allow downscaling down to 40%
+
+  function applyScale(v, persist=true){
+    if(!(v>0)) return;
+    v = clamp(v);
+    document.documentElement.style.setProperty('--marker-scale-user', String(v));
+    if(persist){
+      try{ localStorage.setItem(KEY, String(v)); }catch(e){}
+    }
+    try{ if(window._reprocessWeatherIcons) window._reprocessWeatherIcons(); }catch(e){}
+    window.dispatchEvent(new CustomEvent("markerScaleChanged", { detail: v }));
+  }
+
+  // Initialize from URL ?markerScale=0.8 or ?iconScale=0.8, then localStorage
+  let init = PARAMS.get('markerScale') || PARAMS.get('iconScale');
+  if(init !== null){
+    const v = parseFloat(init);
+    if(v>0) applyScale(v, /*persist*/true);
+  }else{
+    let v = NaN;
+    try{ v = parseFloat(localStorage.getItem(KEY)); }catch(e){}
+    if(v>0) applyScale(v, /*persist*/false);
+  }
+
+  // Expose helpers
+  window.setMarkerScale = (v)=>applyScale(parseFloat(v), true);
+  window.getMarkerScale = ()=>parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--marker-scale-user'))||1;
+
+  // Optional on-page tuner: add &showIconTuner=1 to URL to get a tiny slider
+  if(PARAMS.get('showIconTuner') === '1'){
+    const wrap = document.createElement('div');
+    wrap.style.position = 'fixed';
+    wrap.style.zIndex = '2147483647';
+    wrap.style.right = '10px';
+    wrap.style.bottom = '10px';
+    wrap.style.background = 'rgba(0,0,0,0.6)';
+    wrap.style.color = '#fff';
+    wrap.style.padding = '8px 10px';
+    wrap.style.borderRadius = '10px';
+    wrap.style.fontSize = '12px';
+    wrap.style.fontFamily = 'system-ui, sans-serif';
+    wrap.style.backdropFilter = 'blur(4px)';
+    wrap.title = 'Ridimensiona marker (0.4 – 1.0)';
+    const label = document.createElement('label');
+    label.textContent = 'Marker:';
+    label.style.marginRight = '6px';
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = '0.4'; input.max = '1'; input.step = '0.01';
+    input.value = String(window.getMarkerScale());
+    input.style.width = '120px';
+    input.addEventListener('input', ()=>applyScale(parseFloat(input.value), true));
+    wrap.appendChild(label); wrap.appendChild(input);
+    document.body.appendChild(wrap);
+  }
+})();
+</script>
 
 </head>
 
