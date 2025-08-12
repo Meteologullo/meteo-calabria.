@@ -1253,8 +1253,7 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
     if(!el || el.dataset.normDone) return;
     const url = el.currentSrc || el.src;
     if(!url) return;
-    const scope = el.closest('#mapArea') || document.documentElement;
-    const style = getComputedStyle(scope);
+    const style = getComputedStyle(document.documentElement);
     const base = parseFloat(style.getPropertyValue('--marker-size')) || 36;
     const target = Math.max(16, Math.round(base * 1.4));
 
@@ -1319,335 +1318,54 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 </script>
 
 
-<style id="weather-fx-styles">
-:root{
-  --fx-rain-color: rgba(150,190,255,.95);
-  --fx-snow-color: rgba(255,255,255,.98);
-  --fx-bolt-color: #ffd54d;
+<style id="intro-previsioni-css">
+/* === Intro Previsioni (compatto, uniforme) === */
+#pageIntro.panel.intro{
+  padding:.9rem 1.05rem;
+  margin: 6px auto 12px;
 }
-
-#mapArea .marker{ /* i marker nel file hanno già absolute; qui solo per sicurezza */
-  contain: layout style paint; /* micro-ottimizzazione per le animazioni */
+#pageIntro .intro-title{
+  font-family:'Baloo 2',cursive;
+  font-weight:800;
+  font-size:clamp(18px,3.6vw,22px);
+  line-height:1.1;
+  margin-bottom:.25rem;
 }
-#mapArea img.weather-icon{
-  position: relative;
-  z-index: 1;
-  will-change: transform;
+#pageIntro .intro-text{
+  font-size:.95rem;
+  opacity:.95;
+  margin:.15rem 0;
 }
-
-/* ——— Cloud drift (leggero ondeggio orizzontale) ——— */
-@keyframes cloudDrift {
-  0%   { transform: translateX(-6%); }
-  100% { transform: translateX(6%); }
+#pageIntro .intro-cta{
+  display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-top:.35rem;
 }
-#mapArea img.weather-icon.anim-cloud{
-  animation: cloudDrift calc(var(--cloud-dur, 6s)) ease-in-out infinite alternate;
+#pageIntro .btn-mlg-map{
+  display:inline-flex; align-items:center; gap:.45rem;
+  padding:.5rem .85rem; border-radius:12px; font-weight:800;
+  background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#000;
+  text-decoration:none;
 }
-
-/* ——— Layer effetti ——— */
-#mapArea .marker .fx{
-  position:absolute; inset:0;
-  pointer-events:none; overflow:visible;
-  z-index: 2;
-}
-#mapArea .marker .fx > *{ position:absolute; will-change: transform, opacity; }
-
-/* ——— Pioggia ——— */
-@keyframes rainFall{
-  0%   { transform: translateY(-20%); opacity: 0; }
-  10%  { opacity: .95; }
-  100% { transform: translateY(120%); opacity: 0; }
-}
-#mapArea .marker .fx-rain .drop{
-  width: 1.8px;
-  height: 10px;
-  background: var(--fx-rain-color);
-  border-radius: 1px;
-  left: var(--x, 50%);
-  top: -10%;
-  animation: rainFall var(--dur, 900ms) linear infinite;
-  animation-delay: var(--delay, 0s);
-  transform: translateZ(0);
-  filter: drop-shadow(0 0 2px rgba(0,0,0,.25));
-}
-
-/* ——— Neve ——— */
-@keyframes snowFall{
-  0%   { transform: translate(-20%, -20%) rotate(0deg); opacity: 0; }
-  10%  { opacity: 1; }
-  100% { transform: translate(20%, 120%) rotate(360deg); opacity: 0; }
-}
-@keyframes snowSway{
-  0%   { transform: translateX(-12%); }
-  100% { transform: translateX(12%); }
-}
-#mapArea .marker .fx-snow .flake{
-  width: 4px; height: 4px; border-radius: 50%;
-  background: var(--fx-snow-color);
-  left: var(--x, 50%);
-  top: -10%;
-  animation:
-    snowFall var(--dur, 3.2s) linear infinite,
-    snowSway calc(var(--dur, 3.2s) * 0.9) ease-in-out infinite alternate;
-  animation-delay: var(--delay, 0s);
-  filter: drop-shadow(0 0 2px rgba(0,0,0,.25));
-}
-
-/* ——— Temporale (lampo) ——— */
-@keyframes boltFlash{
-  0%, 84% { opacity: 0; filter: drop-shadow(0 0 0 transparent); }
-  85%, 88% { opacity: 1; filter: drop-shadow(0 0 6px rgba(255,213,77,.5)); }
-  89%, 92% { opacity: 0; }
-  93%, 94% { opacity: 1; filter: drop-shadow(0 0 8px rgba(255,213,77,.65)); }
-  95%,100%{ opacity: 0; }
-}
-#mapArea .marker .fx-thunder .bolt{
-  left: 52%; top: 56%;
-  transform: translate(-50%, -30%) rotate(-8deg);
-  font-size: calc(var(--marker-size) * 0.66);
-  line-height: 1;
-  color: var(--fx-bolt-color);
-  text-shadow: 0 1px 1px rgba(0,0,0,.25);
-  animation: boltFlash var(--flashDur, 2.8s) infinite steps(1, end);
-}
-
-/* Piccola luce diffusa del lampo */
-@keyframes glowPulse{
-  0%,85%{ opacity: 0; }
-  86%,88%{ opacity: .35; }
-  89%,92%{ opacity: 0; }
-  93%,94%{ opacity: .45; }
-  95%,100%{ opacity: 0; }
-}
-#mapArea .marker .fx-thunder .glow{
-  left:0; top:0; right:0; bottom:0;
-  background: radial-gradient(60% 60% at 55% 55%, rgba(255,213,77,.35), transparent 60%);
-  animation: glowPulse var(--flashDur, 2.8s) infinite;
-}
-
-/* ——— Vento (facoltativo: leggero sway generale) ——— */
-@keyframes sway {
-  0%   { transform: translateX(-4%) rotate(-0.4deg); }
-  100% { transform: translateX(4%)  rotate( 0.4deg); }
-}
-#mapArea .marker.anim-wind img.weather-icon{ animation: sway 5s ease-in-out infinite alternate; }
-</style>
-
-
-<script id="weather-fx-animator">
-/* === Weather Icon Animator (non-invasivo) — 2025-08 === */
-(function(){
-  function detectTypeFromString(s){
-    s = (s||'').toLowerCase();
-    if(/tempor|thunder|storm|fulmin/.test(s)) return "thunder";
-    if(/neve|snow|sleet|ghiacci/.test(s)) return "snow";
-    if(/piogg|rain|shower/.test(s)) return "rain";
-    if(/nebb|fog/.test(s)) return "fog";
-    if(/nuvol|cloud/.test(s)) return "cloud";
-    if(/sereno|clear|sole|sun/.test(s)) return "clear";
-    return "";
-  }
-
-  function ensureFxLayer(container){
-    let fx = container.querySelector(':scope > .fx');
-    if(!fx){
-      fx = document.createElement('div');
-      fx.className = 'fx';
-      container.appendChild(fx);
-    }
-    return fx;
-  }
-
-  function rand(min, max){ return Math.random()*(max-min)+min; }
-
-  function makeRain(fx, size){
-    const layer = document.createElement('div');
-    layer.className = 'fx-rain';
-    const drops = Math.max(6, Math.round(size/7));
-    for(let i=0;i<drops;i++){
-      const d = document.createElement('span');
-      d.className = 'drop';
-      d.style.setProperty('--x', Math.round(rand(20,80))+'%');
-      d.style.setProperty('--dur', Math.round(rand(700,1100))+'ms');
-      d.style.setProperty('--delay', Math.round(rand(0,1200))+'ms');
-      layer.appendChild(d);
-    }
-    fx.appendChild(layer);
-  }
-
-  function makeSnow(fx, size){
-    const layer = document.createElement('div');
-    layer.className = 'fx-snow';
-    const flakes = Math.max(6, Math.round(size/6));
-    for(let i=0;i<flakes;i++){
-      const f = document.createElement('span');
-      f.className = 'flake';
-      f.style.setProperty('--x', Math.round(rand(15,85))+'%');
-      f.style.setProperty('--dur', Math.round(rand(2600,4200))+'ms');
-      f.style.setProperty('--delay', Math.round(rand(0,2000))+'ms');
-      const sz = rand(2.5, 4.6);
-      f.style.width = sz+'px'; f.style.height = sz+'px';
-      layer.appendChild(f);
-    }
-    fx.appendChild(layer);
-  }
-
-  function makeThunder(fx, size){
-    const layer = document.createElement('div');
-    layer.className = 'fx-thunder';
-    const glow = document.createElement('div');
-    glow.className = 'glow';
-    const bolt = document.createElement('div');
-    bolt.className = 'bolt';
-    bolt.textContent = '⚡';
-    layer.appendChild(glow);
-    layer.appendChild(bolt);
-    layer.style.setProperty('--flashDur', (Math.random()*1.2 + 2.2).toFixed(2)+'s');
-    fx.appendChild(layer);
-  }
-
-  function applyAnimation(img){
-    if(!img || img.dataset.fxApplied) return;
-    // where to place the FX
-    const container = img.closest('.marker') || img.parentElement;
-    if(!container) return;
-
-    // what type?
-    const explicit = img.dataset.anim || container.dataset.anim;
-    const type = explicit || detectTypeFromString(img.getAttribute('alt')) || detectTypeFromString(img.src);
-    if(!type) { img.dataset.fxApplied = '1'; return; }
-
-    // unify clouds always drift a bit
-    if(type==='cloud' || type==='clear' || type==='fog' || type==='rain' || type==='snow' || type==='thunder'){
-      img.classList.add('anim-cloud');
-    }
-
-    const cs = getComputedStyle(document.documentElement);
-    const base = parseFloat(cs.getPropertyValue('--marker-size')) || 36;
-    const size = Math.max(16, Math.round(base * 1.4));
-    const fx = ensureFxLayer(container);
-
-    if(type==='rain') makeRain(fx, size);
-    if(type==='snow') makeSnow(fx, size);
-    if(type==='thunder') makeThunder(fx, size);
-    if(/wind/.test(explicit||'')) container.classList.add('anim-wind');
-
-    img.dataset.fxApplied = '1';
-  }
-
-  function scan(root){
-    root.querySelectorAll?.('#mapArea img.weather-icon').forEach(applyAnimation);
-  }
-
-  const mo = new MutationObserver(list => {
-    for(const m of list){
-      for(const n of m.addedNodes||[]){
-        if(n.nodeType!==1) continue;
-        if(n.matches?.('#mapArea img.weather-icon')) applyAnimation(n);
-        scan(n);
-      }
-    }
-  });
-
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', ()=>{ scan(document); mo.observe(document.body, {childList:true, subtree:true}); });
-  }else{
-    scan(document);
-    mo.observe(document.body, {childList:true, subtree:true});
-  }
-})();
-</script>
-
-
-<style id="marker-size-base">
-:root{ --marker-size: clamp(16px, 2.7vw, 40px); }
-@media (max-width: 420px){
-  :root{ --marker-size: clamp(16px, 3.4vw, 34px); }
+#pageIntro .btn-mlg-map i{ font-size:1rem; }
+#pageIntro .intro-note{ font-size:.9rem; color:var(--text-dim); }
+#pageIntro .intro-mini{ font-size:.88rem; color:var(--text-dim); margin-top:.35rem; }
+@media(max-width:600px){
+  #pageIntro.panel.intro{ padding:.8rem .9rem; margin: 6px auto 10px; }
+  #pageIntro .intro-text{ font-size:.92rem; }
+  #pageIntro .intro-mini{ font-size:.84rem; }
 }
 </style>
 
 
-<script id="marker-size-responder">
+<script id="intro-previsioni-link">
+// Consenti di impostare l'URL della MLG Map da una variabile globale senza toccare l'HTML
 (function(){
-  const map = document.querySelector('#mapArea');
-  if(!map) return;
-  function computeSize(){
-    const w = Math.max(1, map.clientWidth);
-    const h = Math.max(1, map.clientHeight);
-    const n = map.querySelectorAll('.marker img.weather-icon').length;
-    const minSide = Math.min(w, h);
-    let s = Math.round(minSide / (w < 420 ? 15.5 : (w < 768 ? 17.5 : 19.5)));
-    s = Math.max(16, Math.min(40, s));
-    if(n > 80)  s = Math.round(s * 0.9);
-    if(n > 120) s = Math.round(s * 0.82);
-    return s;
-  }
-  function apply(){
-    const s = computeSize();
-    map.style.setProperty('--marker-size', s + 'px');
-    document.documentElement.style.setProperty('--marker-size', s + 'px');
-  }
-  const ro = new ResizeObserver(apply); ro.observe(map);
-  const mo = new MutationObserver(apply); mo.observe(map, { childList:true, subtree:true });
-  if(document.fonts && document.fonts.ready) document.fonts.ready.then(apply);
-  window.addEventListener('load', apply);
-  apply();
+  var url = window.MLG_MAP_URL || "https://meteologullo.github.io/mappamlg/";
+  var btn = document.getElementById("btnMlgMap");
+  if(btn) btn.href = url;
+  document.querySelectorAll('#pageIntro a[data-mlg-map="1"]').forEach(function(a){ a.href = url; });
 })();
 </script>
 
-
-<style id="weather-icon-enforce">
-#mapArea img.weather-icon{
-  width: var(--marker-size);
-  height: var(--marker-size);
-  transform: scale(var(--icon-scale, 1));
-  transform-origin: 50% 50%;
-  image-rendering: auto;
-}
-</style>
-
-
-<script id="weather-icon-declutter">
-/* Reduce leggermente le icone nelle zone affollate per evitare sovrapposizioni */
-(function(){
-  const map = document.querySelector('#mapArea');
-  if(!map) return;
-
-  function declutter(){
-    const icons = Array.from(map.querySelectorAll('.marker img.weather-icon'));
-    if(icons.length === 0) return;
-
-    const s = parseFloat(getComputedStyle(map).getPropertyValue('--marker-size')) || 28;
-    const r = s * 1.2; // raggio "vicinanza"
-    const rects = icons.map(img => {
-      const b = img.getBoundingClientRect();
-      return { img, cx: (b.left + b.right)/2, cy: (b.top + b.bottom)/2 };
-    });
-    // Conta vicini entro r
-    for(let i=0;i<rects.length;i++){
-      let near = 0;
-      for(let j=0;j<rects.length;j++){
-        if(i===j) continue;
-        const dx = rects[i].cx - rects[j].cx, dy = rects[i].cy - rects[j].cy;
-        if((dx*dx + dy*dy) < (r*r)) near++;
-      }
-      // scala locale
-      let scale = 1;
-      if(near >= 6) scale = 0.70;
-      else if(near >= 4) scale = 0.78;
-      else if(near >= 2) scale = 0.86;
-      rects[i].img.style.setProperty('--icon-scale', scale);
-    }
-  }
-
-  const redo = () => { requestAnimationFrame(()=>requestAnimationFrame(declutter)); };
-  new ResizeObserver(redo).observe(map);
-  new MutationObserver(redo).observe(map, { childList:true, subtree:true });
-  window.addEventListener('load', redo);
-  document.addEventListener('DOMContentLoaded', redo);
-  redo();
-})();
-</script>
 
 </head>
 
@@ -1662,6 +1380,31 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 
 <body>
 <!-- —— Search —— -->
+
+<section id="pageIntro" class="panel intro" aria-label="Introduzione sezione Previsioni">
+  <h2 class="intro-title">Sezione <span style="white-space:nowrap">Previsioni</span></h2>
+  <p class="intro-text">
+    In questa pagina trovi le <strong>previsioni per le prossime ore e i prossimi giorni</strong>.
+    La <strong>mappa sottostante</strong> è <strong>elaborata da MLG – Meteo&nbsp;Lo&nbsp;Gullo</strong> (non è una mappa automatica).
+  </p>
+  <p class="intro-text">
+    Le previsioni ottenute cercando una località nella barra sono a base automatica ma
+    <strong>controllate da MLG</strong>, rappresentano un’<strong>innovazione</strong> e sono
+    <strong>integrate</strong> con i dati delle nostre stazioni meteorologiche (rete <em>MLG&nbsp;Map</em>).
+  </p>
+  <div class="intro-cta">
+    <a id="btnMlgMap" class="btn-mlg-map" href="https://meteologullo.github.io/mappamlg/" target="_blank" rel="noopener">
+      <i class="fa-solid fa-map-location-dot"></i> Apri MLG&nbsp;Map
+    </a>
+    <span class="intro-note">Lì trovi <strong>tutti i dati in tempo reale</strong> dell’intero territorio regionale.</span>
+  </div>
+  <p class="intro-mini">
+    In questa sezione sono presenti solo le <strong>previsioni del tempo</strong>.
+    Per i dati in tempo reale usa <a data-mlg-map="1" href="#" target="_blank" rel="noopener">MLG&nbsp;Map</a>.
+    Scorrendo in basso trovi anche l’<a href="#mlgAiBox">Assistente</a> con cui fare domande e chiedere informazioni.
+  </p>
+</section>
+
 <form class="search" id="searchForm">
 <input autocomplete="off" id="cityInput" placeholder="Scrivi una città o usa 📍…" required=""/>
 <button type="submit"><i class="fa-solid fa-search"></i></button>
