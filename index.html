@@ -1595,6 +1595,60 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 })();
 </script>
 
+
+<style id="weather-icon-enforce">
+#mapArea img.weather-icon{
+  width: var(--marker-size);
+  height: var(--marker-size);
+  transform: scale(var(--icon-scale, 1));
+  transform-origin: 50% 50%;
+  image-rendering: auto;
+}
+</style>
+
+
+<script id="weather-icon-declutter">
+/* Reduce leggermente le icone nelle zone affollate per evitare sovrapposizioni */
+(function(){
+  const map = document.querySelector('#mapArea');
+  if(!map) return;
+
+  function declutter(){
+    const icons = Array.from(map.querySelectorAll('.marker img.weather-icon'));
+    if(icons.length === 0) return;
+
+    const s = parseFloat(getComputedStyle(map).getPropertyValue('--marker-size')) || 28;
+    const r = s * 1.2; // raggio "vicinanza"
+    const rects = icons.map(img => {
+      const b = img.getBoundingClientRect();
+      return { img, cx: (b.left + b.right)/2, cy: (b.top + b.bottom)/2 };
+    });
+    // Conta vicini entro r
+    for(let i=0;i<rects.length;i++){
+      let near = 0;
+      for(let j=0;j<rects.length;j++){
+        if(i===j) continue;
+        const dx = rects[i].cx - rects[j].cx, dy = rects[i].cy - rects[j].cy;
+        if((dx*dx + dy*dy) < (r*r)) near++;
+      }
+      // scala locale
+      let scale = 1;
+      if(near >= 6) scale = 0.70;
+      else if(near >= 4) scale = 0.78;
+      else if(near >= 2) scale = 0.86;
+      rects[i].img.style.setProperty('--icon-scale', scale);
+    }
+  }
+
+  const redo = () => { requestAnimationFrame(()=>requestAnimationFrame(declutter)); };
+  new ResizeObserver(redo).observe(map);
+  new MutationObserver(redo).observe(map, { childList:true, subtree:true });
+  window.addEventListener('load', redo);
+  document.addEventListener('DOMContentLoaded', redo);
+  redo();
+})();
+</script>
+
 </head>
 
 <script>
