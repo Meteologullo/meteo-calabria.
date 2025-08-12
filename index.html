@@ -1181,7 +1181,30 @@ html, body { overscroll-behavior: contain; }
 }
 /* prevent viewport jump on focus */
 html, body { overscroll-behavior: contain; }
-</style></head>
+</style>
+<style id="mapdate-overlay-css">
+/* === Map date overlay inside the map (non-blocking) === */
+.map-date{
+  position:absolute;
+  top:10px;
+  left:10px;
+  background:rgba(0,0,0,.45);
+  color:#fff;
+  padding:6px 10px;
+  border-radius:8px;
+  font-weight:700;
+  z-index:6;
+  pointer-events:none; /* don't block marker interactions */
+  backdrop-filter:blur(4px);
+  box-shadow:0 2px 8px rgba(0,0,0,.25);
+}
+body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
+@media (max-width:600px){
+  .map-date{ padding:5px 9px; border-radius:7px; font-size:.95rem; }
+}
+</style>
+
+</head>
 
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -1200,9 +1223,9 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 </form>
 <!-- —— Widget map + forecast —— -->
 <div id="widget">
-<header>
-<h1 id="hDay" style="display:none">--</h1>
-<p id="hDate"></p>
+<header style="display:none">
+  <h1 id="hDay">--</h1>
+  <p id="hDate"></p>
 </header>
 <div id="mapArea">
 <img alt="Mappa Calabria" id="map" loading="lazy" src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Map_of_region_of_Calabria%2C_Italy.svg/565px-Map_of_region_of_Calabria%2C_Italy.svg.png"/>
@@ -5869,5 +5892,27 @@ pushMsg(`${text}${body}`, "ai");
   };
 })();
 </script>
+
+<script id="mapdate-overlay-sync">
+(function(){
+  function syncMapDate(){
+    var src = document.getElementById('hDate');
+    var dest = document.getElementById('mapDateOverlay');
+    if(src && dest) dest.textContent = src.textContent || '';
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', syncMapDate);
+  }else{
+    syncMapDate();
+  }
+  try{
+    var src = document.getElementById('hDate');
+    if(src){
+      new MutationObserver(syncMapDate).observe(src, { childList:true, characterData:true, subtree:true });
+    }
+  }catch(e){}
+})();
+</script>
+
 </body>
 </html>
