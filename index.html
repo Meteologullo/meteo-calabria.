@@ -54,7 +54,7 @@
   @media(max-width:600px){#mapArea{margin:0 14px 20px 14px;}}
   #mapArea::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.08);border-radius:inherit;}
   #map{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;opacity:.3;filter:drop-shadow(0 0 2px rgba(0,0,0,.5));}
-  .marker{position:absolute;left:0;top:0;transform:translate(-50%,-50%);font-size:var(--marker-size);user-select:none;cursor:default;text-shadow:0 1px 3px rgba(0,0,0,.45);}
+  .marker{position:absolute;left:0;top:0;transform: translate(-50%, -50%) var(--rot, rotate(0deg));font-size:var(--marker-size);user-select:none;cursor:default;text-shadow:0 1px 3px rgba(0,0,0,.45);}
 .marker .fa-solid,.marker .fa-regular,.marker .fa-light,.marker .fa-duotone,.marker .fa{font-size:var(--marker-size);width:calc(var(--marker-size) * 1.4);height:calc(var(--marker-size) * 1.4);line-height:var(--marker-size);display:inline-flex;align-items:center;justify-content:center;}
 
 .marker img.weather-icon{width:calc(var(--marker-size) * 1.4);height:calc(var(--marker-size) * 1.4);}
@@ -1204,6 +1204,169 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 }
 </style>
 
+
+<script id="uniform-icon-normalizer">
+/* === Uniform Weather Icon Normalizer (non-invasive) — 2025‑08 ===
+   Scopo: rendere tutti i simboli sulla mappa della stessa "grandezza visiva"
+   anche se i PNG hanno padding trasparente diverso.
+   Non modifica le tue funzioni esistenti: osserva le icone inserite nella mappa
+   (#mapArea .marker img.weather-icon) e, per ciascuna, carica la stessa immagine
+   con CORS, ritaglia il bordo trasparente via canvas e la ridisegna in un
+   quadrato standard (lato ≈ var(--marker-size)*1.4). Risultato in cache (dataURL).
+*/
+(function(){
+  const CACHE = new Map();
+
+  function cropImageData(img, targetSize){
+    const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+    if(!W || !H) return null;
+    const c = document.createElement('canvas'), ctx = c.getContext('2d', { willReadFrequently:true });
+    c.width = W; c.height = H;
+    ctx.drawImage(img, 0, 0);
+
+    let minX=W, minY=H, maxX=0, maxY=0, found=false;
+    const { data } = ctx.getImageData(0,0,W,H);
+    for(let y=0; y<H; y++){
+      for(let x=0; x<W; x++){
+        const a = data[(y*W + x)*4 + 3];
+        if(a){ found = true;
+          if(x < minX) minX = x; if(x > maxX) maxX = x;
+          if(y < minY) minY = y; if(y > maxY) maxY = y;
+        }
+      }
+    }
+    if(!found) return null;
+    const cw = Math.max(1, maxX - minX + 1);
+    const ch = Math.max(1, maxY - minY + 1);
+
+    const out = document.createElement('canvas'), octx = out.getContext('2d');
+    out.width = targetSize; out.height = targetSize;
+    const scale = Math.min(targetSize / cw, targetSize / ch);
+    const dw = Math.round(cw * scale), dh = Math.round(ch * scale);
+    const dx = Math.floor((targetSize - dw) / 2), dy = Math.floor((targetSize - dh) / 2);
+    octx.clearRect(0,0,targetSize,targetSize);
+    octx.drawImage(c, minX, minY, cw, ch, dx, dy, dw, dh);
+    return out.toDataURL('image/png');
+  }
+
+  function normalizeElement(el){
+    if(!el || el.dataset.normDone) return;
+    const url = el.currentSrc || el.src;
+    if(!url) return;
+    const style = getComputedStyle(document.documentElement);
+    const base = parseFloat(style.getPropertyValue('--marker-size')) || 36;
+    const target = Math.max(16, Math.round(base * 1.4));
+
+    // use cache if available
+    if(CACHE.has(url)){
+      el.src = CACHE.get(url);
+      el.dataset.normDone = "1";
+      return;
+    }
+
+    // Load a fresh Image with CORS to avoid taint
+    const ghost = new Image();
+    ghost.crossOrigin = 'anonymous';
+    ghost.decoding = 'async';
+    ghost.src = url;
+
+    const done = (dataURL) => {
+      if(dataURL){
+        CACHE.set(url, dataURL);
+        try{ el.src = dataURL; }catch(e){}
+      }
+      el.dataset.normDone = "1";
+    };
+
+    (ghost.decode ? ghost.decode() : Promise.resolve()).then(()=>{
+      try{
+        const dataURL = cropImageData(ghost, target);
+        done(dataURL);
+      }catch(e){
+        // if canvas is tainted or fails, skip gracefully
+        done(null);
+      }
+    }).catch(()=>done(null));
+  }
+
+  function scan(root){
+    if(!root || !root.querySelectorAll) return;
+    root.querySelectorAll('#mapArea .marker img.weather-icon:not([data-norm-ignore])').forEach(normalizeElement);
+  }
+
+  // Observe dynamic icons added to the map
+  const mo = new MutationObserver(list => {
+    for(const m of list){
+      for(const n of m.addedNodes || []){
+        if(n.nodeType !== 1) continue;
+        if(n.matches && n.matches('#mapArea .marker img.weather-icon')) normalizeElement(n);
+        scan(n);
+      }
+    }
+  });
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', () => {
+      scan(document);
+      mo.observe(document.body, { childList:true, subtree:true });
+    });
+  }else{
+    scan(document);
+    mo.observe(document.body, { childList:true, subtree:true });
+  }
+})();
+</script>
+
+
+<style id="intro-previsioni-css">
+/* === Intro Previsioni (compatto, uniforme) === */
+#pageIntro.panel.intro{
+  padding:.9rem 1.05rem;
+  margin: 6px auto 12px;
+}
+#pageIntro .intro-title{
+  font-family:'Baloo 2',cursive;
+  font-weight:800;
+  font-size:clamp(18px,3.6vw,22px);
+  line-height:1.1;
+  margin-bottom:.25rem;
+}
+#pageIntro .intro-text{
+  font-size:.95rem;
+  opacity:.95;
+  margin:.15rem 0;
+}
+#pageIntro .intro-cta{
+  display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-top:.35rem;
+}
+#pageIntro .btn-mlg-map{
+  display:inline-flex; align-items:center; gap:.45rem;
+  padding:.5rem .85rem; border-radius:12px; font-weight:800;
+  background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#000;
+  text-decoration:none;
+}
+#pageIntro .btn-mlg-map i{ font-size:1rem; }
+#pageIntro .intro-note{ font-size:.9rem; color:var(--text-dim); }
+#pageIntro .intro-mini{ font-size:.88rem; color:var(--text-dim); margin-top:.35rem; }
+@media(max-width:600px){
+  #pageIntro.panel.intro{ padding:.8rem .9rem; margin: 6px auto 10px; }
+  #pageIntro .intro-text{ font-size:.92rem; }
+  #pageIntro .intro-mini{ font-size:.84rem; }
+}
+</style>
+
+
+<script id="intro-previsioni-link">
+// Consenti di impostare l'URL della MLG Map da una variabile globale senza toccare l'HTML
+(function(){
+  var url = window.MLG_MAP_URL || "https://meteologullo.github.io/mappamlg/";
+  var btn = document.getElementById("btnMlgMap");
+  if(btn) btn.href = url;
+  document.querySelectorAll('#pageIntro a[data-mlg-map="1"]').forEach(function(a){ a.href = url; });
+})();
+</script>
+
+
 </head>
 
 <script>
@@ -1217,6 +1380,31 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 
 <body>
 <!-- —— Search —— -->
+
+<section id="pageIntro" class="panel intro" aria-label="Introduzione sezione Previsioni">
+  <h2 class="intro-title">Sezione <span style="white-space:nowrap">Previsioni</span></h2>
+  <p class="intro-text">
+    In questa pagina trovi le <strong>previsioni per le prossime ore e i prossimi giorni</strong>.
+    La <strong>mappa sottostante</strong> è <strong>elaborata da MLG – Meteo&nbsp;Lo&nbsp;Gullo</strong> (non è una mappa automatica).
+  </p>
+  <p class="intro-text">
+    Le previsioni ottenute cercando una località nella barra sono a base automatica ma
+    <strong>controllate da MLG</strong>, rappresentano un’<strong>innovazione</strong> e sono
+    <strong>integrate</strong> con i dati delle nostre stazioni meteorologiche (rete <em>MLG&nbsp;Map</em>).
+  </p>
+  <div class="intro-cta">
+    <a id="btnMlgMap" class="btn-mlg-map" href="https://meteologullo.github.io/mappamlg/" target="_blank" rel="noopener">
+      <i class="fa-solid fa-map-location-dot"></i> Apri MLG&nbsp;Map
+    </a>
+    <span class="intro-note">Lì trovi <strong>tutti i dati in tempo reale</strong> dell’intero territorio regionale.</span>
+  </div>
+  <p class="intro-mini">
+    In questa sezione sono presenti solo le <strong>previsioni del tempo</strong>.
+    Per i dati in tempo reale usa <a data-mlg-map="1" href="#" target="_blank" rel="noopener">MLG&nbsp;Map</a>.
+    Scorrendo in basso trovi anche l’<a href="#mlgAiBox">Assistente</a> con cui fare domande e chiedere informazioni.
+  </p>
+</section>
+
 <form class="search" id="searchForm">
 <input autocomplete="off" id="cityInput" placeholder="Scrivi una città o usa 📍…" required=""/>
 <button type="submit"><i class="fa-solid fa-search"></i></button>
@@ -1290,6 +1478,14 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
       <input id="inpMarkerSizeOne" max="96" min="16" step="1" type="range"/>
 </label>
 <button id="btnResetSize" style="margin-top:6px;">↩︎ Reimposta dimensione del marker selezionato</button>
+<label>Rotazione marker (°)
+      <input id="inpRotateOne" type="range" min="-180" max="180" step="1"/>
+</label>
+<button id="btnResetRotate" style="margin-top:6px;">↩︎ Reimposta rotazione</button>
+<label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+  <input type="checkbox" id="chkGlobal"/> Applica globalmente (posizione, rotazione e — se marker personalizzato — icona)
+</label>
+<small style="color:#666;margin-top:-6px;">Se disattivo: le modifiche valgono solo per il giorno selezionato.</small>
 <div class="row">
 <button id="btnSaveMarker">Salva marker</button>
 <button id="btnDeleteMarker">🗑️ Elimina marker</button>
@@ -1494,7 +1690,24 @@ let PERSIST = (function(){
   try{
     return JSON.parse(localStorage.getItem('CALABRIA_MAP_STATE_V2')||'{"positions":{},"custom":[],"markerSize":null}');
   }catch(e){ return {"positions":{},"custom":[],"markerSize":null}; }
-})();
+})()
+// --- Sanitize legacy/corrupt data (remove bad icons from PERSIST.positions) ---
+try{
+  if(PERSIST && PERSIST.positions){
+    Object.keys(PERSIST.positions).forEach(uid=>{
+      const st = PERSIST.positions[uid];
+      if(st && typeof st.icon !== 'undefined'){
+        const ok = (typeof st.icon === 'string') && (
+          /^https?:\/\//.test(st.icon) || /\.(png|jpe?g|webp|gif)$/i.test(st.icon)
+        );
+        if(!ok){ delete st.icon; }
+      }
+    });
+    // Persist the cleanup
+    try{ localStorage.setItem('CALABRIA_MAP_STATE_V2', JSON.stringify(PERSIST)); }catch(e){}
+  }
+}catch(e){}
+;
 
 function saveState(){
   try{
@@ -1552,7 +1765,7 @@ async function addCustomMarkersFromPersist(){
         tmax: Math.round(data.daily.temperature_2m_max[d]),
         tmin: Math.round(data.daily.temperature_2m_min[d])
       };
-      if(PERSIST.positions[meta.uid]?.icon){ pt.icon = PERSIST.positions[meta.uid].icon; pt.code = undefined; }
+      if(PERSIST.positions[meta.uid]?.icon && typeof PERSIST.positions[meta.uid].icon==='string'){ pt.icon = PERSIST.positions[meta.uid].icon; pt.code = undefined; }
       DAYS[d].points.push(pt);
     }
   }
@@ -1566,7 +1779,7 @@ function propagateToAllDays(uid, {x=null,y=null,icon=null}={}){
       if(pt.uid === uid){
         if(x!==null) pt.x = x;
         if(y!==null) pt.y = y;
-        if(icon!==null){ pt.icon = icon; pt.code = undefined; }
+        if(icon!==null && ((typeof isValidIconString==='function' && isValidIconString(icon)) || (typeof icon==='string' && icon.length>0))){ pt.icon = icon; pt.code = undefined; }
       }
     }
   }
@@ -1685,7 +1898,30 @@ function render(){
 
     mk.style.left=p.x+'%';
     mk.style.top=p.y+'%';
+    // —— Applica rotazione (giorno > globale) ——
+    (function(){
+      try{
+        const uid = mk.dataset.uid;
+        let rr = (typeof p.rot==='number') ? p.rot : null;
+        if(rr===null && PERSIST && PERSIST.positions && PERSIST.positions[uid] && typeof PERSIST.positions[uid].rot==='number'){
+          rr = PERSIST.positions[uid].rot;
+        }
+        mk.style.transform = 'translate(-50%, -50%) rotate(' + ((rr||0)) + 'deg)';
+      }catch(_e){ mk.style.transform = 'translate(-50%, -50%)'; }
+    })();
+
     
+
+    // Applica rotazione (giorno > globale)
+    try{
+      const __uid = mk.dataset.uid;
+      let __rot = (typeof p.rot==='number') ? p.rot : 0;
+      if(typeof PERSIST!=='undefined' && PERSIST.positions && PERSIST.positions[__uid] && typeof PERSIST.positions[__uid].rot==='number'){
+        __rot = (typeof p.rot==='number') ? p.rot : PERSIST.positions[__uid].rot;
+      }
+      mk.style.setProperty('--rot', 'rotate('+(__rot||0)+'deg)');
+    }catch(__e){}
+
 // Calcola eventuale override per il giorno corrente (solo diurno)
 (function(){
   const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+data.offset);
@@ -2498,6 +2734,8 @@ document.getElementById('fab').addEventListener('contextmenu',e=>{
                 }
                 const pt=DAYS[curDay].points[editIdx];
                 const uid=pt.uid || uidForCity(pt.city);
+                // assegna anche all'oggetto del giorno corrente (vale per giorno+notte)
+                pt.icon = ic; pt.code = undefined;
                 const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
                 const _key=_d.toISOString().slice(0,10);
                 const seg = night ? 'night' : 'day';
@@ -2593,7 +2831,7 @@ const selDay=$('#selDay'), inpDayName=$('#inpDayName'), inpIcon=$('#inpIcon'),
         btnSaveMarker=$('#btnSaveMarker'), btnDeleteMarker=$('#btnDeleteMarker'),
         btnSaveLayout=$('#btnSaveLayout'), btnReset=$('#btnReset'),
         btnSaveForecast=$('#btnSaveForecast');
-const inpMarkerSizeOne=$('#inpMarkerSizeOne'), btnResetSize=$('#btnResetSize'), chkPin=$('#chkPin'), btnPeek=$('#btnPeek');
+const inpMarkerSizeOne=$('#inpMarkerSizeOne'), btnResetSize=$('#btnResetSize'), chkPin=$('#chkPin'), btnPeek=$('#btnPeek'), inpRotateOne=$('#inpRotateOne'), btnResetRotate=$('#btnResetRotate'), chkGlobal=$('#chkGlobal');
 
 // ——— Persist per-day tmax/tmin (V2) ———
 btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist */
@@ -2680,8 +2918,19 @@ btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist
       const uid = DAYS[curDay].points[idx].uid || uidForCity(DAYS[curDay].points[idx].city);
       const newX = parseFloat(mk.style.left);
       const newY = parseFloat(mk.style.top);
-      propagateToAllDays(uid,{x:newX,y:newY});
-      savePosition(uid,newX,newY);
+      const __g = (document.getElementById('chkGlobal') && document.getElementById('chkGlobal').checked);
+      if(__g){
+        propagateToAllDays(uid,{x:newX,y:newY});
+        savePosition(uid,newX,newY);
+      }else{
+        try{
+          DAYS[curDay].points[idx].x = newX;
+          DAYS[curDay].points[idx].y = newY;
+          const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+curDay);
+          const key=d.toISOString().slice(0,10);
+          if(typeof saveDailyOverrideV2==='function'){ saveDailyOverrideV2(key, uid, { x:newX, y:newY }); }
+        }catch(e){}
+      }
       mk.removeEventListener('pointermove',move);
       mk.removeEventListener('pointerup',up);
     };
@@ -2738,26 +2987,84 @@ if(editIdx===null) return toast('Nessun marker selezionato');
     }catch(e){}
 
     const newIcon = (inpIcon.value.trim()||pt.icon);
+    // se icona valida, mettila anche sul punto corrente (vale sia per giorno che notte)
+    if(window.isValidIconString && isValidIconString(newIcon)){ pt.icon = newIcon; pt.code = undefined; }
     // aggiorna dati tabella
     const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
     const _key=_d.toISOString().slice(0,10);
         const seg = night ? 'night' : 'day';
     if (typeof saveDailyIconOverrideV3 === 'function') {
-      saveDailyIconOverrideV3(_key, uid, seg, { icon: newIcon });
+      if(window.isValidIconString(newIcon)){ saveDailyIconOverrideV3(_key, uid, seg, { icon: newIcon }); }
     }
     if (!night && typeof saveDailyOverrideV2 === 'function') {
-      saveDailyOverrideV2(_key, uid, { icon: newIcon });
+      if(window.isValidIconString(newIcon)) saveDailyOverrideV2(_key, uid, { icon: newIcon });
     }
 pt.city=selCity.value;
     pt.tmax=parseFloat(inpTmax.value)||pt.tmax;
     pt.tmin=parseFloat(inpTmin.value)||pt.tmin;
     // propaga icona (override) a tutti i giorni e salva
     // per-day override handled below (no global propagate)
-// propagateToAllDays(uid,{icon:newIcon});
+// // (disabilitato) propagateToAllDays(uid,{icon:newIcon});
     if(!PERSIST.positions) PERSIST.positions={};
     if(!PERSIST.positions[uid]) PERSIST.positions[uid]={};
     // icon persistence removed (handled per-day)
     saveState();
+    
+    // —— Rotazione ——
+    try{
+      const pt=DAYS[curDay].points[editIdx];
+      const uid = pt.uid || uidForCity(pt.city);
+      const rotVal = parseInt(inpRotateOne && inpRotateOne.value, 10);
+      if(!isNaN(rotVal)){
+        const isGlobal = (typeof chkGlobal!=='undefined' && chkGlobal && chkGlobal.checked);
+        if(isGlobal){
+          if(!PERSIST.positions) PERSIST.positions = {};
+          if(!PERSIST.positions[uid]) PERSIST.positions[uid] = {};
+          PERSIST.positions[uid].rot = rotVal;
+          saveState();
+        }else{
+          const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+curDay);
+          const key=d.toISOString().slice(0,10);
+          if(typeof saveDailyOverrideV2==='function'){ saveDailyOverrideV2(key, uid, { rot: rotVal }); }
+        }
+      }
+    }catch(e){}
+    
+    
+    /* —— Propagazione globale completa —— */
+    try{
+      const isGlobal = (typeof chkGlobal!=='undefined' && chkGlobal && chkGlobal.checked);
+      if(isGlobal){
+        const ptNow = DAYS[curDay].points[editIdx];
+        const uidNow = ptNow.uid || uidForCity(ptNow.city);
+        // 1) assicurati che il marker esista in ogni giorno
+        if(typeof ensureMarkerOnAllDays==='function'){ ensureMarkerOnAllDays(uidNow, ptNow); }
+        // 2) calcola i valori
+        const rotVal = parseInt(inpRotateOne && inpRotateOne.value, 10);
+        const globalX = ptNow.x, globalY = ptNow.y;
+        const iconCandidate = (inpIcon && inpIcon.value && inpIcon.value.trim()) ? inpIcon.value.trim() : (ptNow.icon || '');
+        const shouldCopyIcon = (typeof isCustomMarker==='function' ? isCustomMarker(ptNow) : (ptNow.code===undefined));
+        // 3) aggiorna PERSIST (così vale per tutti i giorni e a ogni ricarica)
+        if(typeof setGlobalPersist==='function'){
+          setGlobalPersist(uidNow, {
+            x: globalX, y: globalY,
+            rot: (!isNaN(rotVal)? rotVal : null),
+            icon: (shouldCopyIcon && window.isValidIconString && isValidIconString(iconCandidate)) ? iconCandidate : undefined
+          });
+        }
+        // 4) applica subito nei dati in memoria
+        if(typeof propagateToAllDays==='function'){
+          propagateToAllDays(uidNow, {x: globalX, y: globalY});
+          if(shouldCopyIcon && window.isValidIconString && isValidIconString(iconCandidate)){
+            propagateToAllDays(uidNow, {icon: iconCandidate});
+          }
+        }
+        // 5) rimuovi eventuali override per-giorno che sovrascrivono l'icona
+        if(shouldCopyIcon && typeof clearAllDailyIconOverridesForUid==='function'){
+          clearAllDailyIconOverridesForUid(uidNow);
+        }
+      }
+    }catch(_e){ console.warn('global propagate failed', _e); }
     panel.classList.remove('open'); editIdx=null; render();
   });
 
@@ -2797,6 +3104,37 @@ pt.city=selCity.value;
     });
   }
   /* —— Reset dimensione solo per il marker selezionato —— */
+  /* —— Rotazione marker (anteprima live) —— */
+  if (typeof inpRotateOne !== "undefined" && inpRotateOne){
+    inpRotateOne.addEventListener('input', ()=>{
+      if(editIdx===null) return;
+      const deg = parseInt(inpRotateOne.value, 10) || 0;
+      const mk = document.querySelector('#mapArea .marker[data-idx="'+editIdx+'"]');
+      if(mk){ mk.style.transform = 'translate(-50%, -50%) rotate('+deg+'deg)'; }
+    });
+  }
+  /* —— Reset rotazione —— */
+  if (typeof btnResetRotate !== "undefined" && btnResetRotate){
+    btnResetRotate.addEventListener('click', ()=>{
+      if(editIdx===null) return toast('Nessun marker selezionato');
+      const pt = DAYS[curDay].points[editIdx];
+      const uid = pt.uid || uidForCity(pt.city);
+      const isGlobal = (typeof chkGlobal!=='undefined' && chkGlobal && chkGlobal.checked);
+      if(isGlobal){
+        if(PERSIST.positions && PERSIST.positions[uid] && 'rot' in PERSIST.positions[uid]){
+          delete PERSIST.positions[uid].rot;
+          saveState();
+        }
+      }else{
+        const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+curDay);
+        const key=d.toISOString().slice(0,10);
+        if(typeof saveDailyOverrideV2==='function'){ saveDailyOverrideV2(key, uid, { rot: 0 }); }
+      }
+      if(inpRotateOne) inpRotateOne.value = 0;
+      render();
+    });
+  }
+
   if (typeof btnResetSize !== "undefined" && btnResetSize){
     btnResetSize.addEventListener('click', ()=>{
       if(editIdx===null) return toast('Nessun marker selezionato');
@@ -5911,6 +6249,139 @@ pushMsg(`${text}${body}`, "ai");
       new MutationObserver(syncMapDate).observe(src, { childList:true, characterData:true, subtree:true });
     }
   }catch(e){}
+})();
+</script>
+
+
+<script id="applyDailyOverridesV2-augment-rot-xy">
+(function(){
+  const _apply = window.applyDailyOverridesV2;
+  window.applyDailyOverridesV2 = function(){
+    try{
+      if(typeof _apply==='function'){ try{ _apply(); }catch(e){} }
+      if(!Array.isArray(window.DAYS)||!window.DAYS.length) return;
+      window.DAYS.forEach(dayObj=>{
+        try{
+          const d=new Date(); d.setHours(0,0,0,0);
+          d.setDate(d.getDate() + (dayObj.offset||0));
+          const key=d.toISOString().slice(0,10);
+          (dayObj.points||[]).forEach(pt=>{
+            const uid = pt.uid || (typeof uidForCity==='function'? uidForCity(pt.city): (pt.city||''));
+            const o = (typeof getDailyOverrideV2==='function') ? getDailyOverrideV2(key, uid) : null;
+            if(!o) return;
+            if(o.tmax !== undefined) pt.tmax = o.tmax;
+            if(o.tmin !== undefined) pt.tmin = o.tmin;
+            if(o.x !== undefined) pt.x = o.x;
+            if(o.y !== undefined) pt.y = o.y;
+            if(o.rot !== undefined) pt.rot = o.rot;
+            if(typeof o.icon==='string' && (/^https?:\/\//.test(o.icon) || /\.(png|jpe?g|webp|gif)$/i.test(o.icon))){ pt.icon = o.icon; delete pt.code; }
+          });
+        }catch(e){}
+      });
+    }catch(e){}
+  };
+})();
+</script>
+
+
+<script id="sanitizeDailyOverridesIcon">
+(function(){
+  if(typeof getDailyOverrideV2==='function' && typeof saveDailyOverrideV2==='function'){
+    const _get = getDailyOverrideV2;
+    window.getDailyOverrideV2 = function(key, uid){
+      const o = _get(key, uid);
+      if(o && o.icon!==undefined){
+        const ok = (typeof o.icon==='string') && (/^https?:\/\//.test(o.icon) || /\.(png|jpe?g|webp|gif)$/i.test(o.icon));
+        if(!ok){ try{ delete o.icon; saveDailyOverrideV2(key, uid, { icon: null }); }catch(e){} }
+      }
+      return o;
+    };
+  }
+})();
+</script>
+
+
+<script id="helpers-custom-icon">
+(function(){
+  window.isValidIconString = function(str){
+    return (typeof str==='string' && str.trim().length>0 &&
+            (/^https?:\/\//.test(str) || /\.(png|jpe?g|webp|gif|svg)$/i.test(str)));
+  };
+  window.isCustomMarker = function(pt){
+    // consider "custom" if it has a direct icon (no WMO code) OR carries a flag 'custom===true'
+    return (pt && (pt.code===undefined || pt.custom===true));
+  };
+})();
+</script>
+
+
+<script id="global-propagation-helpers">
+(function(){
+  window.ensureMarkerOnAllDays = function(uid, tmpl){
+    if(!uid || !Array.isArray(window.DAYS)) return;
+    for(const day of DAYS){
+      const exists = day.points && day.points.some(p => (p.uid || (typeof uidForCity==='function' ? uidForCity(p.city) : p.city)) === uid);
+      if(!exists){
+        const clone = {
+          uid: uid,
+          city: tmpl.city || 'Punto',
+          x: +tmpl.x || 0,
+          y: +tmpl.y || 0,
+          rot: (typeof tmpl.rot==='number') ? tmpl.rot : 0
+        };
+        // prefer custom icon if provided, otherwise keep code/icon from template
+        if(tmpl.icon && typeof tmpl.icon==='string'){ clone.icon = tmpl.icon; }
+        else if(tmpl.code !== undefined){ clone.code = tmpl.code; }
+        if(tmpl.tmax !== undefined) clone.tmax = tmpl.tmax;
+        if(tmpl.tmin !== undefined) clone.tmin = tmpl.tmin;
+        if(!day.points) day.points = [];
+        day.points.push(clone);
+      }
+    }
+  };
+  window.setGlobalPersist = function(uid, {x=null,y=null,rot=null,icon=undefined}={}){
+    if(!uid) return;
+    if(!window.PERSIST) window.PERSIST = {};
+    if(!PERSIST.positions) PERSIST.positions = {};
+    if(!PERSIST.positions[uid]) PERSIST.positions[uid] = {};
+    if(x!==null) PERSIST.positions[uid].x = x;
+    if(y!==null) PERSIST.positions[uid].y = y;
+    if(rot!==null) PERSIST.positions[uid].rot = rot;
+    if(icon!==undefined){
+      if(window.isValidIconString && isValidIconString(icon)){
+        PERSIST.positions[uid].icon = icon;
+      }else if(icon===null){
+        delete PERSIST.positions[uid].icon;
+      }
+    }
+    if(typeof saveState==='function') saveState();
+  };
+  window.clearAllDailyIconOverridesForUid = function(uid){
+    try{
+      const storeV3 = window.DAILY_ICON_OVERRIDE_V3 || {};
+      Object.keys(storeV3).forEach(dayKey=>{
+        if(storeV3[dayKey] && storeV3[dayKey][uid]){
+          delete storeV3[dayKey][uid].day;
+          delete storeV3[dayKey][uid].night;
+          if(Object.keys(storeV3[dayKey][uid]).length===0) delete storeV3[dayKey][uid];
+        }
+      });
+      window.DAILY_ICON_OVERRIDE_V3 = storeV3;
+      if(window.DAILY_OVERRIDE_V2){
+        Object.keys(window.DAILY_OVERRIDE_V2).forEach(dayKey=>{
+          if(window.DAILY_OVERRIDE_V2[dayKey] && window.DAILY_OVERRIDE_V2[dayKey][uid]){
+            delete window.DAILY_OVERRIDE_V2[dayKey][uid].icon;
+            if(Object.keys(window.DAILY_OVERRIDE_V2[dayKey][uid]).length===0) delete window.DAILY_OVERRIDE_V2[dayKey][uid];
+          }
+        });
+      }
+      // persist
+      try{
+        localStorage.setItem('dailyIconOverrideV3', JSON.stringify(window.DAILY_ICON_OVERRIDE_V3||{}));
+        localStorage.setItem('dailyOverrideV2', JSON.stringify(window.DAILY_OVERRIDE_V2||{}));
+      }catch(e){}
+    }catch(e){}
+  };
 })();
 </script>
 
