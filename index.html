@@ -1205,117 +1205,139 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 </style>
 
 
+
 <script id="uniform-icon-normalizer">
-/* === Uniform Weather Icon Normalizer (non-invasive) — 2025‑08 ===
-   Scopo: rendere tutti i simboli sulla mappa della stessa "grandezza visiva"
-   anche se i PNG hanno padding trasparente diverso.
-   Non modifica le tue funzioni esistenti: osserva le icone inserite nella mappa
-   (#mapArea .marker img.weather-icon) e, per ciascuna, carica la stessa immagine
-   con CORS, ritaglia il bordo trasparente via canvas e la ridisegna in un
-   quadrato standard (lato ≈ var(--marker-size)*1.4). Risultato in cache (dataURL).
+/* === Uniform Weather Icon Normalizer — DOWNscale only (2025‑08‑12)
+   Obiettivo: uniformare la dimensione VISIVA dei simboli senza mai ingrandire
+   i PNG originali (niente sgranature). Si basa sul contenuto più piccolo
+   trovato e riduce gli altri. Non tocca il tuo flusso di rendering.
 */
 (function(){
-  const CACHE = new Map();
+  const CACHE = new Map();           // url -> dataURL (alla target corrente)
+  const MEASURE = new Map();         // url -> {cw,ch,side}
+  let MIN_CONTENT = Infinity;        // lato max più piccolo rilevato (px)
+  let LAST_TARGET = 0;               // cache invalidation per cambio target
 
-  function cropImageData(img, targetSize){
+  function measureContent(img){
     const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
     if(!W || !H) return null;
     const c = document.createElement('canvas'), ctx = c.getContext('2d', { willReadFrequently:true });
-    c.width = W; c.height = H;
-    ctx.drawImage(img, 0, 0);
-
+    c.width = W; c.height = H; ctx.drawImage(img,0,0);
     let minX=W, minY=H, maxX=0, maxY=0, found=false;
     const { data } = ctx.getImageData(0,0,W,H);
-    for(let y=0; y<H; y++){
-      for(let x=0; x<W; x++){
-        const a = data[(y*W + x)*4 + 3];
-        if(a){ found = true;
-          if(x < minX) minX = x; if(x > maxX) maxX = x;
-          if(y < minY) minY = y; if(y > maxY) maxY = y;
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        const a = data[(y*W+x)*4+3];
+        if(a){ found=true;
+          if(x<minX)minX=x; if(x>maxX)maxX=x;
+          if(y<minY)minY=y; if(y>maxY)maxY=y;
         }
       }
     }
-    if(!found) return null;
-    const cw = Math.max(1, maxX - minX + 1);
-    const ch = Math.max(1, maxY - minY + 1);
+    if(!found) return {cw:W, ch:H, side:Math.max(W,H)}; // fallback
+    const cw = Math.max(1, maxX-minX+1), ch = Math.max(1, maxY-minY+1);
+    return {cw, ch, side: Math.max(cw,ch), minX, minY};
+  }
 
-    const out = document.createElement('canvas'), octx = out.getContext('2d');
-    out.width = targetSize; out.height = targetSize;
-    const scale = Math.min(targetSize / cw, targetSize / ch);
+  function getOutSize(){
+    const base = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--marker-size')) || 36;
+    return Math.max(16, Math.round(base * 1.4));
+  }
+
+  function rasterize(img, meas, outSize, contentTarget){
+    // Disegna nel quadrato outSize mantenendo il contenuto al più contentTarget
+    const {cw, ch, minX=0, minY=0} = meas;
+    const out = document.createElement('canvas'), ctx = out.getContext('2d');
+    out.width = outSize; out.height = outSize;
+    // SCALA: mai >1 (downscale-only)
+    const scale = Math.min(1, contentTarget / cw, contentTarget / ch);
     const dw = Math.round(cw * scale), dh = Math.round(ch * scale);
-    const dx = Math.floor((targetSize - dw) / 2), dy = Math.floor((targetSize - dh) / 2);
-    octx.clearRect(0,0,targetSize,targetSize);
-    octx.drawImage(c, minX, minY, cw, ch, dx, dy, dw, dh);
+    const dx = Math.floor((outSize - dw) / 2), dy = Math.floor((outSize - dh) / 2);
+    ctx.clearRect(0,0,outSize,outSize);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, minX||0, minY||0, cw, ch, dx, dy, dw, dh);
     return out.toDataURL('image/png');
   }
 
-  function normalizeElement(el){
-    if(!el || el.dataset.normDone) return;
-    const url = el.currentSrc || el.src;
-    if(!url) return;
-    const style = getComputedStyle(document.documentElement);
-    const base = parseFloat(style.getPropertyValue('--marker-size')) || 36;
-    const target = Math.max(16, Math.round(base * 1.4));
+  function recomputeAll(){
+    // Se il target è cambiato, invalida la cache e rielabora le icone visibili
+    CACHE.clear();
+    LAST_TARGET = MIN_CONTENT;
+    document.querySelectorAll('#mapArea .marker img.weather-icon').forEach(el=>{
+      el.dataset.normDone = '';
+      normalizeElement(el);
+    });
+  }
 
-    // use cache if available
-    if(CACHE.has(url)){
-      el.src = CACHE.get(url);
-      el.dataset.normDone = "1";
-      return;
+  function normalizeElement(el){
+    if(!el) return;
+    const url = el.currentSrc || el.src; if(!url) return;
+
+    const outSize = getOutSize();
+    const target = MIN_CONTENT === Infinity ? null : MIN_CONTENT;
+
+    // Se abbiamo target pronto e in cache, usa quello
+    if(target && LAST_TARGET === target && CACHE.has(url)){
+      el.src = CACHE.get(url); el.dataset.normDone = '1'; return;
     }
 
-    // Load a fresh Image with CORS to avoid taint
-    const ghost = new Image();
-    ghost.crossOrigin = 'anonymous';
-    ghost.decoding = 'async';
+    // Carica immagine "ghost" per misurare senza inquinare CORS
+    const ghost = new Image(); ghost.crossOrigin = 'anonymous'; ghost.referrerPolicy = 'no-referrer';
     ghost.src = url;
 
-    const done = (dataURL) => {
+    const done = (dataURL)=>{
       if(dataURL){
         CACHE.set(url, dataURL);
-        try{ el.src = dataURL; }catch(e){}
+        el.src = dataURL;
+        el.dataset.normDone = '1';
+      }else{
+        el.dataset.normDone = '1'; // skip, lascia l'originale
       }
-      el.dataset.normDone = "1";
     };
 
-    (ghost.decode ? ghost.decode() : Promise.resolve()).then(()=>{
+    const afterDecode = ()=>{
       try{
-        const dataURL = cropImageData(ghost, target);
+        let meas = MEASURE.get(url);
+        if(!meas){ meas = measureContent(ghost); MEASURE.set(url, meas); }
+        // aggiorna minimo globale
+        if(meas && meas.side && meas.side < MIN_CONTENT){
+          MIN_CONTENT = meas.side;
+          // nuovo minimo: ricomputiamo tutti
+          recomputeAll();
+          return;
+        }
+        // se non abbiamo ancora il minimo, per ora non applichiamo nulla
+        if(MIN_CONTENT === Infinity){ el.dataset.normDone='0'; return; }
+        const dataURL = rasterize(ghost, meas, outSize, MIN_CONTENT);
         done(dataURL);
-      }catch(e){
-        // if canvas is tainted or fails, skip gracefully
-        done(null);
-      }
-    }).catch(()=>done(null));
+      }catch(e){ done(null); }
+    };
+
+    if(ghost.decode) ghost.decode().then(afterDecode).catch(()=>done(null));
+    else ghost.onload = afterDecode, ghost.onerror = ()=>done(null);
   }
 
   function scan(root){
-    if(!root || !root.querySelectorAll) return;
-    root.querySelectorAll('#mapArea .marker img.weather-icon:not([data-norm-ignore])').forEach(normalizeElement);
+    root.querySelectorAll?.('#mapArea .marker img.weather-icon:not([data-norm-done])').forEach(normalizeElement);
   }
 
-  // Observe dynamic icons added to the map
   const mo = new MutationObserver(list => {
     for(const m of list){
       for(const n of m.addedNodes || []){
         if(n.nodeType !== 1) continue;
         if(n.matches && n.matches('#mapArea .marker img.weather-icon')) normalizeElement(n);
-        scan(n);
+        n.querySelectorAll?.('#mapArea .marker img.weather-icon').forEach(normalizeElement);
       }
     }
   });
 
   if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', () => {
-      scan(document);
-      mo.observe(document.body, { childList:true, subtree:true });
-    });
-  }else{
-    scan(document);
-    mo.observe(document.body, { childList:true, subtree:true });
-  }
+    document.addEventListener('DOMContentLoaded', ()=>{ scan(document); mo.observe(document.body, {childList:true, subtree:true}); });
+  }else{ scan(document); mo.observe(document.body, {childList:true, subtree:true}); }
 })();
 </script>
+
 
 
 <style id="intro-previsioni-css">
