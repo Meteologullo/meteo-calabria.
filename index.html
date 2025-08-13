@@ -1742,6 +1742,66 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 })();
 </script>
 
+<style id="mlg-marker-children-guard">
+/* Visual safety: keep only the last child visible inside a marker */
+#mapArea .marker > *:not(:last-child){ display:none !important; }
+</style>
+
+<style id="mobile-icon-size-fix-2025-08-13">
+/* === Mobile icon hard-size fix — keeps weather icons uniform and smaller on phones === */
+@media (max-width: 600px){
+  :root{ --marker-size: 26px !important; } /* stable size, tweak to taste (24–28px) */
+  #mapArea .marker i,
+  #mapArea .marker .fa-solid,
+  #mapArea .marker .fa-regular,
+  #mapArea .marker .fa-light,
+  #mapArea .marker .fa-duotone,
+  #mapArea .marker .fa{
+    font-size: var(--marker-size) !important;
+    width: var(--marker-size) !important;
+    height: var(--marker-size) !important;
+    line-height: var(--marker-size) !important;
+    animation: none !important; /* stops float animation to reduce perceived overlap */
+  }
+  #mapArea .marker img.weather-icon{
+    width: var(--marker-size) !important;
+    height: var(--marker-size) !important;
+    object-fit: contain;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    display:block;
+  }
+}
+</style>
+
+<style id="intro-auto-hide-css">
+/* Auto-hide intro panel + toggle button (ChatGPT injected) */
+#pageIntro{ 
+  transition: opacity .35s ease, max-height .35s ease, margin .35s ease, padding .35s ease;
+  overflow:hidden; max-height:1000px;
+}
+#pageIntro.is-hidden{
+  opacity:0; max-height:0; margin:0; padding:0 .9rem;
+}
+/* Toggle button (top-right) */
+.intro-toggle{
+  position:fixed; top:10px; right:10px; z-index:1100;
+  display:none; align-items:center; gap:.45rem;
+  border:none; border-radius:999px; padding:.5rem .8rem;
+  font-weight:800; cursor:pointer;
+  background:linear-gradient(135deg,var(--accent,#7de1ff),var(--accent2,#aefb8f)); color:#000;
+  box-shadow:0 6px 14px rgba(0,0,0,.25);
+}
+.intro-toggle.show{ display:flex; }
+.intro-toggle svg{ width:16px; height:16px; }
+@media (max-width:600px){
+  .intro-toggle{ top:8px; right:8px; padding:.45rem .7rem; }
+}
+@media (prefers-reduced-motion:reduce){
+  #pageIntro{ transition:none; }
+}
+</style>
+
 </head>
 
 <script>
@@ -3110,15 +3170,15 @@ document.getElementById('fab').addEventListener('contextmenu',e=>{
                 const pt=DAYS[curDay].points[editIdx];
                 const uid=pt.uid || uidForCity(pt.city);
                 // assegna anche all'oggetto del giorno corrente (vale per giorno+notte)
-                pt.icon = ic; pt.code = undefined;
-                const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
+                (function(){
+  const _g = (typeof window.chkGlobal!=='undefined' && window.chkGlobal && window.chkGlobal.checked);
+  if(_g){ pt.icon = ic; pt.code = undefined; }
+})();
+const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
                 const _key=_d.toISOString().slice(0,10);
                 const seg = night ? 'night' : 'day';
                 if (typeof saveDailyIconOverrideV3 === 'function') {
                   saveDailyIconOverrideV3(_key, uid, seg, { icon: ic });
-                }
-                if (!night && typeof saveDailyOverrideV2 === 'function') {
-                  saveDailyOverrideV2(_key, uid, { icon: ic });
                 }
                 saveState();
               }
@@ -3288,24 +3348,22 @@ btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist
       mk.style.left=Math.min(Math.max(0,x),100)+'%';
       mk.style.top=Math.min(Math.max(0,y),100)+'%';
     };
-    const up=e=>{
+    
+const up=e=>{
       mk.releasePointerCapture(e.pointerId);
       const uid = DAYS[curDay].points[idx].uid || uidForCity(DAYS[curDay].points[idx].city);
       const newX = parseFloat(mk.style.left);
       const newY = parseFloat(mk.style.top);
-      const __g = (document.getElementById('chkGlobal') && document.getElementById('chkGlobal').checked);
-      if(__g){
-        propagateToAllDays(uid,{x:newX,y:newY});
-        savePosition(uid,newX,newY);
-      }else{
-        try{
-          DAYS[curDay].points[idx].x = newX;
-          DAYS[curDay].points[idx].y = newY;
-          const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+curDay);
-          const key=d.toISOString().slice(0,10);
-          if(typeof saveDailyOverrideV2==='function'){ saveDailyOverrideV2(key, uid, { x:newX, y:newY }); }
-        }catch(e){}
-      }
+      // Propaga SEMPRE posizione a tutti i giorni + persistenza
+      try{
+        if(typeof propagateToAllDays==='function'){ propagateToAllDays(uid,{x:newX,y:newY}); }
+        if(typeof savePosition==='function'){ savePosition(uid,newX,newY); }
+        // Aggiorna anche il giorno corrente in RAM
+        DAYS[curDay].points[idx].x = newX;
+        DAYS[curDay].points[idx].y = newY;
+        // Elimina eventuali override x/y per il giorno corrente (se gestiti) per evitare conflitti
+        if(typeof clearDailyXYOverride==='function'){ clearDailyXYOverride(curDay, uid); }
+      }catch(e){}
       mk.removeEventListener('pointermove',move);
       mk.removeEventListener('pointerup',up);
     };
@@ -3363,18 +3421,20 @@ if(editIdx===null) return toast('Nessun marker selezionato');
 
     const newIcon = (inpIcon.value.trim()||pt.icon);
     // se icona valida, mettila anche sul punto corrente (vale sia per giorno che notte)
+    (function(){
+  const _g = (typeof window.chkGlobal!=='undefined' && window.chkGlobal && window.chkGlobal.checked);
+  if(_g){
     if(window.isValidIconString && isValidIconString(newIcon)){ pt.icon = newIcon; pt.code = undefined; }
-    // aggiorna dati tabella
+  }
+})();
+// aggiorna dati tabella
     const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
     const _key=_d.toISOString().slice(0,10);
         const seg = night ? 'night' : 'day';
     if (typeof saveDailyIconOverrideV3 === 'function') {
       if(window.isValidIconString(newIcon)){ saveDailyIconOverrideV3(_key, uid, seg, { icon: newIcon }); }
     }
-    if (!night && typeof saveDailyOverrideV2 === 'function') {
-      if(window.isValidIconString(newIcon)) saveDailyOverrideV2(_key, uid, { icon: newIcon });
-    }
-pt.city=selCity.value;
+    pt.city=selCity.value;
     pt.tmax=parseFloat(inpTmax.value)||pt.tmax;
     pt.tmin=parseFloat(inpTmin.value)||pt.tmin;
     // propaga icona (override) a tutti i giorni e salva
@@ -6649,8 +6709,7 @@ pushMsg(`${text}${body}`, "ai");
             if(o.x !== undefined) pt.x = o.x;
             if(o.y !== undefined) pt.y = o.y;
             if(o.rot !== undefined) pt.rot = o.rot;
-            if(typeof o.icon==='string' && (/^https?:\/\//.test(o.icon) || /\.(png|jpe?g|webp|gif)$/i.test(o.icon))){ pt.icon = o.icon; delete pt.code; }
-          });
+            });
         }catch(e){}
       });
     }catch(e){}
@@ -6757,6 +6816,247 @@ pushMsg(`${text}${body}`, "ai");
       }catch(e){}
     }catch(e){}
   };
+})();
+</script>
+
+<script id="mlg-guard-global-icon">
+(function(){
+  try{
+    // Wrap setGlobalPersist: allow x,y,rot always; icon only if global checkbox is ON
+    if (typeof window.setGlobalPersist === 'function' && !window.setGlobalPersist.__iconGuarded) {
+      const _origSet = window.setGlobalPersist;
+      window.setGlobalPersist = function(uid, opts){
+        try{
+          if(opts && Object.prototype.hasOwnProperty.call(opts,'icon')){
+            const isGlobal = (typeof window.chkGlobal!=='undefined' && window.chkGlobal && window.chkGlobal.checked);
+            if(!isGlobal){
+              // drop icon field when global flag is OFF
+              opts = Object.assign({}, opts);
+              delete opts.icon;
+            }
+          }
+        }catch(e){}
+        return _origSet(uid, opts);
+      };
+      window.setGlobalPersist.__iconGuarded = true;
+    }
+    // Wrap propagateToAllDays: allow x,y always; icon only if global checkbox is ON
+    if (typeof window.propagateToAllDays === 'function' && !window.propagateToAllDays.__iconGuarded) {
+      const _origProp = window.propagateToAllDays;
+      window.propagateToAllDays = function(uid, options){
+        try{
+          const isGlobal = (typeof window.chkGlobal!=='undefined' && window.chkGlobal && window.chkGlobal.checked);
+          if(options && Object.prototype.hasOwnProperty.call(options,'icon') && !isGlobal){
+            options = Object.assign({}, options);
+            delete options.icon;
+          }
+        }catch(e){}
+        return _origProp(uid, options||{});
+      };
+      window.propagateToAllDays.__iconGuarded = true;
+    }
+  }catch(e){ console.warn('mlg-guard-global-icon failed', e); }
+})();
+</script>
+<script id="mlg-force-uncheck-global-2">
+document.addEventListener('DOMContentLoaded', function(){
+  try{ var c = document.getElementById('chkGlobal'); if(c) c.checked = false; }catch(e){}
+});
+</script>
+<script id="mlg-dedup-on-click-2025-08-13">
+(function(){
+  if (window.__DEDUP_ON_CLICK__) return; window.__DEDUP_ON_CLICK__ = true;
+
+  function pruneMarkerChildren(mk){
+    if(!mk) return;
+    try{
+      // keep only the last visual icon element
+      const kids = Array.from(mk.children);
+      if(kids.length > 1){
+        for(let i=0;i<kids.length-1;i++){ kids[i].remove(); }
+      }
+      // Also remove accidental duplicate images if inserted in quick succession
+      const imgs = mk.querySelectorAll('img.weather-icon');
+      if(imgs.length > 1){
+        for(let i=0;i<imgs.length-1;i++){ imgs[i].remove(); }
+      }
+      const alts = mk.querySelectorAll('i.alt-icon, .fa-solid, .fa-regular');
+      if(alts.length > 1){
+        for(let i=0;i<alts.length-1;i++){ alts[i].remove(); }
+      }
+    }catch(e){}
+  }
+
+  document.addEventListener('click', function(ev){
+    const mk = ev.target.closest && ev.target.closest('#mapArea .marker');
+    if(!mk) return;
+    // After other handlers run, prune duplicates
+    setTimeout(function(){ pruneMarkerChildren(mk); }, 0);
+  }, true);
+
+  // Also prune after every render
+  const _render = window.render;
+  if(typeof _render === 'function' && !_render.__dedupWrapped){
+    window.render = function(){
+      const out = _render.apply(this, arguments);
+      try{
+        document.querySelectorAll('#mapArea .marker').forEach(pruneMarkerChildren);
+      }catch(e){}
+      return out;
+    };
+    window.render.__dedupWrapped = true;
+  }
+})();
+</script>
+<script id="mlg-strong-marker-dedup">
+(function(){
+  if (window.__STRONG_DEDUP__) return; window.__STRONG_DEDUP__ = true;
+
+  function keyFor(el){
+    if(!el) return '';
+    const uid = el.getAttribute('data-uid') || '';
+    // prefer inline style; fallback to computed to be robust
+    const s = el.style || {};
+    let left = s.left || el.getAttribute('data-left') || '';
+    let top  = s.top  || el.getAttribute('data-top')  || '';
+    if((!left || !top) && el.parentElement){
+      const cs = getComputedStyle(el);
+      left = left || cs.left;
+      top  = top  || cs.top;
+    }
+    // round to 0.1px to avoid tiny float diffs
+    const rx = (parseFloat(left)||0).toFixed(1);
+    const ry = (parseFloat(top)||0).toFixed(1);
+    return uid + "|" + rx + "|" + ry;
+  }
+
+  function sweepAll(){
+    const area = document.getElementById('mapArea');
+    if(!area) return;
+    const list = Array.from(area.querySelectorAll('.marker'));
+    const groups = new Map();
+    list.forEach(el=>{
+      const k = keyFor(el);
+      if(!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(el);
+    });
+    groups.forEach((arr, k)=>{
+      if(arr.length <= 1) return;
+      // keep the 'selected' one if any; otherwise keep the last appended
+      let keep = arr.find(n=>n.classList.contains('selected')) || arr[arr.length-1];
+      arr.forEach(n=>{ if(n!==keep) n.remove(); });
+    });
+  }
+
+  // Run on any click on the map or a marker, after handlers finished
+  document.addEventListener('click', function(ev){
+    const t = ev.target;
+    if(!t) return;
+    if(t.closest && (t.closest('#mapArea') || t.closest('#mapArea .marker'))){
+      setTimeout(sweepAll, 0);
+    }
+  }, true);
+
+  // Also sweep after render()
+  const _r = window.render;
+  if(typeof _r === 'function' && !_r.__strongDedupWrapped){
+    window.render = function(){
+      const out = _r.apply(this, arguments);
+      try{ sweepAll(); }catch(e){}
+      return out;
+    };
+    window.render.__strongDedupWrapped = true;
+  }
+
+  // Final defense: periodic sweep for late async inserts
+  setInterval(sweepAll, 400);
+})();
+</script>
+<script id="mlg-filter-saveDailyOverrideV2-xy">
+(function(){
+  try{
+    if(typeof window.saveDailyOverrideV2 === 'function' && !window.saveDailyOverrideV2.__xyFiltered){
+      const _orig = window.saveDailyOverrideV2;
+      window.saveDailyOverrideV2 = function(key, uid, payload){
+        try{
+          // Drop x/y overrides globally: positions are global by design
+          if(payload && typeof payload==='object'){
+            if('x' in payload) delete payload.x;
+            if('y' in payload) delete payload.y;
+          }
+        }catch(e){}
+        return _orig.apply(this, arguments);
+      };
+      window.saveDailyOverrideV2.__xyFiltered = true;
+    }
+  }catch(e){}
+})();
+</script>
+
+<script id="intro-auto-hide-js">
+(function(){
+  var intro = document.getElementById('pageIntro');
+  if(!intro) return;
+
+  // Create the top-right toggle button (no external icon deps)
+  var btn = document.createElement('button');
+  btn.id = 'introToggle';
+  btn.className = 'intro-toggle';
+  btn.setAttribute('aria-controls','pageIntro');
+  btn.setAttribute('aria-expanded','false');
+  btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor" opacity=".2"></circle><path d="M11 10h2v7h-2zM11 7h2v2h-2z" fill="currentColor"></path></svg><span>Info</span>';
+  document.body.appendChild(btn);
+
+  var LSKEY = 'introHidden';
+  var PREF = localStorage.getItem(LSKEY);
+
+  function hideIntro(savePref){
+    if(intro.classList.contains('is-hidden')) return;
+    intro.classList.add('is-hidden');
+    btn.classList.add('show');
+    btn.setAttribute('aria-expanded','false');
+    if(savePref) localStorage.setItem(LSKEY, 'true');
+  }
+  function showIntro(savePref){
+    intro.style.display = '';
+    requestAnimationFrame(function(){ intro.classList.remove('is-hidden'); });
+    btn.classList.remove('show');
+    btn.setAttribute('aria-expanded','true');
+    if(savePref) localStorage.setItem(LSKEY, 'false');
+    // Scroll into view only on manual open
+    intro.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  // After transition completes, actually remove from flow
+  intro.addEventListener('transitionend', function(e){
+    if(e.propertyName !== 'max-height') return;
+    if(intro.classList.contains('is-hidden')) intro.style.display = 'none';
+  });
+
+  // Toggle manual
+  btn.addEventListener('click', function(){
+    if(intro.classList.contains('is-hidden')) showIntro(true);
+    else hideIntro(true);
+  });
+
+  // Initial state: respect stored preference; if none, auto-hide after 5s
+  if(PREF === 'true'){
+    // start hidden
+    hideIntro(false);
+    // ensure display:none applied promptly
+    intro.style.display = 'none';
+    btn.classList.add('show');
+  } else {
+    // If user previously chose to keep it visible, don't auto-hide
+    var shouldAutohide = (PREF === null);
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', function(){
+        if(shouldAutohide) setTimeout(function(){ hideIntro(true); }, 5000);
+      });
+    } else {
+      if(shouldAutohide) setTimeout(function(){ hideIntro(true); }, 5000);
+    }
+  }
 })();
 </script>
 
