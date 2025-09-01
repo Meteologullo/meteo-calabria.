@@ -2947,6 +2947,7 @@ async function run(q){
     const lat=g.latitude, lon=g.longitude;
     const fc = await forecastDetailed(lat,lon);
     window.fc = fc;
+try{ if(window.applySectorCondMiniToForecast) window.applySectorCondMiniToForecast(fc); }catch(e){}
 /* nearest station */
     const st=nearestWU(lat,lon) || {nome:g.name,distance:Infinity};
     const now=Date.now();
@@ -3015,6 +3016,20 @@ try{
 }catch(e){}
 dEl.innerHTML=renderDaily(fc);
     window.renderDayParts && window.renderDayParts(window.subForecastByDay ? window.subForecastByDay(fc, 0) : fc);
+    /* Double refresh per "oggi": forza un secondo aggiornamento dopo che
+       eventuali override/settore sono stati applicati in background */
+    setTimeout(function(){
+      try{
+        if(window.fc && typeof window.__applyRangeOverrides==='function'){
+          window.__applyRangeOverrides(window.fc);
+        }
+        if(window.renderDayParts){
+          var sub = (window.subForecastByDay) ? window.subForecastByDay(window.fc, 0) : window.fc;
+          window.renderDayParts(sub);
+        }
+      }catch(e){}
+    }, 80);
+
 aEl.innerHTML=renderAdvice(live,fc,idx);
     $('#radarFrame').src=`https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&detailLat=${lat}&detailLon=${lon}&width=650&height=450&zoom=6&level=surface&overlay=radar&product=ecmwf`;
   }catch(e){
@@ -3140,7 +3155,7 @@ document.getElementById('fab').addEventListener('contextmenu',e=>{
 
         /* —— Icon picker ——— */
         const iconSet=[
-  "Sereno giorno.PNG","Sereno notte.PNG",
+   "Sereno giorno.PNG","Sereno notte.PNG",
   "Parzialmente nuvoloso giorno.PNG","Parz nuvoloso notte.PNG",
   "nuvoloso.png",
   "Nebbia nuvole basse.PNG",
@@ -7060,5 +7075,720 @@ document.addEventListener('DOMContentLoaded', function(){
 })();
 </script>
 
+
+<!-- SECTOR CONDITION PRO v4 -->
+<script id="sector-cond-pro-v4">
+(function(){
+  if(window.__sectorCondProV4) return; window.__sectorCondProV4 = true;
+
+  var STORAGE_KEY = 'sectorCondMiniV1'; // reuse
+  var GRID_DEFAULT = {rows:8, cols:6};
+  var MIN_PROB_WET = 60;
+  var LOG = (new URLSearchParams(location.search).get('debug')==='1');
+  function log(){ try{ if(LOG) console.log.apply(console, ['[sector-pro v4]'].concat([].slice.call(arguments))); }catch(e){} }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function todayISO(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
+  function loadStore(){ try{ var j=JSON.parse(localStorage.getItem(STORAGE_KEY))||{}; if(!j.grid) j.grid=Object.assign({},GRID_DEFAULT); if(!j.overrides) j.overrides={}; return j; }catch(e){ return {grid:Object.assign({},GRID_DEFAULT), overrides:{}}; } }
+  function saveStore(s){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){} }
+  function setGrid(r,c){ var s=loadStore(); s.grid.rows=clamp(+r||GRID_DEFAULT.rows,1,50); s.grid.cols=clamp(+c||GRID_DEFAULT.cols,1,50); saveStore(s); }
+
+  function xyForLatLon(lat,lon){ try{ if(typeof window.latLonToXY==='function'){ var xy=window.latLonToXY(+lat,+lon); if(xy) return {x:clamp(+xy.x,0,100), y:clamp(+xy.y,0,100)}; } }catch(e){} return null; }
+  function sectorIdFromXY(xy){ var s=loadStore(); var rows=s.grid.rows, cols=s.grid.cols; var cellW=100/cols, cellH=100/rows; var c=clamp(Math.floor(xy.x/cellW),0,cols-1); var r=clamp(Math.floor(xy.y/cellH),0,rows-1); return r+'-'+c; }
+  function sectorIdForLatLon(lat,lon){ var xy=xyForLatLon(lat,lon); return xy? sectorIdFromXY(xy): null; }
+
+  function dayHourRange(fc,d){
+    try{
+      var dayISO=(fc.daily&&fc.daily.time&&fc.daily.time[d])||null; if(!dayISO) return null;
+      var times=(fc.hourly&&fc.hourly.time)||[];
+      var start=times.findIndex(function(t){ return (t||'').startsWith(dayISO); });
+      if(start<0) return null;
+      var end=times.length; for(var i=start+1;i<times.length;i++){ if(!times[i].startsWith(dayISO)){ end=i; break; } }
+      if(!isFinite(end)) end=Math.min(times.length,start+24);
+      return {start:start,end:end};
+    }catch(e){ return null; }
+  }
+
+  function applyToForecast(fc){
+    if(!fc) return;
+    var sid = sectorIdForLatLon(fc.latitude, fc.longitude);
+    if(!sid) return;
+    var store = loadStore();
+    var times = (fc.daily && fc.daily.time) || [];
+    for(var d=0; d<times.length; d++){
+      var dateISO = times[d];
+      var dayOvs = store.overrides[dateISO] || {};
+      var ov = dayOvs[sid];
+      if(!ov || ov.code==null) continue;
+      var code = +ov.code;
+      if(Array.isArray(fc.daily.weathercode)) fc.daily.weathercode[d] = code;
+      var rng = dayHourRange(fc,d);
+      if(rng && Array.isArray(fc.hourly.weathercode)){
+        for(var i=rng.start;i<rng.end;i++){ fc.hourly.weathercode[i] = code; }
+      }
+      var wet = {51:1,53:1,55:1,56:1,57:1,61:1,63:1,65:1,66:1,67:1,71:1,73:1,75:1,77:1,80:1,81:1,82:1,85:1,86:1,95:1,96:1,99:1};
+      if(rng && fc.hourly.precipitation_probability && wet[code]){
+        for(var i=rng.start;i<rng.end;i++){ var cur=Number(fc.hourly.precipitation_probability[i]||0); if(!(isFinite(cur)&&cur>=MIN_PROB_WET)) fc.hourly.precipitation_probability[i]=MIN_PROB_WET; }
+      }
+      log('applied', dateISO, sid, 'code', code);
+    }
+  }
+  window.applySectorCondMiniToForecast = applyToForecast;
+
+  // ===== UI =====
+  function buildPanel(){
+    var box=document.createElement('div');
+    box.id='sector-pro-panel';
+    box.style.cssText='position:fixed;z-index:999999;top:64px;left:50%;transform:translateX(-50%);width:560px;background:#0b1f28;color:#e6f1f5;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.35);display:none;font-family:inherit;';
+    box.innerHTML='\
+      <div style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;font-weight:700">\
+        <span>Condizione settore (PRO)</span>\
+        <div style="display:flex;gap:6px;align-items:center">\
+          <button id="proApplyNow" title="Applica subito all\'anteprima" style="padding:6px 8px;border-radius:8px;background:#2a7b62;border:1px solid rgba(255,255,255,.12);color:#e6f1f5;cursor:pointer">Applica adesso</button>\
+          <button id="proClose" style="all:unset;cursor:pointer;font-size:18px">✕</button>\
+        </div>\
+      </div>\
+      <div style="padding:2px 12px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">\
+        <label style="white-space:nowrap">Località:</label>\
+        <input id="proQuery" placeholder="es. Monte Scuro" style="flex:1;min-width:220px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#0e2a36;color:#e6f1f5" />\
+        <button id="proFind" style="padding:6px 10px;border-radius:8px;background:#134151;color:#e6f1f5;border:1px solid rgba(255,255,255,.12);cursor:pointer">Trova settore</button>\
+        <span id="proSector" style="margin-left:6px;opacity:.85"></span>\
+      </div>\
+      <div style="padding:0 12px 8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">\
+        <label>Giorno:</label>\
+        <select id="proDay"></select>\
+        <a id="proUseFcDays" href="#" style="margin-left:6px;color:#6ec1ff;text-decoration:underline">Usa i giorni reali del 7‑giorni</a>\
+        <label style="margin-left:auto">Griglia:</label>\
+        <input id="proRows" type="number" min="1" max="50" value="'+GRID_DEFAULT.rows+'" style="width:54px;padding:4px;background:#0e2a36;border:1px solid rgba(255,255,255,.12);color:#e6f1f5;border-radius:8px"> × \
+        <input id="proCols" type="number" min="1" max="50" value="'+GRID_DEFAULT.cols+'" style="width:54px;padding:4px;background:#0e2a36;border:1px solid rgba(255,255,255,.12);color:#e6f1f5;border-radius:8px">\
+        <button id="proGridApply" style="padding:6px 10px;border-radius:8px;background:#0e2a36;border:1px solid rgba(255,255,255,.12);color:#e6f1f5;cursor:pointer">Applica griglia</button>\
+        <a id="proScan" href="#" style="margin-left:6px;color:#6ec1ff;text-decoration:underline">Rileva icone</a>\
+      </div>\
+      <div id="proIcons" style="padding:4px 12px 8px;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;min-height:58px"></div>\
+      <div style="padding:8px 12px 14px;display:flex;gap:8px;align-items:center;justify-content:space-between">\
+        <div style="opacity:.75;font-size:12px">Oppure WMO manuale: <input id="proManual" type="number" style="width:80px;padding:4px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#0e2a36;color:#e6f1f5" placeholder="es. 61"></div>\
+        <div>\
+          <button id="proClear" style="padding:6px 10px;border-radius:8px;background:#0e2a36;border:1px solid rgba(255,255,255,.12);color:#e6f1f5;cursor:pointer">Pulisci</button>\
+          <button id="proSave" style="padding:6px 10px;border-radius:8px;background:#2a7b62;border:1px solid rgba(255,255,255,.12);color:#e6f1f5;cursor:pointer">Salva</button>\
+        </div>\
+      </div>\
+    ';
+    document.body.appendChild(box);
+
+    function fillDaysFromToday(){ var sel=document.getElementById('proDay'); sel.innerHTML=''; for(var d=0; d<7; d++){ var base=new Date(); base.setHours(0,0,0,0); base.setDate(base.getDate()+d); var iso=base.toISOString().slice(0,10); var opt=document.createElement('option'); opt.value=iso; opt.textContent=(d===0?'Oggi ':'')+iso; sel.appendChild(opt);} }
+    function fillDaysFromFc(){ try{ var sel=document.getElementById('proDay'); sel.innerHTML=''; var arr=(window.fc&&window.fc.daily&&window.fc.daily.time)||[]; if(arr.length){ for(var i=0;i<arr.length;i++){ var iso=arr[i]; var opt=document.createElement('option'); opt.value=iso; opt.textContent=iso; sel.appendChild(opt);} } else { fillDaysFromToday(); } }catch(e){ fillDaysFromToday(); } }
+
+    function renderIcons(list){
+      var cont=document.getElementById('proIcons'); cont.innerHTML='';
+      if(!list || !list.length){
+        var p=document.createElement('div'); p.style.opacity='.8'; p.textContent='(Nessuna icona mappa — usa "Rileva icone" o inserisci WMO)'; cont.appendChild(p);
+        var fallback=[ {name:'Sereno', code:0},{name:'Poco', code:2},{name:'Nuvoloso', code:3},{name:'Nebbia', code:45},{name:'Pioggia', code:61},{name:'Temporali', code:95},{name:'Neve', code:71} ];
+        fallback.forEach(function(f){ var b=document.createElement('button'); b.style.cssText='all:unset;cursor:pointer;border-radius:10px;padding:6px 8px;border:1px solid rgba(255,255,255,.12);background:#0e2a36;'; b.className='proIcon'; b.setAttribute('data-code', String(f.code)); b.textContent=f.name; b.onclick=function(){ cont.querySelectorAll('.proIcon').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); b.style.outline='2px solid #2a7b62'; }; cont.appendChild(b); });
+        var clr=document.createElement('button'); clr.style.cssText='all:unset;cursor:pointer;border-radius:10px;padding:6px 8px;border:1px dashed rgba(255,255,255,.25);background:#0e2a36;'; clr.className='proIcon'; clr.setAttribute('data-code',''); clr.textContent='Pulisci'; clr.onclick=function(){ cont.querySelectorAll('.proIcon').forEach(x=>x.classList.remove('selected')); clr.classList.add('selected'); clr.style.outline='2px solid #9b2a2a'; }; cont.appendChild(clr);
+        return;
+      }
+      list.forEach(function(it){ var btn=document.createElement('button'); btn.style.cssText='all:unset;cursor:pointer;border-radius:10px;padding:6px;border:1px solid rgba(255,255,255,.12);display:flex;flex-direction:column;align-items:center;gap:4px;background:#0e2a36'; btn.className='proIcon'; btn.setAttribute('data-code', it.code!=null? String(it.code): ''); var img=document.createElement('img'); img.src=it.url; img.alt='icon'; img.style.cssText='width:28px;height:28px;object-fit:contain'; var cap=document.createElement('div'); cap.style.cssText='font-size:11px;opacity:.85'; cap.textContent=(it.code!=null? ('WMO '+it.code): '?'); btn.appendChild(img); btn.appendChild(cap); btn.onclick=function(){ cont.querySelectorAll('.proIcon').forEach(function(b){ b.style.outline='none'; b.classList.remove('selected'); }); btn.classList.add('selected'); btn.style.outline='2px solid #2a7b62'; }; cont.appendChild(btn); });
+      var clr=document.createElement('button'); clr.style.cssText='all:unset;cursor:pointer;border-radius:10px;padding:6px;border:1px dashed rgba(255,255,255,.25);display:flex;flex-direction:column;align-items:center;gap:4px;background:#0e2a36'; clr.className='proIcon'; clr.setAttribute('data-code',''); var cap2=document.createElement('div'); cap2.style.cssText='font-size:11px;opacity:.75'; cap2.textContent='Pulisci'; clr.appendChild(document.createTextNode('🧽')); clr.appendChild(cap2); clr.onclick=function(){ cont.querySelectorAll('.proIcon').forEach(function(b){ b.style.outline='none'; b.classList.remove('selected'); }); clr.classList.add('selected'); clr.style.outline='2px solid #9b2a2a'; }; cont.appendChild(clr);
+    }
+    function currentSelectedCode(){ var btn=document.querySelector('#proIcons .proIcon.selected'); if(btn) return btn.getAttribute('data-code')||''; var manual=document.getElementById('proManual').value.trim(); return manual; }
+
+    function guessCodeFromIcon(u){ if(typeof u!=='string') return null; var low=u.toLowerCase(); try{ var url=new URL(u); low=(url.pathname||'').split('/').pop().toLowerCase()||low; }catch(e){}; if(low.includes('tempor')||low.includes('thunder')||low.includes('storm')) return 95; if(low.includes('rovesc')||low.includes('shower')||low.includes('piogg')||low.includes('rain')) return 61; if(low.includes('neve')||low.includes('snow')) return 71; if(low.includes('nebb')||low.includes('fog')||low.includes('mist')) return 45; if(low.includes('nuvol')||low.includes('cloud')||low.includes('overcast')) return 3; if(low.includes('poco')||low.includes('parz')||low.includes('partly')) return 2; if(low.includes('sereno')||low.includes('sole')||low.includes('sun')||low.includes('clear')) return 0; return null; }
+    function collectIconsForDay(idx){ var out=[], seen={}; try{ var day=(Array.isArray(window.DAYS)&&window.DAYS[idx])?window.DAYS[idx]:null; if(!day||!day.points) return out; for(var i=0;i<day.points.length;i++){ var u=day.points[i]&&day.points[i].icon; if(!u) continue; var key=String(u); if(seen[key]) continue; seen[key]=1; out.push({url:u, code:guessCodeFromIcon(u)}); } }catch(e){} return out; }
+    function collectIconsAll(){ var out=[], seen={}; try{ if(!Array.isArray(window.DAYS)) return out; for(var d=0; d<window.DAYS.length; d++){ var day=window.DAYS[d]; if(!day||!day.points) continue; for(var i=0;i<day.points.length;i++){ var u=day.points[i]&&day.points[i].icon; if(!u) continue; var key=String(u); if(seen[key]) continue; seen[key]=1; out.push({url:u, code:guessCodeFromIcon(u)}); } } }catch(e){} return out; }
+    async function waitDays(ms){ var t=Date.now(),lim=isFinite(ms)?ms:6000; while(Date.now()-t<lim){ if(Array.isArray(window.DAYS)&&window.DAYS.length&&window.DAYS[0].points&&window.DAYS[0].points.length) return true; await new Promise(r=>setTimeout(r,60)); } return false; }
+
+    // Grid overlay (admin only)
+    var overlay=null;
+    function showOverlay(){ var s=loadStore(); if(overlay) overlay.remove(); overlay=document.createElement('div'); overlay.id='sector-grid-overlay'; overlay.style.cssText='position:fixed;inset:0;z-index:999998;pointer-events:none;'; var rows=s.grid.rows, cols=s.grid.cols; var svg='<svg width=\"100%\" height=\"100%\" viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\">'; svg+='<rect x=\"0\" y=\"0\" width=\"100\" height=\"100\" fill=\"transparent\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"0.2\"/>'; for(var r=1;r<rows;r++){ var y=100*r/rows; svg+='<line x1=\"0\" y1=\"'+y+'\" x2=\"100\" y2=\"'+y+'\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"0.2\" />'; } for(var c=1;c<cols;c++){ var x=100*c/cols; svg+='<line y1=\"0\" x1=\"'+x+'\" y2=\"100\" x2=\"'+x+'\" stroke=\"rgba(255,255,255,.08)\" stroke-width=\"0.2\" />'; } svg+='</svg>'; overlay.innerHTML=svg; document.body.appendChild(overlay); }
+    function hideOverlay(){ if(overlay){ overlay.remove(); overlay=null; } }
+
+    function attachHandlers(){
+      var daySel=document.getElementById('proDay');
+      document.getElementById('proUseFcDays').onclick=function(e){ e.preventDefault(); fillDaysFromFc(); };
+      document.getElementById('proGridApply').onclick=function(){ var r=+document.getElementById('proRows').value; var c=+document.getElementById('proCols').value; if(!(r>0 && c>0)){ alert('La griglia deve avere almeno 1×1'); return; } setGrid(r,c); showOverlay(); };
+      document.getElementById('proScan').onclick=async function(e){ e.preventDefault(); await waitDays(5000); var idx=Math.max(0, Math.min(6, daySel.selectedIndex)); var list=collectIconsForDay(idx); if(!list.length) list=collectIconsAll(); renderIcons(list); };
+      document.getElementById('proFind').onclick=async function(){ try{ var q=document.getElementById('proQuery').value.trim(); var lbl=document.getElementById('proSector'); lbl.textContent='...'; var g= (typeof window.geocode==='function') ? await window.geocode(q) : null; if(!g){ lbl.textContent='Non trovato'; return; } var sid=sectorIdForLatLon(g.latitude, g.longitude); lbl.textContent='Settore: '+sid; lbl.setAttribute('data-sid', sid); }catch(e){ document.getElementById('proSector').textContent='Errore'; } };
+      document.getElementById('proClear').onclick=function(){ var iso=daySel.value; var sid=document.getElementById('proSector').getAttribute('data-sid'); if(!sid){ alert('Prima usa "Trova settore".'); return; } var s=loadStore(); if(s.overrides[iso]){ delete s.overrides[iso][sid]; saveStore(s); } alert('Override rimosso per '+iso+', '+sid); };
+      document.getElementById('proSave').onclick=function(){ var iso=daySel.value; var sid=document.getElementById('proSector').getAttribute('data-sid'); if(!sid){ alert('Prima usa "Trova settore".'); return; } var code=currentSelectedCode(); var s=loadStore(); if(!s.overrides[iso]) s.overrides[iso]={}; s.overrides[iso][sid] = (code===''||code==null) ? {code:null} : {code:+code}; saveStore(s); alert('Salvato '+(code===''?'(pulito)':'WMO '+code)+' per '+iso+', '+sid); };
+      document.getElementById('proApplyNow').onclick=function(){ try{ if(window.fc){ applyToForecast(window.fc); if(typeof window.render==='function') window.render(); } }catch(e){} };
+      document.getElementById('proClose').onclick=function(){ hideOverlay(); box.style.display='none'; };
+    }
+
+    function openPanel(){ if(!document.getElementById('proDay')){ return; } showOverlay(); fillDaysFromFc(); renderIcons([]); attachHandlers(); }
+    openPanel(); // init when created
+    return box;
+  }
+
+  var panel=null;
+  function openPro(){ if(!panel) panel=buildPanel(); panel.style.display='block'; showOverlay(); }
+  function togglePro(){ if(!panel) panel=buildPanel(); if(panel.style.display==='none'||!panel.style.display){ panel.style.display='block'; showOverlay(); } else { panel.style.display='none'; } }
+  window.__openSectorPro = openPro;
+
+  // Hotspot
+  var spot=document.createElement('div'); spot.id='sector-pro-spot'; spot.style.cssText='position:fixed;top:6px;left:6px;width:12px;height:12px;opacity:0;z-index:999998;cursor:pointer;';
+  var clicks=0,t=null; spot.addEventListener('click', function(){ clicks++; clearTimeout(t); t=setTimeout(function(){clicks=0;},700); if(clicks>=3){ clicks=0; openPro(); } });
+  document.body.appendChild(spot);
+  window.addEventListener('keydown', function(ev){ if(ev.ctrlKey&&ev.altKey&&(ev.key==='s'||ev.key==='S')){ ev.preventDefault(); togglePro(); } });
+
+  // Hook run + render
+  (function hook(){
+    try{ var oldRun=window.run; if(typeof oldRun==='function'){ window.run=async function(q){ var r=await oldRun.call(this,q); try{ if(window.fc) applyToForecast(window.fc); }catch(e){} return r; }; } }catch(e){}
+    var oldRender=window.render; if(typeof oldRender==='function'){ window.render=async function(){ try{ if(window.fc) applyToForecast(window.fc); }catch(e){} return oldRender.apply(this, arguments); }; }
+  })();
+
+})();
+</script>
+
+
+<!-- === SECTOR PRO • Fasce orarie (non distruttivo) — v1.2 (2025-08-14) === -->
+<script id="sector-pro-timebands-v12">
+(function(){
+  if(window.__sectorProTimebands) return; window.__sectorProTimebands = true;
+
+  var STORAGE_KEY = 'sectorCondMiniV1';     // stesso store del PRO
+  var MIN_PROB_WET = 60;
+  var WET = {51:1,53:1,55:1,56:1,57:1,61:1,63:1,65:1,66:1,67:1,71:1,73:1,75:1,77:1,80:1,81:1,82:1,85:1,86:1,95:1,96:1,99:1};
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function loadStore(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY))||{overrides:{},grid:{rows:8,cols:6}}; }catch(e){ return {overrides:{},grid:{rows:8,cols:6}}; } }
+  function saveStore(s){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){} }
+  function latLonToXYWrap(lat,lon){
+    try{ if(typeof window.latLonToXY==='function'){ return window.latLonToXY(+lat,+lon); } }catch(e){}
+    return null;
+  }
+  function sectorIdForLatLon(lat, lon){
+    var s = loadStore(); var rows = (s.grid&&s.grid.rows)||8, cols = (s.grid&&s.grid.cols)||6;
+    var xy = latLonToXYWrap(lat,lon); if(!xy) return null;
+    function c(v,min,max){ return Math.max(min, Math.min(max, v)); }
+    var cellW=100/cols, cellH=100/rows;
+    var ccol = c(Math.floor(xy.x/cellW), 0, cols-1);
+    var crow = c(Math.floor(xy.y/cellH), 0, rows-1);
+    return crow + '-' + ccol;
+  }
+  function inRange(h, start, end){ return (start<end) ? (h>=start && h<end) : (h>=start || h<end); }
+  function bandToRange(name){
+    var k = (name||'').toLowerCase();
+    if(k==='mattina') return {start:6, end:12};
+    if(k==='pomeriggio') return {start:12, end:18};
+    if(k==='sera') return {start:18, end:24};
+    if(k==='notte') return {start:0, end:6};
+    return null;
+  }
+  function dayRangeIndices(fc, d){
+    var dayISO = (fc.daily && fc.daily.time && fc.daily.time[d]) || null;
+    if(!dayISO || !fc.hourly || !fc.hourly.time) return null;
+    var times = fc.hourly.time;
+    var start = -1, end = times.length;
+    for(var i=0;i<times.length;i++){
+      if((times[i]||'').startsWith(dayISO)){ start = i; break; }
+    }
+    if(start < 0) return null;
+    for(var j=start+1;j<times.length;j++){
+      if(!times[j].startsWith(dayISO)){ end = j; break; }
+    }
+    if(!isFinite(end)) end = Math.min(times.length, start+24);
+    return {start:start, end:end, iso:dayISO};
+  }
+
+  // --- UI injection (non distruttiva) ---
+  function injectUI(){
+    var panel = document.getElementById('sector-pro-panel');
+    if(!panel || document.getElementById('proBandBox')) return;
+    // Inserisci il blocco subito dopo la riga Giorno/griglia
+    var anchor = panel.querySelector('#proIcons') || panel.lastElementChild;
+    var box = document.createElement('div');
+    box.id = 'proBandBox';
+    box.style.cssText = 'padding:0 12px 8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;';
+    box.innerHTML = ''
+      + '<label style="white-space:nowrap;font-weight:600">Fascia:</label>'
+      + '<select id="proBand" style="padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#0e2a36;color:#e6f1f5">'
+      +   '<option value="full">Giorno intero (default)</option>'
+      +   '<option value="mattina">Mattina (6–12)</option>'
+      +   '<option value="pomeriggio">Pomeriggio (12–18)</option>'
+      +   '<option value="sera">Sera (18–24)</option>'
+      +   '<option value="notte">Notte (0–6)</option>'
+      +   '<option value="custom">Ore personalizzate…</option>'
+      + '</select>'
+      + '<span id="proHoursWrap" style="display:none;gap:6px;align-items:center">'
+      +   '<label>da</label><input id="proHourStart" type="number" min="0" max="23" value="8" style="width:64px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#0e2a36;color:#e6f1f5">'
+      +   '<label>a</label><input id="proHourEnd" type="number" min="1" max="24" value="12" style="width:64px;padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#0e2a36;color:#e6f1f5">'
+      +   '<small style="opacity:.75">[intervallo chiuso‑aperto, es. 8–12 = 08:00→11:59]</small>'
+      + '</span>'
+      + '<small style="opacity:.75">Suggerimento: scegli una <b>fascia</b> per non toccare i restanti orari.</small>';
+    anchor.parentNode.insertBefore(box, anchor);
+
+    var sel = box.querySelector('#proBand');
+    var wrap = box.querySelector('#proHoursWrap');
+    sel.addEventListener('change', function(){
+      wrap.style.display = (this.value==='custom') ? 'inline-flex' : 'none';
+    });
+
+    // Se presente un override già salvato, ripristina i controlli
+    try{
+      var daySel = panel.querySelector('#proDay');
+      var iso = daySel && daySel.value;
+      var sid = (panel.querySelector('#proSector')||{}).getAttribute && panel.querySelector('#proSector').getAttribute('data-sid');
+      if(iso && sid){
+        var s = loadStore();
+        var ov = s.overrides && s.overrides[iso] && s.overrides[iso][sid];
+        if(ov && ov.ranged){
+          var r = ov.ranged;
+          if(r.type==='band' && r.band){ sel.value = r.band; }
+          else if(r.type==='hours'){ sel.value = 'custom'; wrap.style.display='inline-flex'; 
+            var st = clamp(parseInt(r.start,10)||0,0,23), en = clamp(parseInt(r.end,10)||0,1,24);
+            box.querySelector('#proHourStart').value = st;
+            box.querySelector('#proHourEnd').value = en;
+          }
+        }
+      }
+    }catch(e){}
+  }
+
+  // prova ad iniettare quando il pannello viene creato
+  var mo = new MutationObserver(function(list){
+    for(var m of list){
+      for(var n of m.addedNodes||[]){
+        if(n && n.id === 'sector-pro-panel'){ setTimeout(injectUI, 30); }
+      }
+    }
+  });
+  try{ mo.observe(document.body, {childList:true, subtree:true}); }catch(e){}
+  if(document.readyState !== 'loading') setTimeout(injectUI, 100);
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(injectUI, 100); });
+
+  // --- Persistenza non distruttiva al click su "Salva" ---
+  document.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t || t.id!=='proSave') return;
+    try{
+      var panel = document.getElementById('sector-pro-panel');
+      var daySel = panel && panel.querySelector('#proDay');
+      var iso = daySel && daySel.value;
+      var sid = (panel && panel.querySelector('#proSector')) ? panel.querySelector('#proSector').getAttribute('data-sid') : null;
+      if(!iso || !sid) return;
+
+      var sel = (panel.querySelector('#proBand')||{}).value || 'full';
+      var hs = panel.querySelector('#proHourStart'), he = panel.querySelector('#proHourEnd');
+      var start = hs ? clamp(parseInt(hs.value,10)||0, 0, 23) : 0;
+      var end   = he ? clamp(parseInt(he.value,10)||0, 1, 24) : 24;
+
+      var s = loadStore();
+      if(!s.overrides) s.overrides = {};
+      if(!s.overrides[iso]) s.overrides[iso] = {};
+      var ov = s.overrides[iso][sid] || {};
+
+      // Legge il codice scritto dall'handler originale (se presente)
+      var savedCode = (ov && ov.code!=null) ? Number(ov.code) : null;
+
+      if(sel==='full'){
+        // Giorno intero: lascia la struttura originale (ov.code)
+        if(savedCode==null){
+          // nessun codice salvato -> non fare nulla
+        }else{
+          // rimuovi eventuale ranged per non interferire
+          delete ov.ranged;
+          ov.code = savedCode;
+          s.overrides[iso][sid] = ov;
+          saveStore(s);
+        }
+      }else{
+        // Fascia oraria: sposta il codice dentro 'ranged' e pulisci 'code' per non attivare l'override pieno
+        var rangeObj = null;
+        if(sel==='custom'){
+          rangeObj = { type:'hours', start:start, end:end };
+        }else{
+          rangeObj = { type:'band', band: sel };
+        }
+        // Se l'utente non aveva scelto un codice, non alterare nulla
+        var codeForRange = (savedCode!=null) ? Number(savedCode) : null;
+        ov.ranged = { code: codeForRange, ...(rangeObj||{}) };
+        ov.code = null; // IMPORTANTISSIMO: così il vecchio apply non tocca l'intero giorno
+        s.overrides[iso][sid] = ov;
+        saveStore(s);
+      }
+      try{ if(window.toast) toast('Fascia salvata ✔'); }catch(e){}
+    }catch(e){
+      console.warn('proSave timebands patch error', e);
+    }
+  }, true);
+
+  // --- Applica le fasce al dataset (prima del render) ---
+  function applyRangeOverrides(fc){
+    if(!fc || !fc.hourly || !fc.daily) return;
+    var sid = sectorIdForLatLon(fc.latitude, fc.longitude);
+    if(!sid) return;
+    var s = loadStore();
+    var days = (fc.daily.time||[]);
+    for(var d=0; d<days.length; d++){
+      var iso = days[d];
+      var perDay = s.overrides && s.overrides[iso];
+      var ov = perDay && perDay[sid];
+      if(!ov || !ov.ranged || ov.ranged.code==null) continue;
+
+      var code = Number(ov.ranged.code);
+      var rng = dayRangeIndices(fc, d);
+      if(!rng) continue;
+
+      var start=0, end=24;
+      if(ov.ranged.type==='band'){
+        var br = bandToRange(ov.ranged.band); if(!br) continue;
+        start = br.start; end = br.end;
+      }else if(ov.ranged.type==='hours'){
+        start = clamp(Number(ov.ranged.start)||0, 0, 23);
+        end   = clamp(Number(ov.ranged.end)||24, 1, 24);
+      }
+      for(var i=rng.start; i<rng.end; i++){
+        var h = +String(fc.hourly.time[i]).slice(11,13);
+        if(inRange(h, start, end)){
+          if(Array.isArray(fc.hourly.weathercode)) fc.hourly.weathercode[i] = code;
+          if(WET[code] && Array.isArray(fc.hourly.precipitation_probability)){
+            var cur = Number(fc.hourly.precipitation_probability[i]||0);
+            if(!(isFinite(cur) && cur>=MIN_PROB_WET)) fc.hourly.precipitation_probability[i] = MIN_PROB_WET;
+          }
+        }
+      }
+      // NB: NON tocchiamo fc.daily.weathercode se la modifica è parziale (fasce) per non danneggiare la logica
+    }
+  }
+
+  // Hook su render/run: applica le fasce prima del rendering
+  (function hook(){
+    var oldRender = window.render;
+    if(typeof oldRender === 'function' && !oldRender.__timebandsWrapped){
+      window.render = async function(){
+        try{ if(window.fc) applyRangeOverrides(window.fc); }catch(e){}
+        return oldRender.apply(this, arguments);
+      };
+      window.render.__timebandsWrapped = true;
+    }
+    var oldRun = window.run;
+    if(typeof oldRun === 'function' && !oldRun.__timebandsWrapped){
+      window.run = async function(){
+        var r = await oldRun.apply(this, arguments);
+        try{ if(window.fc) applyRangeOverrides(window.fc); }catch(e){}
+        return r;
+      };
+      window.run.__timebandsWrapped = true;
+    }
+  })();
+
+})();
+</script>
+
+<!-- === Sector PRO • Timebands post-save fix (v1.3) === -->
+<script id="sector-pro-timebands-postsave-v13">
+(function(){
+  if(window.__sectorProTimebandsPostSave) return; window.__sectorProTimebandsPostSave = true;
+
+  var STORAGE_KEY = 'sectorCondMiniV1';
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function loadStore(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY))||{overrides:{}}; }catch(e){ return {overrides:{}}; } }
+  function saveStore(s){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){} }
+
+  function adjustStoreFromUi(){
+    var panel = document.getElementById('sector-pro-panel'); if(!panel) return;
+    var daySel = panel.querySelector('#proDay'); var iso = daySel && daySel.value;
+    var sidEl = panel.querySelector('#proSector'); var sid = sidEl && sidEl.getAttribute('data-sid');
+    if(!iso || !sid) return;
+
+    var sel = (panel.querySelector('#proBand')||{}).value || 'full';
+    var hs = panel.querySelector('#proHourStart'); var he = panel.querySelector('#proHourEnd');
+    var start = hs ? clamp(parseInt(hs.value,10)||0, 0, 23) : 0;
+    var end   = he ? clamp(parseInt(he.value,10)||0, 1, 24) : 24;
+
+    var s = loadStore(); if(!s.overrides) s.overrides = {};
+    if(!s.overrides[iso]) s.overrides[iso] = {};
+    var ov = s.overrides[iso][sid] || {};
+
+    // Se non esiste alcun codice salvato, non fare nulla
+    var savedCode = (ov && ov.code!=null) ? Number(ov.code) : null;
+    if(sel==='full'){
+      // Ripristina modalità "giorno intero": togli ranged se presente
+      if(ov.ranged) delete ov.ranged;
+      if(savedCode!=null) ov.code = savedCode;
+      s.overrides[iso][sid] = ov;
+      saveStore(s);
+      return;
+    }
+
+    // Modalità a fascia/ore: sposta il codice in 'ranged' e azzera 'code'
+    var rangeObj = (sel==='custom')
+      ? { type:'hours', start:start, end:end }
+      : { type:'band', band: sel };
+
+    var codeForRange = (savedCode!=null) ? Number(savedCode) : null;
+    ov.ranged = { code: codeForRange, ...(rangeObj||{}) };
+    ov.code = null; // fondamentale per NON applicare l'intero giorno
+    s.overrides[iso][sid] = ov;
+    saveStore(s);
+  }
+
+  function wrapSaveOnce(){
+    var btn = document.getElementById('proSave');
+    if(!btn || btn.__tbWrap) return;
+    var old = btn.onclick;
+    btn.onclick = function(ev){
+      // Esegui prima l'handler originale (salva il codice come fai di solito)
+      var r; try{ if(typeof old==='function') r = old.call(this, ev); }catch(e){}
+      // Poi correggi la struttura per trasformarla in override a fascia/ore
+      try{ adjustStoreFromUi(); }catch(e){}
+      return r;
+    };
+    btn.__tbWrap = true;
+  }
+
+  // Inoltre, se abbiamo vecchi salvataggi con both {code} + {ranged}, pulisci 'code' al volo
+  function sanitizeStore(){
+    var s = loadStore(); var ch = false;
+    var ovs = s.overrides||{};
+    Object.keys(ovs).forEach(function(iso){
+      var per = ovs[iso]||{};
+      Object.keys(per).forEach(function(sid){
+        var ov = per[sid];
+        if(ov && ov.ranged && ov.code!=null){
+          ov.code = null; ch = true;
+        }
+      });
+    });
+    if(ch) saveStore(s);
+  }
+
+  // Patch per l'applicazione degli override "full-day" originali: se esiste 'ranged', non applicare full-day
+  function patchApply(){
+    var ap = window.applySectorCondMiniToForecast;
+    if(typeof ap !== 'function' || ap.__tbPatched) return;
+    window.applySectorCondMiniToForecast = function(fc){
+      sanitizeStore(); // garantisce che 'code' sia nullo quando abbiamo 'ranged'
+      return ap.apply(this, arguments);
+    };
+    window.applySectorCondMiniToForecast.__tbPatched = true;
+  }
+
+  // Osserva la creazione del pannello e applica le wrap
+  var mo = new MutationObserver(function(list){
+    for(var m of list){
+      for(var n of (m.addedNodes||[])){
+        if(n && n.id==='sector-pro-panel'){ setTimeout(wrapSaveOnce, 10); }
+      }
+    }
+  });
+  try{ mo.observe(document.body, {childList:true, subtree:true}); }catch(e){}
+  if(document.readyState!=='loading'){ setTimeout(wrapSaveOnce, 200); setTimeout(patchApply, 200); }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(wrapSaveOnce, 200); setTimeout(patchApply, 200); });
+
+  // Periodico di sicurezza (in caso di riassegnazione handler)
+  setInterval(function(){ try{ wrapSaveOnce(); patchApply(); }catch(e){} }, 1200);
+
+})();
+</script>
+
+<!-- === Sector PRO • Timebands order fix (v1.4) — apply AFTER PRO === -->
+<script id="sector-pro-timebands-order-v14">
+(function(){
+  if(window.__sectorProTimebandsOrder) return; window.__sectorProTimebandsOrder = true;
+  function afterWrap(){
+    var oldR = window.render;
+    if(typeof oldR==='function' && !oldR.__tbAfter){
+      window.render = function(){
+        var out = oldR.apply(this, arguments);
+        try{ if(window.fc && typeof window.__applyRangeOverrides==='function'){ window.__applyRangeOverrides(window.fc); } }catch(e){}
+        return out;
+      };
+      window.render.__tbAfter = true;
+    }
+    var oldRun = window.run;
+    if(typeof oldRun==='function' && !oldRun.__tbAfter){
+      window.run = async function(){
+        var r = await oldRun.apply(this, arguments);
+        try{ if(window.fc && typeof window.__applyRangeOverrides==='function'){ window.__applyRangeOverrides(window.fc); } }catch(e){}
+        return r;
+      };
+      window.run.__tbAfter = true;
+    }
+  }
+  // expose applyRangeOverrides so we can call it here
+  try{
+    if(window.__sectorProTimebands && typeof applyRangeOverrides==='function'){
+      window.__applyRangeOverrides = applyRangeOverrides;
+    }
+  }catch(e){}
+  afterWrap();
+  setInterval(afterWrap, 1000); // in caso di re-wrap da altri script
+})();
+</script>
+
+<!-- === Sector PRO • Mobile optimizations (v1.0) — non-destructive === -->
+<style id="sector-pro-mobile-v10">
+@media (max-width: 720px){
+  #sector-pro-panel{
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    top: auto;
+    z-index: 9999;
+    width: 100vw; max-width: 100vw;
+    max-height: 88vh;
+    padding: 12px !important;
+    border-radius: 16px 16px 0 0 !important;
+    box-sizing: border-box;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #sector-pro-panel *{ box-sizing: border-box; }
+
+  /* Evita trasbordi orizzontali */
+  #sector-pro-panel .card,
+  #sector-pro-panel .box,
+  #sector-pro-panel .row,
+  #sector-pro-panel .col,
+  #sector-pro-panel .grid,
+  #sector-pro-panel table,
+  #sector-pro-panel pre{ max-width: 100%; overflow-x: auto; }
+  #sector-pro-panel img, #sector-pro-panel svg{ max-width: 100%; height: auto; }
+
+  /* Input tap-friendly e senza zoom iOS */
+  #sector-pro-panel select,
+  #sector-pro-panel input[type="text"],
+  #sector-pro-panel input[type="number"],
+  #sector-pro-panel input[type="search"],
+  #sector-pro-panel button{
+    font-size: 16px; /* evita zoom su iOS */
+  }
+
+  /* Fasce orarie UI: a colonna su mobile */
+  #sector-pro-panel #proBandBox{
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px 0;
+  }
+  #sector-pro-panel #proHoursWrap{
+    display: grid !important;
+    grid-template-columns: auto 1fr auto 1fr;
+    gap: 6px;
+  }
+  #sector-pro-panel #proBand,
+  #sector-pro-panel #proHourStart,
+  #sector-pro-panel #proHourEnd{ width: 100%; }
+
+  /* Griglia icone responsive (se presente) */
+  #sector-pro-panel #proIcons{
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    gap: 10px;
+  }
+
+  /* Griglia settori responsive (fallback su classi generiche) */
+  #sector-pro-panel [data-sector-grid],
+  #sector-pro-panel .sectors{
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  @media (max-width: 420px){
+    #sector-pro-panel [data-sector-grid],
+    #sector-pro-panel .sectors{ grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Barra azioni sticky in basso */
+  #sector-pro-panel .actions,
+  #sector-pro-panel .footer,
+  #sector-pro-panel .buttons{
+    position: sticky;
+    bottom: 0;
+    background: inherit;
+    padding-top: 8px;
+    margin-top: 8px;
+  }
+  #sector-pro-panel #proSave{ width: 100%; }
+
+  /* Spaziatura compatta */
+  #sector-pro-panel h1, #sector-pro-panel h2, #sector-pro-panel h3{
+    margin: 6px 0;
+  }
+}
+</style>
 </body>
 </html>
+
+
+<!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
+<script id="sector-pro-today-fix-2025-08-15">
+(function(){
+  function isFull(fc){ return fc && fc.daily && Array.isArray(fc.daily.time) && fc.daily.time.length > 1; }
+  function todayISO(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
+
+  // Keep a copy of the last full forecast so the PRO panel can use real 7-day dates
+  (function hookRender(){
+    var old = window.render;
+    if(typeof old==='function' && !old.__fullSaver){
+      window.render = function(){
+        var out = old.apply(this, arguments);
+        try{ if(isFull(window.fc)) window.__lastFullFc = window.fc; }catch(e){}
+        return out;
+      };
+      window.render.__fullSaver = true;
+    }
+  })();
+
+  function rebuildDays(panel){
+    if(!panel) panel = document.getElementById('sector-pro-panel');
+    if(!panel) return;
+    var sel = panel.querySelector('#proDay'); if(!sel) return;
+    var fc = (isFull(window.fc) ? window.fc : (window.__lastFullFc || window.fc));
+    var arr = (fc && fc.daily && Array.isArray(fc.daily.time)) ? fc.daily.time.slice() : [];
+    var tISO = todayISO();
+    // If today is missing (e.g., when the panel was opened while a 1-day subforecast was active),
+    // put it in front so the user can save/apply for the current day.
+    if(arr.indexOf(tISO) < 0) arr.unshift(tISO);
+    // De-duplicate and keep at most 7 entries
+    var seen = Object.create(null), list = [];
+    for(var i=0;i<arr.length && list.length<7;i++){ var x=String(arr[i]||'').slice(0,10); if(x && !seen[x]){ seen[x]=1; list.push(x); } }
+    // Rebuild options
+    sel.innerHTML = "";
+    for(var i=0;i<list.length;i++){ var o=document.createElement('option'); o.value=list[i]; o.textContent=list[i]; sel.appendChild(o); }
+    // Prefer today when present
+    var idx = list.indexOf(tISO);
+    sel.selectedIndex = (idx>=0) ? idx : 0;
+  }
+
+  function patchOpen(){
+    if(!window.__openSectorPro || window.__openSectorPro.__todayFix) return;
+    var orig = window.__openSectorPro;
+    window.__openSectorPro = function(){
+      var r = orig.apply(this, arguments);
+      try{ rebuildDays(document.getElementById('sector-pro-panel')); }catch(e){}
+      return r;
+    };
+    window.__openSectorPro.__todayFix = true;
+  }
+
+  // Run immediately and on DOM ready
+  patchOpen();
+  document.addEventListener('DOMContentLoaded', patchOpen);
+})();
+</script>
+
+
+<!-- === FIX 2025-08-15: Ensure "Applica adesso" also applies time-band overrides immediately === -->
+<script id="sector-pro-applynow-timebands-fix-2025-08-15">
+(function(){
+  function patchApplyNow(){
+    var btn = document.getElementById('proApplyNow');
+    if(!btn || btn.__tbApplyFix) return;
+    var old = btn.onclick;
+    btn.onclick = function(ev){
+      var r; try{ if(typeof old==='function') r = old.call(this, ev); }catch(e){}
+      try{
+        var fn = (window.__applyRangeOverrides || window.applyRangeOverrides);
+        if(typeof fn === 'function' && window.fc){ fn(window.fc); }
+        if(typeof window.render === 'function'){ window.render(); }
+      }catch(e){}
+      return r;
+    };
+    btn.__tbApplyFix = true;
+  }
+  function init(){ try{ patchApplyNow(); }catch(e){} }
+  document.addEventListener('DOMContentLoaded', init);
+  // also try periodically in case the panel is injected later
+  setInterval(init, 500);
+})();
+</script>
