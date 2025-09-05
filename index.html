@@ -9410,24 +9410,44 @@ clicks=0;},700); if(clicks>=3){ clicks=0; openPro(); } });
   ];
 
   // Map extra icons to a safe WMO code (visual-only icons like sea/wind map to a neutral cloud code 2/3)
+    // ======= LOCKED: ICON→WMO MAPPING (do not change) =======
+  // Questa funzione assegna un codice WMO "sicuro" alle icone extra del pannello PRO.
+  // IMPORTANTE: l'ordine dei controlli è intenzionale per evitare collisioni di stringhe.
+  // Esempio: "poco nuvoloso" contiene "nuvoloso" → va intercettato PRIMA del controllo generico "nuvoloso".
+  // - "poco nuvoloso"  → 1  (few clouds)
+  // - "parzialmente nuvoloso"/"parz" → 2
+  // - "nuvoloso"/"coperto"/"molto nuvoloso" → 3
+  // - Mare/Vento sono icone solo visive → 2 (neutro non precipitante)
+  // - Precipitazioni/temporali/neve/nebbia mappano ai rispettivi codici WMO
   function wmoFromName(name){
     const s = String(name||"").toLowerCase();
+
+    // Fenomeni con priorità alta
     if (s.includes("tempor")) return 95;
     if (s.includes("pioggia forte")) return 82;
     if (s.includes("pioggia mista a neve")) return 71;
     if (s.includes("piovaschi") || s.includes("schiarite") || s.includes("pioggia") || s.includes("rain")) return 61;
     if (s.includes("neve") || s.includes("snow")) return 71;
     if (s.includes("nebb")) return 45;
-    if (s.includes("molto nuvoloso") || s.includes("coperto")) return 3;
+
+    // Coperture nuvolose — ordine SPECIFICO (non invertire):
+    if (s.includes("molto nuvoloso") || s.includes("coperto")) return 3;  // più chiuso
+    if (s.includes("poco nuvoloso") || s.includes("poco")) return 1;      // pochi cumuli
+    if (s.includes("parzialmente") || s.includes("parz")) return 2;       // parzialmente nuvoloso
+    // generic "nuvoloso" solo alla fine
     if (s.includes("nuvoloso")) return 3;
-    if (s.includes("poco") || s.includes("parz")) return 2;
+
+    // Sereno
     if (s.includes("sereno") || s.includes("clear")) return 0;
-    // Mare/vento e simili: usa un codice neutro non precipitante (poco/nuvoloso)
+
+    // Mare/vento e simili: usa un codice neutro non precipitante
     if (s.includes("mare") || s.includes("vento")) return 2;
+
+    // Fallback neutro
     return 2;
   }
-
-  function buildImg(icon){
+  // ======= END LOCKED =======
+function buildImg(icon){
     if (typeof window.buildDirectIconHTML_NOEMOJI === "function"){
       return window.buildDirectIconHTML_NOEMOJI(icon);
     }
@@ -9701,10 +9721,44 @@ clicks=0;},700); if(clicks>=3){ clicks=0; openPro(); } });
     "coperto.png","molto nuvoloso giorno.png","molto nuvoloso notte.png"
   ];
 
+    // ======= LOCKED: ICON→WMO MAPPING (do not change) =======
+  // Questa funzione assegna un codice WMO "sicuro" alle icone extra del pannello PRO.
+  // IMPORTANTE: l'ordine dei controlli è intenzionale per evitare collisioni di stringhe.
+  // Esempio: "poco nuvoloso" contiene "nuvoloso" → va intercettato PRIMA del controllo generico "nuvoloso".
+  // - "poco nuvoloso"  → 1  (few clouds)
+  // - "parzialmente nuvoloso"/"parz" → 2
+  // - "nuvoloso"/"coperto"/"molto nuvoloso" → 3
+  // - Mare/Vento sono icone solo visive → 2 (neutro non precipitante)
+  // - Precipitazioni/temporali/neve/nebbia mappano ai rispettivi codici WMO
   function wmoFromName(name){
     const s = String(name||"").toLowerCase();
-    // Try to parse numbers like "wmo-61" in attributes
-    const m = s.match(/(?:^|[^0-9])(wmo|code)[ _\-:]*([0-9]{1,3})/i);
+
+    // Fenomeni con priorità alta
+    if (s.includes("tempor")) return 95;
+    if (s.includes("pioggia forte")) return 82;
+    if (s.includes("pioggia mista a neve")) return 71;
+    if (s.includes("piovaschi") || s.includes("schiarite") || s.includes("pioggia") || s.includes("rain")) return 61;
+    if (s.includes("neve") || s.includes("snow")) return 71;
+    if (s.includes("nebb")) return 45;
+
+    // Coperture nuvolose — ordine SPECIFICO (non invertire):
+    if (s.includes("molto nuvoloso") || s.includes("coperto")) return 3;  // più chiuso
+    if (s.includes("poco nuvoloso") || s.includes("poco")) return 1;      // pochi cumuli
+    if (s.includes("parzialmente") || s.includes("parz")) return 2;       // parzialmente nuvoloso
+    // generic "nuvoloso" solo alla fine
+    if (s.includes("nuvoloso")) return 3;
+
+    // Sereno
+    if (s.includes("sereno") || s.includes("clear")) return 0;
+
+    // Mare/vento e simili: usa un codice neutro non precipitante
+    if (s.includes("mare") || s.includes("vento")) return 2;
+
+    // Fallback neutro
+    return 2;
+  }
+  // ======= END LOCKED =======
+)/i);
     if (m) return parseInt(m[2],10);
     if (s.includes("tempor")) return 95;
     if (s.includes("forte") && s.includes("pioggia")) return 82;
@@ -11414,6 +11468,286 @@ html += '</details>';
   }
 }
 </style>
+
+
+<!-- === PATCH 2025‑09‑05b: Back button guarantee on MOBILE when in forecast-only === -->
+<style id="forecast-back-mobile-2025-09-05">
+@media (max-width: 700px){
+  /* Mostra il pulsante solo quando serve */
+  #widget.forecast-only #forecastBack{ display: block !important; }
+}
+</style>
+<script id="forecast-back-patch-2025-09-05">
+(function(){
+  function ensureBackOnFocus(){
+    try{
+      var w = document.getElementById('widget');
+      if(!w || !w.classList.contains('forecast-only')) return;
+      var holder = document.getElementById('forecastBack');
+      if(!holder){
+        holder = document.createElement('div');
+        holder.id = 'forecastBack';
+        holder.innerHTML = '<button type="button" aria-label="Torna alla mappa" title="Torna alla mappa" tabindex="0">&#8592;</button>';
+        holder.addEventListener('click', function(){
+          try{ w.classList.remove('forecast-only'); }catch(e){}
+          try{ (document.getElementById('mapArea')||document.body).scrollIntoView({behavior:"smooth", block:"start"}); }catch(e){}
+        });
+        w.appendChild(holder);
+      }
+      // Posiziona vicino al campo di ricerca
+      function pos(){
+        try{
+          var sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+          if(!sf) return;
+          var rect = sf.getBoundingClientRect();
+          var top = rect.top + window.scrollY + 8;
+          var left = Math.max(rect.left + window.scrollX - 48, 12);
+          holder.style.position = 'fixed';
+          holder.style.top = top + 'px';
+          holder.style.left = left + 'px';
+          holder.style.zIndex = 9999;
+        }catch(e){}
+      }
+      pos();
+      window.addEventListener('resize', pos, {passive:true});
+      window.addEventListener('scroll', pos, {passive:true});
+    }catch(e){}
+  }
+  function hookup(){
+    var w = document.getElementById('widget');
+    if(!w){
+      if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', hookup, {once:true});
+      }
+      return;
+    }
+    // Osserva cambi di classe (entra/esce forecast-only)
+    try{
+      new MutationObserver(ensureBackOnFocus).observe(w, {attributes:true, attributeFilter:['class']});
+    }catch(e){}
+    ensureBackOnFocus();
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', hookup, {once:true});
+  }else{
+    hookup();
+  }
+})();
+</script>
+
+
+<!-- === PATCH 2025‑09‑05c: BACK BUTTON ROBUST === -->
+<style id="forecast-back-mobile-robust-2025-09-05">
+
+/* === PATCH 2025‑09‑05d: Style refresh — graceful top pill back button === */
+@media (max-width: 700px){
+  #goBackForecast{
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: 12px;
+    z-index: 10000;
+    display: none;
+    padding: 12px 16px;
+    border-radius: 9999px;
+    font-size: 16px;
+    line-height: 1;
+    border: 1px solid color-mix(in srgb, var(--accent, #0a9396) 40%, #000 20%);
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--accent, #0a9396) 88%, #fff 12%),
+      color-mix(in srgb, var(--accent, #0a9396) 78%, #000 22%)
+    );
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(0,0,0,.25);
+    backdrop-filter: saturate(1.2) blur(6px);
+    -webkit-backdrop-filter: saturate(1.2) blur(6px);
+    letter-spacing: .2px;
+    touch-action: manipulation;
+  }
+  /* Fallback per browser senza color-mix */
+  @supports not (color: color-mix(in srgb, black, white)){
+    #goBackForecast{
+      border-color: rgba(0,0,0,.15);
+      background: var(--accent, #0a9396);
+    }
+  }
+  #goBackForecast:active{ transform: translateY(1px); }
+  /* Mostra SOLO quando #widget è in forecast-only */
+  #widget.forecast-only ~ #goBackForecast{ display: inline-flex; align-items: center; gap: 10px; }
+  /* Icona freccia + label */
+  #goBackForecast .arrow{ font-weight: 800; font-size: 18px; }
+  #goBackForecast .label{ font-weight: 600; }
+}
+
+
+@media (max-width: 700px){
+  #goBackForecast{
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 10000;
+    display: none;
+    padding: 10px 14px;
+    border-radius: 9999px;
+    font-size: 16px;
+    line-height: 1;
+    border: 1px solid rgba(0,0,0,.15);
+    background: rgba(255,255,255,.95);
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  }
+  #goBackForecast:active{ transform: translateY(1px); }
+  /* Mostra SOLO quando #widget è in forecast-only */
+  #widget.forecast-only ~ #goBackForecast{ display: inline-flex; align-items: center; gap: 8px; }
+  /* Icona freccia */
+  #goBackForecast .arrow{ font-weight: 700; }
+}
+</style>
+
+<!-- Lo mettiamo come fratello di #widget per evitare clipping/overflow -->
+<button id="goBackForecast" type="button" aria-label="Torna alla mappa" title="Torna alla mappa">
+  <span class="arrow">←</span> <span class="label">Indietro</span>
+</button>
+
+<script id="go-back-robust-2025-09-05">
+(function(){
+  function exitForecastOnly(){
+    try{
+      var w = document.getElementById('widget');
+      if(w){ w.classList.remove('forecast-only'); }
+      // Prova a ri-mostrarti la mappa in ogni caso
+      ['mapArea','map'].forEach(function(id){
+        var el = document.getElementById(id);
+        if(!el) return;
+        el.style.removeProperty('display');
+        el.hidden = false;
+        el.style.display = 'block';
+      });
+      // Scroll alla mappa se presente
+      var target = document.getElementById('mapArea') || document.getElementById('map') || document.body;
+      try{ target.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
+    }catch(e){}
+  }
+  function ready(fn){
+    if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', fn, {once:true}); }
+    else { fn(); }
+  }
+  ready(function(){
+    var btn = document.getElementById('goBackForecast');
+    if(btn){ btn.addEventListener('click', exitForecastOnly); }
+  });
+})();
+</script>
+
+
+
+<!-- ======= LOCKED REGION — PRO Weather Override Core (DO NOT EDIT) v2025-09-06 ======= -->
+<script id="pro-weather-override-core-locked">
+/*
+  Questa sezione è *bloccata* intenzionalmente.
+  ────────────────────────────────────────────────────────────────────────────────
+  - Non modificare, non spostare, non rinominare.
+  - Le funzioni esposte sono rese non riscrivibili e non riconfigurabili.
+  - Un watchdog ripristina eventuali alterazioni non volute.
+  Per modifiche future, creare una nuova versione con un nuovo ID e version tag.
+*/
+(function(){
+  if (window.__PRO_LOCK__ && window.__PRO_LOCK__.v === '2025-09-06') return;
+
+  const LOCK_VER = '2025-09-06';
+  const lockNS = {};
+
+  // ======= LOCKED: ICON→WMO MAPPING (do not change) =======
+  function _wmoFromName(name){
+    const s = String(name||"").toLowerCase();
+
+    // Fenomeni con priorità alta
+    if (s.includes("tempor")) return 95;
+    if (s.includes("pioggia forte")) return 82;
+    if (s.includes("pioggia mista a neve")) return 71;
+    if (s.includes("piovaschi") || s.includes("schiarite") || s.includes("pioggia") || s.includes("rain")) return 61;
+    if (s.includes("neve") || s.includes("snow")) return 71;
+    if (s.includes("nebb")) return 45;
+
+    // Coperture nuvolose — ordine SPECIFICO (non invertire):
+    if (s.includes("molto nuvoloso") || s.includes("coperto")) return 3;  // più chiuso
+    if (s.includes("poco nuvoloso") || s.includes("poco")) return 1;      // pochi cumuli
+    if (s.includes("parzialmente") || s.includes("parz")) return 2;       // parzialmente nuvoloso
+    if (s.includes("nuvoloso")) return 3;                                  // generico "nuvoloso"
+
+    // Sereno
+    if (s.includes("sereno") || s.includes("clear")) return 0;
+
+    // Mare/vento e simili: usa un codice neutro non precipitante
+    if (s.includes("mare") || s.includes("vento")) return 2;
+
+    // Fallback neutro
+    return 2;
+  }
+  Object.freeze(_wmoFromName);
+  try{
+    Object.defineProperty(window, 'wmoFromName', { value: _wmoFromName, writable: false, configurable: false });
+  }catch(_e){
+    // Se già definito non configurabile, lasciamo invariato
+  }
+
+  // Watchdog di integrità: impedisce override futuri
+  setInterval(function(){
+    try{
+      if (window.wmoFromName !== _wmoFromName) {
+        Object.defineProperty(window, 'wmoFromName', { value: _wmoFromName, writable: false, configurable: false });
+      }
+    }catch(_e){}
+  }, 2000);
+
+  // ======= LOCKED: Apply anche per *OGGI* (non rimuovere) =======
+  function proApplyTodayNow(){
+    try{
+      var fc = window.fc;
+      if(!fc) return;
+      if(typeof window.applySectorCondMiniToForecast === 'function'){
+        try{ window.applySectorCondMiniToForecast(fc); }catch(_e){}
+      }
+      var fn = (window.__applyRangeOverrides || window.applyRangeOverrides);
+      if(typeof fn === 'function'){ try{ fn(fc); }catch(_e){} }
+      if(typeof window.render === 'function'){ try{ window.render(); }catch(_e){} }
+      if(typeof window.updateNarrativeBoxFuture === 'function'){ try{ window.updateNarrativeBoxFuture(); }catch(_e){} }
+    }catch(_e){}
+  }
+  Object.freeze(proApplyTodayNow);
+  lockNS.proApplyTodayNow = proApplyTodayNow;
+
+  // Listener persistenti in *capture* per non essere scavalcati
+  function attachPersistent(el){
+    if(!el || el.__proLockListener) return;
+    const h = function(){ try{ proApplyTodayNow(); }catch(_e){} };
+    el.addEventListener('click', h, { capture:true });
+    Object.defineProperty(el, '__proLockListener', { value:true, writable:false });
+  }
+  function boot(){
+    attachPersistent(document.getElementById('proApplyNow'));
+    attachPersistent(document.getElementById('proSave'));
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot, { once:true });
+  }else{
+    boot();
+  }
+  // Re-alleghiamo i listener se il DOM cambia
+  try{
+    const mo = new MutationObserver(boot);
+    mo.observe(document.documentElement, { childList:true, subtree:true });
+    Object.freeze(mo);
+  }catch(_e){}
+
+  // Esponi namespace lockato
+  lockNS.v = LOCK_VER;
+  Object.freeze(lockNS);
+  try{
+    Object.defineProperty(window, '__PRO_LOCK__', { value: lockNS, writable:false, configurable:false });
+  }catch(_e){}
+
+})(); 
+</script>
+<!-- ======= END LOCKED REGION ======= -->
 
 </body>
 </html>
