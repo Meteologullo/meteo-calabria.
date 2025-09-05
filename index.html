@@ -2,7 +2,6 @@
 
 <html lang="it">
 <head>
-
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>Meteo Calabria – Dashboard Unificata</title>
@@ -312,6 +311,13 @@ table.hourly td:nth-child(3), table.hourly th:nth-child(3){
 }
 /* prevent viewport jump on focus */
 html, body { overscroll-behavior: contain; }
+
+/* Nasconde la "barretta" dei giorni e i suoi pulsanti in modalità solo-previsione */
+#widget.forecast-only #bottomBar,
+#widget.forecast-only #nav{
+  display: none !important;
+}
+
 </style>
 <style>
 /* === Mobile & Map Visual Tweaks (added) === */
@@ -947,6 +953,25 @@ html, body { overscroll-behavior: contain; }
 </style>
 <script>
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function align(){ var b=document.querySelector('#hourlyPanel .scroll-x'); if(b) b.scrollLeft = 0; }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', align); else align();
   try{ new MutationObserver(align).observe(document.getElementById('hourlyPanel'),{childList:true,subtree:true}); }catch(e){}
@@ -1203,9 +1228,6 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   .map-date{ padding:5px 9px; border-radius:7px; font-size:.95rem; }
 }
 </style>
-
-
-
 <script id="uniform-icon-normalizer">
 /* === Uniform Weather Icon Normalizer — downscale-only & match-the-smallest (2025‑08‑12) ===
    - Crops transparent padding so all icons have comparable "visual box"
@@ -1213,6 +1235,25 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
    - Converges to the smallest visual size detected among icons (safe for mobile)
 */
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const CACHE = new Map();                // cache by original URL -> dataURL
   const ICONS = new Set();                // all <img.weather-icon> we touched
   let globalMin = Infinity;               // smallest detected visual box (max of cw,ch)
@@ -1407,9 +1448,6 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   
 })();
 </script>
-
-
-
 <style id="intro-previsioni-css">
 /* === Intro Previsioni (compatto, uniforme) === */
 #pageIntro.panel.intro{
@@ -1446,20 +1484,34 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   #pageIntro .intro-mini{ font-size:.84rem; }
 }
 </style>
-
-
 <script id="intro-previsioni-link">
 // Consenti di impostare l'URL della MLG Map da una variabile globale senza toccare l'HTML
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   var url = window.MLG_MAP_URL || "https://www.meteologullo.com/stazioni-meteorologiche-mlg";
   var btn = document.getElementById("btnMlgMap");
   if(btn) btn.href = url;
   document.querySelectorAll('#pageIntro a[data-mlg-map="1"]').forEach(function(a){ a.href = url; });
 })();
 </script>
-
-
-
 <style id="marker-mobile-resize-2025-08-12">
 /* === Marker size & overlap fixes (2025-08-12) === */
 /* Desktop & Mobile presets: keep desktop close to current, make mobile clearly smaller */
@@ -1494,8 +1546,6 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   #mapArea .marker i{ animation: none !important; }
 }
 </style>
-
-
 <style id="marker-scale-user-2025-08-12">
 /* === User-controlled marker scale (2025-08-12) ===
    - Default keeps desktop as-is; mobile can be tuned via --marker-scale-user
@@ -1522,10 +1572,27 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   line-height: calc(var(--marker-size-el) * var(--marker-scale-user)) !important;
 }
 </style>
-
-
 <script id="marker-scale-controller-2025-08-12">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const PARAMS = new URLSearchParams(location.search);
   const KEY = "markerScaleUser";
   const clamp = v => Math.min(1, Math.max(0.4, v)); // allow downscaling down to 40%
@@ -1621,8 +1688,6 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 
 })();
 </script>
-
-
 <style id="fa-compensator-2025-08-12">
 /* === Font Icon Visual Compensator (2025-08-12) ===
    Obiettivo: allineare visivamente le icone Font Awesome alle immagini normalizzate.
@@ -1691,10 +1756,27 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   }
 }
 </style>
-
-
 <script id="marker-size-api-2025-08-12">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const d = document, root = d.documentElement;
   function px(v){ return (typeof v==='number') ? (v+'px') : (''+v); }
   function dispatch(){ try{ window.dispatchEvent(new CustomEvent('markerSizeChanged')); }catch(e){} }
@@ -1741,14 +1823,10 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
   window.bindMarkerSizeInput = bindMarkerSizeInput;
 })();
 </script>
-
 <style id="mlg-marker-children-guard">
 /* Visual safety: keep only the last child visible inside a marker */
 #mapArea .marker > *:not(:last-child){ display:none !important; }
 </style>
-
-
-
 <style id="intro-auto-hide-css">
 /* Auto-hide intro panel + toggle button (ChatGPT injected) */
 #pageIntro{ 
@@ -1777,8 +1855,183 @@ body.night .map-date{ background:rgba(0,0,0,.55); color:#fff; }
 }
 </style>
 
-</head>
 
+<style id="icon-contrast-fix-2025-09-05">
+/* === FIX CONTRASTO ICONE — DAY ONLY (ULTRA-SOFT) ===
+   Un filo meno intenso della versione SOFT */
+img.weather-icon{
+  filter:
+    drop-shadow(0 0 0.6px rgba(0,0,0,.64))
+    drop-shadow(0 1px 0 rgba(0,0,0,.64))
+    drop-shadow(0 -1px 0 rgba(0,0,0,.64))
+    drop-shadow(1px 0 0 rgba(0,0,0,.64))
+    drop-shadow(-1px 0 0 rgba(0,0,0,.64))
+    drop-shadow(0 2px 6px rgba(0,0,0,.24)) !important;
+  image-rendering: optimizeQuality;
+  mix-blend-mode: normal;
+}
+
+/* FontAwesome: stessa attenuazione */
+i[class*="fa-"]{
+  text-shadow:
+    0 0 1px rgba(0,0,0,.64),
+    0 1px 0 rgba(0,0,0,.64),
+    0 -1px 0 rgba(0,0,0,.64),
+    1px 0 0 rgba(0,0,0,.64),
+    -1px 0 0 rgba(0,0,0,.64),
+    0 2px 6px rgba(0,0,0,.24) !important;
+}
+
+details.part summary h4{ text-shadow: 0 1px 2px rgba(0,0,0,.26); }
+</style>
+
+<style id="forecast-focus-css">
+/* === Forecast Focus (non‑distruttivo) — quando c'è una ricerca, la previsione sale al posto della mappa === */
+#widget{ position: relative; }
+
+/* Animazioni morbide */
+#mapArea{ transition: transform .35s ease, opacity .35s ease, margin .35s ease, height .35s ease; }
+#forecast{ transition: transform .35s ease, margin .35s ease; }
+
+/* Stato attivo: solo previsione in alto */
+#widget.forecast-only{
+  grid-template-columns: 1fr !important;
+  grid-template-areas: "header" "forecast" "bottom" !important;
+}
+#widget.forecast-only #mapArea{
+  transform: translateY(24px);
+  opacity: 0;
+  pointer-events: none;
+  height: 0 !important;
+  margin: 0 !important;
+}
+
+/* Il tavolo previsioni occupa lo spazio della mappa */
+#widget.forecast-only #forecast{
+  grid-area: map;               /* prende lo slot della mappa */
+  margin: 0 14px 14px 14px !important;
+}
+
+/* Su mobile: assicura che la tabella sia visibile (override di eventuali display:none) */
+@media (max-width: 600px){
+  #widget.forecast-only #forecast{
+    display: table !important;
+  }
+}
+
+/* Pulsantino "indietro" minimale */
+
+
+#forecastBack{
+  position: fixed;        /* fisso rispetto alla finestra */
+  top: 16px;              /* verrà riposizionato via JS, questi sono i fallback */
+  left: 16px;
+  z-index: 9999;
+  display: none;
+  pointer-events: none;
+}
+
+
+#forecastBack button{
+  pointer-events: all;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.35);
+  background: rgba(0,0,0,.32);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: .9;
+  transition: opacity .2s ease, transform .1s ease;
+  box-shadow: 0 2px 10px rgba(0,0,0,.35);
+}
+
+#forecastBack button:hover{ opacity: .92; }
+#forecastBack button:active{ transform: translateY(1px); }
+#widget.forecast-only 
+#forecastBack{
+  position: fixed;        /* fisso rispetto alla finestra */
+  top: 16px;              /* verrà riposizionato via JS, questi sono i fallback */
+  left: 16px;
+  z-index: 9999;
+  display: none;
+  pointer-events: none;
+}
+
+@media (max-width: 600px){
+  
+#forecastBack button{
+  pointer-events: all;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.35);
+  background: rgba(0,0,0,.32);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: .9;
+  transition: opacity .2s ease, transform .1s ease;
+  box-shadow: 0 2px 10px rgba(0,0,0,.35);
+}
+
+}
+    
+</style>
+
+
+<style id="mlg-sync-badges-css">
+#mlgLogoBadge, #mlgTopDate{ position:absolute; z-index:8; font-family:inherit; }
+#mlgLogoBadge{
+  right:14px; bottom:14px;
+  display:flex; align-items:center; justify-content:center;
+  padding:10px 12px;
+  background:rgba(0,0,0,.10);
+  border-radius:14px;
+  box-shadow:0 8px 18px rgba(0,0,0,.18);
+  pointer-events:none;
+}
+#mlgLogoBadge img{
+  height:100px;
+  display:block;
+  filter: drop-shadow(0 0 1px rgba(0,0,0,.5))
+          drop-shadow(0 4px 10px rgba(0,0,0,.35));
+}
+#mlgTopDate{
+  right:14px; top:8px;
+  padding:6px 10px;
+  background:rgba(0,0,0,.36);
+  color:#fff; border-radius:10px; font-weight:600; font-size:13px;
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+  backdrop-filter:blur(4px);
+  box-shadow:0 2px 8px rgba(0,0,0,.25);
+  pointer-events:none;
+}
+@media (max-width:600px){
+  #mlgLogoBadge{ right:12px; bottom:12px; padding:8px 10px; }
+  #mlgLogoBadge img{ height:84px; }
+  #mlgTopDate{ right:12px; top:8px; transform:scale(.96); }
+}
+</style>
+
+
+<style id="narrative-empty-hide-2025-09">
+/* Nascondi la sintesi finché è vuota */
+#narrativeBox:empty{ display:none !important; }
+</style>
+
+</head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
 window.$ = window.$ || (sel => document.querySelector(sel));
@@ -1787,34 +2040,31 @@ window.DAYS = Array.isArray(window.DAYS) ? window.DAYS : [];
 window.CITIES = Array.isArray(window.CITIES) ? window.CITIES : [];
 window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 </script>
-
 <body>
 <!-- —— Search —— -->
-
-<section id="pageIntro" class="panel intro" aria-label="Introduzione sezione Previsioni">
-  <h2 class="intro-title">Sezione <span style="white-space:nowrap">Previsioni</span></h2>
-  <p class="intro-text">
+<section aria-label="Introduzione sezione Previsioni" class="panel intro" id="pageIntro">
+<h2 class="intro-title">Sezione <span style="white-space:nowrap">Previsioni</span></h2>
+<p class="intro-text">
     Benvenuti su www.meteologullo.com. In questa pagina trovate le <strong>previsioni per le prossime ore e i prossimi giorni</strong>.
-    La <strong>mappa sottostante</strong> è <strong>curata da MLG – Meteo&nbsp;Lo&nbsp;Gullo</strong> (non è una mappa automatica).
+    La <strong>mappa sottostante</strong> è <strong>curata da MLG – Meteo Lo Gullo</strong> (non è una mappa automatica).
   </p>
-  <p class="intro-text">
+<p class="intro-text">
     Le previsioni ottenute cercando una località nella barra sono generate automaticamente ma
     <strong>controllate da MLG</strong>, rappresentano un’<strong>innovazione</strong> e sono
-    <strong>integrate</strong> con i dati delle nostre stazioni meteorologiche (rete <em>MLG&nbsp;Map</em>).
+    <strong>integrate</strong> con i dati delle nostre stazioni meteorologiche (rete <em>MLG Map</em>).
   </p>
-  <div class="intro-cta">
-    <a id="btnMlgMap" class="btn-mlg-map" href="https://www.meteologullo.com/stazioni-meteorologiche-mlg" target="_blank" rel="noopener">
-      <i class="fa-solid fa-map-location-dot"></i> Apri MLG&nbsp;Map
+<div class="intro-cta">
+<a class="btn-mlg-map" href="https://www.meteologullo.com/stazioni-meteorologiche-mlg" id="btnMlgMap" rel="noopener" target="_blank">
+<i class="fa-solid fa-map-location-dot"></i> Apri MLG Map
     </a>
-    <span class="intro-note">Lì trovi <strong>tutti i dati in tempo reale</strong> dell’intero territorio regionale.</span>
-  </div>
-  <p class="intro-mini">
+<span class="intro-note">Lì trovi <strong>tutti i dati in tempo reale</strong> dell’intero territorio regionale.</span>
+</div>
+<p class="intro-mini">
     In questa sezione sono presenti solo le <strong>previsioni del tempo</strong>.
-    Per i dati in tempo reale usa <a data-mlg-map="1" href="#" target="_blank" rel="noopener">MLG&nbsp;Map</a>.
+    Per i dati in tempo reale usa <a data-mlg-map="1" href="#" rel="noopener" target="_blank">MLG Map</a>.
     Scorrendo in basso trovi anche l’<a href="#mlgAiBox">Assistente</a> con cui fare domande e chiedere informazioni.
   </p>
 </section>
-
 <form class="search" id="searchForm">
 <input autocomplete="off" id="cityInput" placeholder="Scrivi una città o usa 📍…" required=""/>
 <button type="submit"><i class="fa-solid fa-search"></i></button>
@@ -1822,10 +2072,18 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 <!-- —— Widget map + forecast —— -->
 <div id="widget">
 <header style="display:none">
-  <h1 id="hDay">--</h1>
-  <p id="hDate"></p>
+<h1 id="hDay">--</h1>
+<p id="hDate"></p>
 </header>
 <div id="mapArea">
+  <!-- === MLG | Data in alto destra (sincronizzata con barra) === -->
+  <div id="mlgTopDate">—</div>
+
+  <!-- === MLG | LOGO (synced version) === -->
+  <div id="mlgLogoBadge" aria-hidden="true">
+    <img src="https://meteologullo.github.io/mappamlg/logo.png" alt="MLG logo" loading="lazy">
+  </div>
+
 <img alt="Mappa Calabria" id="map" loading="lazy" src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Map_of_region_of_Calabria%2C_Italy.svg/565px-Map_of_region_of_Calabria%2C_Italy.svg.png"/>
 </div>
 <!-- === AI Meteo Lo Gullo — Chat box sotto la mappa (iniettato) === -->
@@ -1882,18 +2140,18 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 </label>
 <div class="icon-picker" id="iconPicker"></div>
 <label>Dimensione marker
-      <input id="inpMarkerSize" step="1" max="128" min="24" type="range"/>
+      <input id="inpMarkerSize" max="128" min="24" step="1" type="range"/>
 </label>
 <label>Dimensione marker (solo selezionato)
       <input id="inpMarkerSizeOne" max="192" min="16" step="1" type="range"/>
 </label>
 <button id="btnResetSize" style="margin-top:6px;">↩︎ Reimposta dimensione del marker selezionato</button>
 <label>Rotazione marker (°)
-      <input id="inpRotateOne" type="range" min="-180" max="180" step="1"/>
+      <input id="inpRotateOne" max="180" min="-180" step="1" type="range"/>
 </label>
 <button id="btnResetRotate" style="margin-top:6px;">↩︎ Reimposta rotazione</button>
 <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
-  <input type="checkbox" id="chkGlobal"/> Applica globalmente (posizione, rotazione e — se marker personalizzato — icona)
+<input id="chkGlobal" type="checkbox"/> Applica globalmente (posizione, rotazione e — se marker personalizzato — icona)
 </label>
 <small style="color:#666;margin-top:-6px;">Se disattivo: le modifiche valgono solo per il giorno selezionato.</small>
 <div class="row">
@@ -1928,7 +2186,7 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 <section id="dailyPanel"></section>
 <section id="nearestStation"></section>
 <section id="dayParts"></section>
-<section id="narrativeBox" aria-label="Sintesi della giornata"></section>
+<section aria-label="Sintesi della giornata" id="narrativeBox"></section>
 <section id="hourlyPanel"></section>
 <section id="adviceBox"></section>
 <iframe class="radar" id="radarFrame" loading="lazy"></iframe>
@@ -1945,6 +2203,25 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 <script>
 // === Icon builder (GitHub Pages) — defined early so render() can use it ===
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const RAW_BASES = ['https://meteologullo.github.io/mappamlg/','https://raw.githubusercontent.com/Meteologullo/mappamlg/main/'];
   const PLACEHOLDER = 'data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"%3E%3Crect width="64" height="64" rx="12" fill="%23e5e7eb"/%3E%3Ccircle cx="20" cy="22" r="8" fill="%23f59e0b"/%3E%3Cellipse cx="36" cy="38" rx="18" ry="12" fill="%23d1d5db"/%3E%3C/svg%3E';
 
@@ -2043,6 +2320,25 @@ function buildUrlCandidates(file){
 <script>
 /* === Per-day override (V2): save icon/code/tmax/tmin by date (YYYY-MM-DD) and marker uid === */
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   window.DAILY_OVERRIDE_V2 = JSON.parse(localStorage.getItem("dailyOverrideV2")||"{}");
   window.saveDailyOverrideV2 = function(dateKey, uid, obj){
     if(!dateKey || !uid || !obj) return;
@@ -2077,6 +2373,25 @@ function buildUrlCandidates(file){
 <script>
 /* === Per-day & per-segment (day/night) icon override — V3 === */
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const KEY = "dailyIconOverrideV3";
   window.DAILY_ICON_OVERRIDE_V3 = JSON.parse(localStorage.getItem(KEY)||"{}");
   function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(window.DAILY_ICON_OVERRIDE_V3||{})); }catch(e){} }
@@ -2124,6 +2439,25 @@ function latLonToXY(lat,lon){
 /* —— WMO → emoji —— */
 /* —— Persistenza marker (V2) —— */
 let PERSIST = (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   try{
     return JSON.parse(localStorage.getItem('CALABRIA_MAP_STATE_V2')||'{"positions":{},"custom":[],"markerSize":null}');
   }catch(e){ return {"positions":{},"custom":[],"markerSize":null}; }
@@ -2310,7 +2644,7 @@ function buildNav(){
     const btn=document.createElement('button');btn.type='button';
     btn.textContent=d.label;
     if(i===curDay) btn.classList.add('active');
-    btn.addEventListener('click',()=>{curDay=i;updateNav();render();});
+    btn.addEventListener('click',()=>{const __wasNight = night;if(__wasNight){ night=false; }curDay=i;updateNav();render();if(__wasNight){ night=true; }document.body.classList.toggle('night', night);$('#themeBtn').textContent = night ? '☀️' : '🌙';});
     frag.appendChild(btn);
   });
   nav.appendChild(frag);
@@ -2337,6 +2671,25 @@ function render(){
     mk.style.top=p.y+'%';
     // —— Applica rotazione (giorno > globale) ——
     (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
       try{
         const uid = mk.dataset.uid;
         let rr = (typeof p.rot==='number') ? p.rot : null;
@@ -2361,6 +2714,25 @@ function render(){
 
 // Calcola eventuale override per il giorno corrente (solo diurno)
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+data.offset);
   const key=d.toISOString().slice(0,10);
   const uid = p.uid || (typeof uidForCity==="function"? uidForCity(p.city): (p.city||""));
@@ -2898,8 +3270,46 @@ function renderDaily(data){
       <div class="day">
         <div>${data.daily.time[i].slice(5)}</div>
         <span class="daily-icon">
-${ (function(){ const head = dailyHeadlineCode(data,i); return iconHTML_NOEMOJI(head, false); })() }
-<i class="fa-solid ${ (function(){ const head = dailyHeadlineCode(data,i); return iconFA(head); })() } alt-icon" aria-hidden="true"></i>
+${ (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+ const head = dailyHeadlineCode(data,i); return iconHTML_NOEMOJI(head, false); })() }
+<i class="fa-solid ${ (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+ const head = dailyHeadlineCode(data,i); return iconFA(head); })() } alt-icon" aria-hidden="true"></i>
 </span>
         <div>${fmt(data.daily.temperature_2m_max[i],"°")}</div>
         <div class="min">${fmt(data.daily.temperature_2m_min[i],"°")}</div>
@@ -3046,6 +3456,25 @@ try{ document.dispatchEvent(new CustomEvent('mlg:dayparts-rendered')); }catch(e)
     /* Double refresh per "oggi": forza un secondo aggiornamento dopo che
        eventuali override/settore sono stati applicati in background */
     setTimeout(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
       try{
         if(window.fc && typeof window.__applyRangeOverrides==='function'){
           window.__applyRangeOverrides(window.fc);
@@ -3174,6 +3603,25 @@ document.getElementById('fab').addEventListener('contextmenu',e=>{
 <script>
 /* === Map Control Panel integrato === */
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const panel=document.getElementById('panel');
   if(!panel) return;
 
@@ -3214,6 +3662,25 @@ document.getElementById('fab').addEventListener('contextmenu',e=>{
                 const uid=pt.uid || uidForCity(pt.city);
                 // assegna anche all'oggetto del giorno corrente (vale per giorno+notte)
                 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const _g = (typeof window.chkGlobal!=='undefined' && window.chkGlobal && window.chkGlobal.checked);
   if(_g){ pt.icon = ic; pt.code = undefined; }
 })();
@@ -3469,6 +3936,25 @@ if(editIdx===null) return toast('Nessun marker selezionato');
     const newIcon = (inpIcon.value.trim()||pt.icon);
     // se icona valida, mettila anche sul punto corrente (vale sia per giorno che notte)
     (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const _g = (typeof window.chkGlobal!=='undefined' && window.chkGlobal && window.chkGlobal.checked);
   if(_g){
     if(window.isValidIconString && isValidIconString(newIcon)){ pt.icon = newIcon; pt.code = undefined; }
@@ -3677,6 +4163,25 @@ if(editIdx===null) return toast('Nessun marker selezionato');
   
   /* —— Ripristina icona automatica (per città selezionata) —— */
   (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
     const btn = document.getElementById('btnRestoreAuto');
     if(!btn) return;
     
@@ -3955,6 +4460,25 @@ window.SYNC = SYNC;
 function toast(msg, ok=true){
   try{
     const t = document.getElementById('toast') || (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
       const d=document.createElement('div'); d.id='toast';
       d.style.position='fixed'; d.style.left='50%'; d.style.transform='translateX(-50%)';
       d.style.bottom='16px'; d.style.padding='10px 14px'; d.style.background= ok ? 'rgba(34,197,94,.9)' : 'rgba(239,68,68,.9)';
@@ -3987,6 +4511,25 @@ async function loadGlobalStoresFromRemote(){
     return;
   }
   const bases = (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
     const b = SYNC.readBase;
     // toggle presence of trailing dot in repo name
     const toggled = b.replace(/\/([^\/]+?)(\.?)(\/main\/data\/?)/, (m, name, dot, tail)=> {
@@ -4088,6 +4631,25 @@ window.addEventListener('DOMContentLoaded', ()=>{
   setInterval(()=>{ try{ loadGlobalStoresFromRemote(); }catch(e){} }, 15*60*1000);
   // AUTO: al cambio giorno (mezzanotte) ricarica
   (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
     const fmt = d=> d.toISOString().slice(0,10);
     let lastDay = fmt(new Date());
     setInterval(()=>{
@@ -4110,6 +4672,25 @@ window.addEventListener('DOMContentLoaded', ()=>{
 // se true, ogni salvataggio chiama scheduleSync; il flush invia dopo 1.2s di inattività.
 window.SYNC_AUTOSAVE = true;
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(!window.SYNC_AUTOSAVE) return;
 
   // Debounce queue: riusa quella esistente o crea una minima
@@ -4262,6 +4843,25 @@ html, body { overscroll-behavior: contain; }
 </div>
 <script>
     (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
       const out = document.getElementById('mlg-news-list');
       const feeds = [
         'https://www.meteologullo.com/meteornews?format=rss',
@@ -4291,10 +4891,48 @@ html, body { overscroll-behavior: contain; }
       load();
     })();
     (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
       const section = document.getElementById('mlg-home-ux');
       document.addEventListener('submit', function(){ section && section.classList.add('hide'); }, true);
     })();
     (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
       if(document.getElementById('facebook-jssdk')) return;
       var js=document.createElement('script'); js.id='facebook-jssdk';
       js.src='https://connect.facebook.net/it_IT/sdk.js#xfbml=1&version=v18.0';
@@ -4304,6 +4942,25 @@ html, body { overscroll-behavior: contain; }
 </section>
 <script id="part-summary-js">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const dayPartsEl = document.getElementById('dayParts');
   if(!dayPartsEl) return;
   function renderParts(fc){
@@ -4428,6 +5085,25 @@ html, body { overscroll-behavior: contain; }
 </style>
 <script id="hourly-list-js">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const dayPartsEl = document.getElementById('dayParts');
 
   /* ---------- MOBILE‑FRIENDLY HOURLY LIST ---------- */
@@ -4547,6 +5223,25 @@ html, body { overscroll-behavior: contain; }
 <!-- === FIX 2025‑08‑04: collega strip 7 giorni al box parti del giorno === -->
 <script id="seven-day-link-fix">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   // rimuovo listener precedenti clonando il nodo .days
   document.querySelectorAll('.days').forEach(function(strip){
     var clone = strip.cloneNode(true);
@@ -4592,6 +5287,25 @@ html, body { overscroll-behavior: contain; }
 <!-- Patch v3: day/night aggregation without breaking original logic (2025‑08‑04) -->
 <script id="patch-daynight-v3">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   /* ---- helper functions ---- */
   function mode(arr){
     const freq = {};
@@ -4693,6 +5407,25 @@ html, body { overscroll-behavior: contain; }
 <!-- PATCH: day/night aggregation using hourly data (v2) -->
 <script id="forecast-daynight-patch">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function mode(arr){
     const freq = {};
     let sel = null, max = 0;
@@ -4742,6 +5475,25 @@ html, body { overscroll-behavior: contain; }
 <!-- PATCH: usa weathercode_day/night per box (v4) -->
 <script id="daynight-display-patch">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   // converte codice meteo in classe icona; personalizza se necessario
   const mapIcon = c => `w${c}`;
 
@@ -4776,6 +5528,25 @@ html, body { overscroll-behavior: contain; }
 <!-- Auto night mode (17:00–23:59) — waits 8 s after page load and calls toggleTheme() -->
 <script id="auto-night">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function maybeToggle(){
     try{
       const hr = new Date().getHours();
@@ -4790,6 +5561,25 @@ html, body { overscroll-behavior: contain; }
 <!-- === Simple password gate for admin panel (added by ChatGPT) === -->
 <script>
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const fab = document.getElementById('fab');
   if(!fab) return;
 
@@ -4819,6 +5609,25 @@ html, body { overscroll-behavior: contain; }
 </script>
 <script id="compact-empty-js">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function updateEmptyState(){
     const widget = document.getElementById('widget');
     const forecast = document.getElementById('forecast');
@@ -4831,6 +5640,10 @@ html, body { overscroll-behavior: contain; }
     }
   }
   /* Run once on DOM ready */
+  
+  window.addEventListener('resize', positionBackButton);
+  window.addEventListener('scroll', positionBackButton, {passive:true});
+
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', updateEmptyState, {once:true});
   }else{
@@ -4849,6 +5662,25 @@ html, body { overscroll-behavior: contain; }
 <!-- PATCH: Map‑aware precip correction v2 (2025‑08‑04) -->
 <script id="map-rain-correction">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   /* ——— Utility ——— */
   const R = 6371;
   const toRad = x=>x*Math.PI/180;
@@ -4963,6 +5795,25 @@ html, body { overscroll-behavior: contain; }
 <!-- PATCH: DayPart summary severity fix (2025‑08‑04) -->
 <script id="dayparts-summary-fix">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   /* weight function for WMO weather codes */
   function codeWeight(c){
     c=Number(c);
@@ -5083,6 +5934,25 @@ html += `
 <!-- === HOTFIX 2025‑08‑04: dayParts sync & window.fc preservation === -->
 <script id="dayparts-sync-hotfix">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   // Wrap current renderDayParts to always expose fc globally,
   // so the detail listeners can pick the correct day's data.
   function apply(){
@@ -5110,6 +5980,25 @@ html += `
 <!-- === HOTFIX 2025‑08‑04 b: keep global fc = full dataset === -->
 <script id="dayparts-sync-hotfix2">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function isFull(fc){
     return fc && fc.daily && Array.isArray(fc.daily.time) && fc.daily.time.length > 1;
   }
@@ -5137,6 +6026,25 @@ html += `
 <!-- === HOTFIX 2025‑08‑04 c: icone corrette Giorno/Notte per Mattina‑Sera === -->
 <script id="dayparts-icon-fix">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function between(h,start,end){ return start<end ? (h>=start && h<end) : (h>=start || h<end); }
   const partRanges = [
     {start:6,end:12},   // Mattina
@@ -5198,6 +6106,25 @@ html += `
 <!-- === HOTFIX 2025‑08‑04 d: trioraria & icona sera === -->
 <script id="trihourly-fix">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   /* severity weight (same mapping used altrove) */
   function codeWeight(c){
     c=Number(c);
@@ -5317,6 +6244,25 @@ html += `
 <!-- === HOTFIX 2025‑08‑04 d: night icon for “Sera” + tabella trioraria === -->
 <script id="evening-night-trio-hotfix">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   /* ---------- icone ---------- */
   function fixEveningIcons(fc){
     const parts=document.querySelectorAll('#dayParts .parts > details.part');
@@ -5379,6 +6325,25 @@ html += `
 <!-- end tri‑hourly modal -->
 <script id="tri-modal-js">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const mq = window.matchMedia('(max-width:700px)');
   const isMobile = () => mq.matches;
 
@@ -5411,6 +6376,25 @@ html += `
 
     // leggero delay per dare tempo allo script originale
     setTimeout(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
       const detail = part.querySelector('.detail');
       const html = (detail && detail.innerHTML.trim()) ? detail.innerHTML
         : '<p style="padding:1rem;text-align:center">— dati non disponibili —</p>';
@@ -5428,6 +6412,25 @@ html += `
 <!-- PATCH 2025‑08‑05 final: ensure day‑parts icons use worst phenomenon -->
 <script id="dayparts-icon-severity-2025-08-05">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function codeWeight(c){
     c=Number(c);
     if(c>=95) return 200;
@@ -5502,6 +6505,25 @@ html += `
 <!-- PATCH 2025‑08‑06: 7‑day strip worst‑phenomenon icon -->
 <script id="seven-day-severity-fix">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function codeWeight(c){
     c = Number(c);
     if(c >= 95) return 200;
@@ -5547,6 +6569,25 @@ html += `
 </script>
 <script id="map-auto-sync-patch-v5">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   // === ALWAYS-ON map → automatiche sync (v5) ===
 
   // Normalize strings (Italian accents → ascii)
@@ -5803,6 +6844,25 @@ html += `
 </script>
 <script id="restore-auto-v6">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function dateKeyFromCurDay(){
     const d=new Date(); d.setHours(0,0,0,0);
     try{
@@ -5856,6 +6916,25 @@ html += `
 <script>
 /* === Auto-resize messenger for Wix iframe (invia l'altezza reale al parent) === */
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if (window.__HEIGHT_MESSENGER_INSTALLED__) return;
   window.__HEIGHT_MESSENGER_INSTALLED__ = true;
 
@@ -5902,6 +6981,25 @@ html += `
 <script>
 // === AI Meteo Lo Gullo — script (iniettato) ===
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const $  = s => document.querySelector(s);
   const $$ = s => Array.from(document.querySelectorAll(s));
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -6476,10 +7574,27 @@ pushMsg(`${text}${body}`, "ai");
   });
 })();
 </script>
-
-
 <script>
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function findDaysBar(){
     const selectors = [
       '#nav', '#bottomBar',
@@ -6519,9 +7634,27 @@ pushMsg(`${text}${body}`, "ai");
   obs.observe(document.documentElement, {childList:true, subtree:true});
 })();
 </script>
-
 <script>
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(window.__mlgBooted) return; window.__mlgBooted = true;
   function call(fn){
     try{ if(typeof fn==='function'){ fn(); return true; } }catch(e){}
@@ -6537,10 +7670,27 @@ pushMsg(`${text}${body}`, "ai");
   }, {once:true});
 })();
 </script>
-
-
 <script id="assistente-calabria-offline-2025-08-10">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   // --- Calabria bbox ---
   const CAL = {minLat: 37.90, maxLat: 39.95, minLon: 15.55, maxLon: 17.35};
   function inCalabria(lat, lon){ return lat>=CAL.minLat && lat<=CAL.maxLat && lon>=CAL.minLon && lon<=CAL.maxLon; }
@@ -6743,14 +7893,36 @@ pushMsg(`${text}${body}`, "ai");
   };
 })();
 </script>
-
 <script id="mapdate-overlay-sync">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function syncMapDate(){
     var src = document.getElementById('hDate');
     var dest = document.getElementById('mapDateOverlay');
     if(src && dest) dest.textContent = src.textContent || '';
   }
+  
+  window.addEventListener('resize', positionBackButton);
+  window.addEventListener('scroll', positionBackButton, {passive:true});
+
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', syncMapDate);
   }else{
@@ -6764,10 +7936,27 @@ pushMsg(`${text}${body}`, "ai");
   }catch(e){}
 })();
 </script>
-
-
 <script id="applyDailyOverridesV2-augment-rot-xy">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const _apply = window.applyDailyOverridesV2;
   window.applyDailyOverridesV2 = function(){
     try{
@@ -6794,10 +7983,27 @@ pushMsg(`${text}${body}`, "ai");
   };
 })();
 </script>
-
-
 <script id="sanitizeDailyOverridesIcon">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(typeof getDailyOverrideV2==='function' && typeof saveDailyOverrideV2==='function'){
     const _get = getDailyOverrideV2;
     window.getDailyOverrideV2 = function(key, uid){
@@ -6811,10 +8017,27 @@ pushMsg(`${text}${body}`, "ai");
   }
 })();
 </script>
-
-
 <script id="helpers-custom-icon">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   window.isValidIconString = function(str){
     return (typeof str==='string' && str.trim().length>0 &&
             (/^https?:\/\//.test(str) || /\.(png|jpe?g|webp|gif|svg)$/i.test(str)));
@@ -6825,10 +8048,27 @@ pushMsg(`${text}${body}`, "ai");
   };
 })();
 </script>
-
-
 <script id="global-propagation-helpers">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   window.ensureMarkerOnAllDays = function(uid, tmpl){
     if(!uid || !Array.isArray(window.DAYS)) return;
     for(const day of DAYS){
@@ -6896,9 +8136,27 @@ pushMsg(`${text}${body}`, "ai");
   };
 })();
 </script>
-
 <script id="mlg-guard-global-icon">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   try{
     // Wrap setGlobalPersist: allow x,y,rot always; icon only if global checkbox is ON
     if (typeof window.setGlobalPersist === 'function' && !window.setGlobalPersist.__iconGuarded) {
@@ -6943,6 +8201,25 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 <script id="mlg-dedup-on-click-2025-08-13">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if (window.__DEDUP_ON_CLICK__) return; window.__DEDUP_ON_CLICK__ = true;
 
   function pruneMarkerChildren(mk){
@@ -6969,7 +8246,26 @@ document.addEventListener('DOMContentLoaded', function(){
     const mk = ev.target.closest && ev.target.closest('#mapArea .marker');
     if(!mk) return;
     // After other handlers run, prune duplicates
-    setTimeout(function(){ pruneMarkerChildren(mk); }, 0);
+    setTimeout(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+ pruneMarkerChildren(mk); }, 0);
   }, true);
 
   // Also prune after every render
@@ -6988,6 +8284,25 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 <script id="mlg-strong-marker-dedup">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if (window.__STRONG_DEDUP__) return; window.__STRONG_DEDUP__ = true;
 
   function keyFor(el){
@@ -7052,6 +8367,25 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 <script id="mlg-filter-saveDailyOverrideV2-xy">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   try{
     if(typeof window.saveDailyOverrideV2 === 'function' && !window.saveDailyOverrideV2.__xyFiltered){
       const _orig = window.saveDailyOverrideV2;
@@ -7070,9 +8404,27 @@ document.addEventListener('DOMContentLoaded', function(){
   }catch(e){}
 })();
 </script>
-
 <script id="intro-auto-hide-js">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   var intro = document.getElementById('pageIntro');
   if(!intro) return;
 
@@ -7097,7 +8449,26 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   function showIntro(savePref){
     intro.style.display = '';
-    requestAnimationFrame(function(){ intro.classList.remove('is-hidden'); });
+    requestAnimationFrame(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+ intro.classList.remove('is-hidden'); });
     btn.classList.remove('show');
     btn.setAttribute('aria-expanded','true');
     if(savePref) localStorage.setItem(LSKEY, 'false');
@@ -7127,21 +8498,80 @@ document.addEventListener('DOMContentLoaded', function(){
   } else {
     // If user previously chose to keep it visible, don't auto-hide
     var shouldAutohide = (PREF === null);
-    if(document.readyState === 'loading'){
+    
+  window.addEventListener('resize', positionBackButton);
+  window.addEventListener('scroll', positionBackButton, {passive:true});
+
+  if(document.readyState === 'loading'){
       document.addEventListener('DOMContentLoaded', function(){
-        if(shouldAutohide) setTimeout(function(){ hideIntro(true); }, 5000);
+        if(shouldAutohide) setTimeout(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+ hideIntro(true); }, 5000);
       });
     } else {
-      if(shouldAutohide) setTimeout(function(){ hideIntro(true); }, 5000);
+      if(shouldAutohide) setTimeout(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+ hideIntro(true); }, 5000);
     }
   }
 })();
 </script>
-
-
 <!-- SECTOR CONDITION PRO v4 -->
 <script id="sector-cond-pro-v4">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(window.__sectorCondProV4) return; window.__sectorCondProV4 = true;
 
   var STORAGE_KEY = 'sectorCondMiniV1'; // reuse
@@ -7288,7 +8718,26 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // Hotspot
   var spot=document.createElement('div'); spot.id='sector-pro-spot'; spot.style.cssText='position:fixed;top:6px;left:6px;width:12px;height:12px;opacity:0;z-index:999998;cursor:pointer;';
-  var clicks=0,t=null; spot.addEventListener('click', function(){ clicks++; clearTimeout(t); t=setTimeout(function(){clicks=0;},700); if(clicks>=3){ clicks=0; openPro(); } });
+  var clicks=0,t=null; spot.addEventListener('click', function(){ clicks++; clearTimeout(t); t=setTimeout(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+clicks=0;},700); if(clicks>=3){ clicks=0; openPro(); } });
   document.body.appendChild(spot);
   window.addEventListener('keydown', function(ev){ if(ev.ctrlKey&&ev.altKey&&(ev.key==='s'||ev.key==='S')){ ev.preventDefault(); togglePro(); } });
 
@@ -7300,11 +8749,28 @@ document.addEventListener('DOMContentLoaded', function(){
 
 })();
 </script>
-
-
 <!-- === SECTOR PRO • Fasce orarie (non distruttivo) — v1.2 (2025-08-14) === -->
 <script id="sector-pro-timebands-v12">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(window.__sectorProTimebands) return; window.__sectorProTimebands = true;
 
   var STORAGE_KEY = 'sectorCondMiniV1';     // stesso store del PRO
@@ -7536,10 +9002,28 @@ document.addEventListener('DOMContentLoaded', function(){
 
 })();
 </script>
-
 <!-- === Sector PRO • Timebands post-save fix (v1.3) === -->
 <script id="sector-pro-timebands-postsave-v13">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(window.__sectorProTimebandsPostSave) return; window.__sectorProTimebandsPostSave = true;
 
   var STORAGE_KEY = 'sectorCondMiniV1';
@@ -7639,14 +9123,51 @@ document.addEventListener('DOMContentLoaded', function(){
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(wrapSaveOnce, 200); setTimeout(patchApply, 200); });
 
   // Periodico di sicurezza (in caso di riassegnazione handler)
-  setInterval(function(){ try{ wrapSaveOnce(); patchApply(); }catch(e){} }, 1200);
+  setInterval(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+ try{ wrapSaveOnce(); patchApply(); }catch(e){} }, 1200);
 
 })();
 </script>
-
 <!-- === Sector PRO • Timebands order fix (v1.4) — apply AFTER PRO === -->
 <script id="sector-pro-timebands-order-v14">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(window.__sectorProTimebandsOrder) return; window.__sectorProTimebandsOrder = true;
   function afterWrap(){
     var oldR = window.render;
@@ -7678,7 +9199,6 @@ document.addEventListener('DOMContentLoaded', function(){
   setInterval(afterWrap, 1000); // in caso di re-wrap da altri script
 })();
 </script>
-
 <!-- === Sector PRO • Mobile optimizations (v1.0) — non-destructive === -->
 <style id="sector-pro-mobile-v10">
 @media (max-width: 720px){
@@ -7769,10 +9289,28 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 }
 </style>
-
 <!-- PATCH: force headline icon in 7‑Giorni, even if other scripts overwrite renderDaily -->
 <script id="daily-headline-force">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if (window.__dailyHeadlineForced) return;
   window.__dailyHeadlineForced = true;
 
@@ -7828,11 +9366,28 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 })();
 </script>
-
-
 <!-- === Sector PRO • Extra icons from Admin panel (non-destructive) — v1.0 === -->
 <script id="sector-pro-extra-icons-v10">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if (window.__sectorProExtraIcons__) return; 
   window.__sectorProExtraIcons__ = true;
 
@@ -7978,8 +9533,6 @@ document.addEventListener('DOMContentLoaded', function(){
   try{ bodMo.observe(document.body, {childList:true, subtree:true}); }catch(e){}
 })();
 </script>
-
-
 <!-- === Sector PRO • Mobile usability & overflow fix — v1.1 === -->
 <style id="sector-pro-mobile-patch-v11">
   /* Keep the panel inside the viewport on any device */
@@ -8054,6 +9607,25 @@ document.addEventListener('DOMContentLoaded', function(){
 </style>
 <script id="sector-pro-mobile-helpers-v11">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if (window.__sectorProMobilePatch__) return;
   window.__sectorProMobilePatch__ = true;
 
@@ -8092,11 +9664,28 @@ document.addEventListener('DOMContentLoaded', function(){
   window.addEventListener("resize", clampPanel, {passive:true});
 })();
 </script>
-
-
 <!-- === Sector PRO • Auto‑harvest ALL icons from other panel — v1.2 === -->
 <script id="sector-pro-extra-icons-harvest-v12">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if (window.__sectorProExtraIconsHarvest__) return;
   window.__sectorProExtraIconsHarvest__ = true;
 
@@ -8270,11 +9859,28 @@ document.addEventListener('DOMContentLoaded', function(){
   try{ bodMo.observe(document.body, {childList:true, subtree:true}); }catch(e){}
 })();
 </script>
-
-
 <!-- === PATCH 2025-09-02: 7‑Giorni usa SEMPRE la condizione più importante del giorno, calcolata dalle ORE (compatibile con PRO/fasce) === -->
 <script id="daily-headline-from-hourly-v2">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(window.__dailyHeadlineFromHourlyV2) return;
   window.__dailyHeadlineFromHourlyV2 = true;
 
@@ -8409,6 +10015,10 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(_e){}
   }
 
+  
+  window.addEventListener('resize', positionBackButton);
+  window.addEventListener('scroll', positionBackButton, {passive:true});
+
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', install);
   }else{
@@ -8416,10 +10026,28 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 })();
 </script>
-
 <!-- === PATCH 2025-09-02: PRO override "pioggia" non lascia 0.0 mm / umidità bassa (solo incremento, non tocca altro) === -->
 <script id="pro-hydrate-precip-v1">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(window.__proHydratePrecipV1) return;
   window.__proHydratePrecipV1 = true;
 
@@ -8549,10 +10177,28 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 })();
 </script>
-
 <!-- === Sector PRO • Remote Sync (v1.0) — non distruttivo === -->
 <script id="sector-pro-remote-sync-v10">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(window.__sectorProRemoteSync) return; window.__sectorProRemoteSync = true;
   var FILE = "sector_cond_mini_v1.json";
   var LSKEY = "sectorCondMiniV1";
@@ -8581,6 +10227,25 @@ document.addEventListener('DOMContentLoaded', function(){
     try{
       if(!window.SYNC || !SYNC.readBase) return;
       var bases = (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
         var b = SYNC.readBase;
         var toggled = b.replace(/\/([^\/]+?)(\.?)(\/main\/data\/?)/, function(m, name, dot, tail){
           return dot ? ("/"+name+tail) : ("/"+name+"."+tail);
@@ -8665,14 +10330,51 @@ document.addEventListener('DOMContentLoaded', function(){
     if(document.readyState === "loading"){
       document.addEventListener("DOMContentLoaded", function(){ pullOnce(); });
     }else{ pullOnce(); }
-    setInterval(function(){ try{ pullOnce(); }catch(e){} }, 15*60*1000);
+    setInterval(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+ try{ pullOnce(); }catch(e){} }, 15*60*1000);
   }catch(e){}
 })();
 </script>
-
 <!-- === Shared Password Gate for MAP (#fab) and PRO (hotspot/Ctrl+Alt+S) — v2.0 === -->
 <script id="shared-password-gate-v2">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   var KEY = "proAuthOk";
   function isAuthed(){ try{ return sessionStorage.getItem(KEY) === "1"; }catch(e){ return false; } }
   function promptAuth(){
@@ -8748,8 +10450,6 @@ document.addEventListener('DOMContentLoaded', function(){
   setInterval(tryWrap, 1200);
 })();
 </script>
-
-
 <script>
 
 /* ===============================================================
@@ -8769,6 +10469,25 @@ document.addEventListener('DOMContentLoaded', function(){
    ============================================================== */
 
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if (window.__mlgRadarBlend) return; window.__mlgRadarBlend = true;
 
   // ===== Config =====
@@ -9031,7 +10750,6 @@ document.addEventListener('DOMContentLoaded', function(){
 })();
 
 </script>
-
 <style id="past-hours-css">
 /* Dim past day-part tiles and hide their numeric values */
 #dayParts details.part.past { opacity: .35; filter: grayscale(30%); pointer-events: none; }
@@ -9044,9 +10762,27 @@ document.addEventListener('DOMContentLoaded', function(){
   opacity: .8;
 }
 </style>
-
 <script id="past-hours-filter-v1">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   /* Helpers */
   function nowTS(){ return Date.now(); }
   function todayISO(){
@@ -9283,16 +11019,54 @@ html += '</details>';
       let tmin = isToday ? round(Math.min(...rows.map(i=>H.temperature_2m?.[i]??NaN))) : round(D.temperature_2m_min?.[Number(window.curDay||0)]);
 
       const place = (window.CITIES?.[0]?.city) || document.getElementById("cityInput")?.value || "località selezionata";
-      const when = (function(){ // replicate labelByIdx behaviour (oggi/domani/weekday)
+      const when = (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+ // replicate labelByIdx behaviour (oggi/domani/weekday)
         try{
           const d = new Date(iso+"T12:00:00");
           const pad=n=>String(n).padStart(2,"0");
           const today = todayISO();
           const tmrw = (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
             const n = new Date(); n.setDate(n.getDate()+1);
             return n.getFullYear()+"-"+pad(n.getMonth()+1)+"-"+pad(n.getDate());
           })();
-          if(iso===today) return "oggi";
+          if(iso===today) return "nelle prossime ore";
           if(iso===tmrw) return "domani";
           return d.toLocaleDateString("it-IT",{weekday:"long", day:"numeric", month:"long"}).toLowerCase();
         }catch(_e){ return "oggi"; }
@@ -9301,7 +11075,7 @@ html += '</details>';
       const whereWet = ["al mattino","al pomeriggio","in serata","di notte"].filter((_,i)=>wet[i]);
       let precip = "non sono previste precipitazioni significative";
       if(pmax>=70 || sum>=5) precip="sono probabili rovesci";
-      if(ts || pmax>=85) precip="sono possibili temporali";
+      if(ts) precip="sono possibili temporali";
       if(whereWet.length) precip += " " + (whereWet.length===1? whereWet[0] : "(" + whereWet.join(", ") + ")");
       const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "deboli");
       const lead = `A ${place}, ${when} ${precip}. La temperatura si porterà intorno a ${isFinite(tmax)?tmax+"°C":"--"} nelle ore più calde e verso ${isFinite(tmin)?tmin+"°C":"--"} nelle ore più fresche.`;
@@ -9379,19 +11153,74 @@ html += '</details>';
   })();
 })();
 </script>
-
 <style id="part-phenomenon-css">
 /* label fenomeno nel riassunto dei pannelli (Mattina/Pomeriggio/Sera/Notte) */
 #dayParts .part .phen{font-size:.78rem;opacity:.9;line-height:1;margin-top:2px;margin-bottom:2px;}
 @media (max-width:600px){ #dayParts .part .phen{font-size:.72rem;} }
 </style>
+<style id="phen-fixed-height-v1">
+/* Allinea verticalmente i pannelli fasce: la riga del fenomeno ha sempre l'altezza di 2 righe di testo */
+#dayParts .part summary{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
 
+/* La label del fenomeno: massimo 2 righe, altezza sempre riservata */
+#dayParts .part .phen{
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  text-align:center;
+  line-height:1.1;
+  min-height:2.2em;
+  margin:2px 0 4px;
+}
 
+/* Se una fascia NON ha .phen, riserva comunque lo stesso spazio così le T° restano allineate */
+#dayParts .part summary:not(:has(.phen))::before{
+  content:"";
+  display:block;
+  line-height:1.1;
+  min-height:2.2em;
+  margin:2px 0 4px;
+}
+
+@media (max-width:600px){
+  #dayParts .part .phen{
+    font-size:.72rem;
+    line-height:1.1;
+    min-height:calc(2 * 1.1em);
+  }
+  #dayParts .part summary:not(:has(.phen))::before{
+    min-height:calc(2 * 1.1em);
+  }
+}
+</style>
 <!-- PATCH: inject LIVE temperature into the current day-part tile -->
-
 <!-- PATCH: inject LIVE temperature into the current day-part tile (robust) -->
 <script id="dayparts-live-clamp">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function isCurrentForName(name, h){
     if(!name) return false;
     name = name.toLowerCase();
@@ -9442,11 +11271,27 @@ html += '</details>';
   window.__applyLiveToDayparts = applyLiveToTile;
 })();
 </script>
-
-
-
 <script id="dayparts-live-clamp-boost">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function isCurrentPart(name, h){
     name=(name||'').toLowerCase();
     return (name.includes('mattina') && h>=6 && h<12)
@@ -9504,13 +11349,72 @@ html += '</details>';
 })();
 </script>
 
+<script id="mlg-sync-with-bar-js">
+(function(){
+  function itaMonthIndex(name){
+    const months = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+    const i = months.indexOf(String(name||'').toLowerCase());
+    return i >= 0 ? i : null;
+  }
+  function formatWithWeekday(dayMonth){
+    const parts = String(dayMonth||'').trim().split(/\s+/);
+    if(parts.length < 2) return dayMonth;
+    const day = parseInt(parts[0], 10);
+    const mi = itaMonthIndex(parts[1]);
+    if(!day || mi===null) return dayMonth;
+    const year = (new Date()).getFullYear();
+    const d = new Date(year, mi, day);
+    const wd = d.toLocaleDateString('it-IT', { weekday:'long' });
+    const mon = d.toLocaleDateString('it-IT', { month:'long' });
+    return wd + ' ' + d.getDate() + ' ' + mon;
+  }
+  function update(){
+    try{
+      var src = document.getElementById('hDate');
+      var dest = document.getElementById('mlgTopDate');
+      if(!src || !dest) return;
+      var raw = src.textContent || src.innerText || '';
+      dest.textContent = formatWithWeekday(raw);
+    }catch(e){}
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', update);
+  }else{
+    update();
+  }
+  try{
+    var src = document.getElementById('hDate');
+    if(src){
+      new MutationObserver(update).observe(src, { childList:true, characterData:true, subtree:true });
+    }
+  }catch(e){}
+})();
+</script>
+
 </body>
 </html>
-
-
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
 <script id="sector-pro-today-fix-2025-08-15">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function isFull(fc){ return fc && fc.daily && Array.isArray(fc.daily.time) && fc.daily.time.length > 1; }
   function todayISO(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
 
@@ -9564,11 +11468,28 @@ html += '</details>';
   document.addEventListener('DOMContentLoaded', patchOpen);
 })();
 </script>
-
-
 <!-- === FIX 2025-08-15: Ensure "Applica adesso" also applies time-band overrides immediately === -->
 <script id="sector-pro-applynow-timebands-fix-2025-08-15">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   function patchApplyNow(){
     var btn = document.getElementById('proApplyNow');
     if(!btn || btn.__tbApplyFix) return;
@@ -9590,10 +11511,28 @@ html += '</details>';
   setInterval(init, 500);
 })();
 </script>
-
 <!-- === PATCH 2025-09-02b: PRO hydrate precip — fix operator, set rain/snowfall too, and trigger light refresh === -->
 <script id="pro-hydrate-precip-v1-1">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   if(window.__proHydratePrecipV1_1) return;
   window.__proHydratePrecipV1_1 = true;
 
@@ -9738,8 +11677,6 @@ html += '</details>';
   try{ window.addEventListener('pro:applied', applyAndRefresh, false); }catch(_e){}
 })();
 </script>
-
-
 <style id="daily-narrative-css">
 #narrativeBox{ margin:14px 0; }
 #narrativeBox .card{
@@ -9760,10 +11697,27 @@ html += '</details>';
   #narrativeBox h3{ font-size:1rem; }
 }
 </style>
-
-
 <script id="daily-narrative-js">
 (function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
   const EL_ID="narrativeBox";
   const MAP_LINK="https://www.meteologullo.com/stazioni-meteorologiche-mlg";
 
@@ -9833,7 +11787,7 @@ html += '</details>';
       const whereWet = ["al mattino","al pomeriggio","in serata","di notte"].filter((_,i)=>wet[i]);
       let precip = "non sono previste precipitazioni significative";
       if(pmax>=70 || sum>=5) precip="sono probabili rovesci";
-      if(ts || pmax>=85) precip="sono possibili temporali";
+      if(ts) precip="sono possibili temporali";
       if(whereWet.length) precip += " " + (whereWet.length===1? whereWet[0] : "(" + whereWet.join(", ") + ")");
       const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "deboli");
       const hot = (tmax>=35);
@@ -9891,10 +11845,7 @@ html += '</details>';
     const fc = (window.fc && window.fc.daily?.time) ? window.fc : (window.__fullFc||window.fc);
     const d = Number(window.curDay||0);
     const data=compute(fc,d);
-    if(!data){
-      box.innerHTML='<div class="card"><h3>📝 Sintesi della giornata</h3><p>In caricamento…</p></div>';
-      return;
-    }
+    if(!data){ box.innerHTML=''; return; }
     box.innerHTML=[
       '<div class="card">',
       '<h3>📝 Sintesi della giornata</h3>',
@@ -9938,6 +11889,448 @@ html += '</details>';
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot, {once:true}); else boot();
+})();
+</script>
+<!-- === Sector PRO • Microsettori Calabria (v1.0) — non distruttivo === -->
+<script id="sector-pro-microsettori-v10">
+(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
+  if(window.__sectorProMicro) return; window.__sectorProMicro = true;
+
+  var STORAGE_KEY = 'sectorCondMiniV1';
+  var MICRO_GRID = {rows:4, cols:4}; // 4×4 per ciascun settore della griglia principale
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function loadStore(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY))||{overrides:{},grid:{rows:8,cols:6}}; }catch(e){ return {overrides:{},grid:{rows:8,cols:6}}; } }
+  function saveStore(s){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){} }
+
+  function grid(){ var s=loadStore(); return {rows:(s.grid&&s.grid.rows)||8, cols:(s.grid&&s.grid.cols)||6}; }
+  function latLonToXYWrap(lat,lon){ try{ if(typeof window.latLonToXY==='function'){ var xy=window.latLonToXY(+lat,+lon); if(xy) return {x:clamp(+xy.x,0,100), y:clamp(+xy.y,0,100)}; } }catch(e){} return null; }
+
+  function sectorAndMicroForLatLon(lat,lon){
+    var g = grid();
+    var xy = latLonToXYWrap(lat,lon); if(!xy) return null;
+    var cellW = 100/g.cols, cellH = 100/g.rows;
+    var ccol = clamp(Math.floor(xy.x/cellW),0,g.cols-1);
+    var crow = clamp(Math.floor(xy.y/cellH),0,g.rows-1);
+    // coordinate relative all'interno della cella
+    var rx = xy.x - ccol*cellW;
+    var ry = xy.y - crow*cellH;
+    var mw = cellW / MICRO_GRID.cols;
+    var mh = cellH / MICRO_GRID.rows;
+    var mcol = clamp(Math.floor(rx/mw), 0, MICRO_GRID.cols-1);
+    var mrow = clamp(Math.floor(ry/mh), 0, MICRO_GRID.rows-1);
+    var sid = crow + '-' + ccol;
+    var mid = mrow + 'x' + mcol;
+    return {sid:sid, mid:mid, key: sid + '@' + mid, xy:xy, crow:crow, ccol:ccol, mrow:mrow, mcol:mcol};
+  }
+
+  // ——— UI injection: toggle micro ———
+  function injectUi(){
+    var pnl = document.getElementById('sector-pro-panel');
+    if(!pnl || pnl.__microUi) return;
+    pnl.__microUi = true;
+
+    // Riga UI dopo "Località"
+    var anchor = pnl.querySelector('#proSector');
+    if(anchor){
+      var row = document.createElement('span');
+      row.id = 'proMicroRow';
+      row.style.cssText = 'margin-left:10px; display:inline-flex; gap:8px; align-items:center;';
+      row.innerHTML = '<label style="display:inline-flex;gap:6px;align-items:center;"><input type="checkbox" id="proUseMicro"> Solo microsettore</label><span id="proMicroLbl" style="opacity:.85"></span><button id="proList" type="button" style="padding:4px 8px;border-radius:8px;background:#0e2a36;border:1px solid rgba(255,255,255,.12);color:#e6f1f5;cursor:pointer">Elenco modifiche</button>';
+      anchor.parentNode.insertBefore(row, anchor.nextSibling);
+    }
+
+    function updateMicroLblFromQuery(){
+      try{
+        var q = document.getElementById('proQuery').value.trim();
+        var lbl = document.getElementById('proMicroLbl');
+        var secLbl = document.getElementById('proSector');
+        lbl.textContent = '';
+        if(!q || !secLbl || !secLbl.getAttribute('data-sid')) return;
+        (typeof window.geocode==='function' ? window.geocode(q) : Promise.resolve(null)).then(function(g){
+          if(!g) return;
+          var sm = sectorAndMicroForLatLon(g.latitude, g.longitude);
+          if(sm){
+            lbl.textContent = 'Micro: '+sm.mid;
+            // memorizza sullo span settore anche il micro rilevato
+            secLbl.setAttribute('data-micro', sm.mid);
+          }
+        });
+      }catch(e){}
+    }
+
+    // Recompute label each time the user hits "Trova settore" or edits query
+    var btnFind = pnl.querySelector('#proFind');
+    if(btnFind && !btnFind.__microHook){
+      btnFind.addEventListener('click', function(){ setTimeout(updateMicroLblFromQuery, 60); }, false);
+      btnFind.__microHook = true;
+    }
+    var inp = pnl.querySelector('#proQuery');
+    if(inp && !inp.__microHook){
+      inp.addEventListener('change', updateMicroLblFromQuery, false);
+      inp.addEventListener('blur', updateMicroLblFromQuery, false);
+      inp.__microHook = true;
+    }
+
+    // Lista modifiche
+    var btnList = document.getElementById('proList');
+    if(btnList && !btnList.__microHook){
+      btnList.addEventListener('click', openListModal, false);
+      btnList.__microHook = true;
+    }
+  }
+
+  // ——— Helpers override read/write con micro ———
+  function currentPanelKey(){
+    var pnl = document.getElementById('sector-pro-panel');
+    if(!pnl) return null;
+    var daySel = pnl.querySelector('#proDay'); var iso = daySel && daySel.value;
+    var sidEl = pnl.querySelector('#proSector');
+    var sid = sidEl && sidEl.getAttribute('data-sid');
+    var useMicro = (pnl.querySelector('#proUseMicro')||{}).checked;
+    var mid = sidEl && sidEl.getAttribute('data-micro');
+    if(!iso || !sid) return null;
+    var key = sid;
+    if(useMicro && mid){ key = sid + '@' + mid; }
+    return {iso:iso, key:key, sid:sid, mid:mid||null, useMicro:!!useMicro};
+  }
+
+  // Sposta l'override appena salvato da [sid] -> [sid@mid] se richiesto
+  function migrateOverrideIfNeeded(){
+    try{
+      var cur = currentPanelKey(); if(!cur) return;
+      var s = loadStore(); var day = s.overrides[cur.iso]||{};
+      if(cur.useMicro && cur.mid && day[cur.sid] && !day[cur.key]){
+        day[cur.key] = day[cur.sid]; // copia
+        delete day[cur.sid];         // rimuovi generico (evita toccare tutto il settore)
+        s.overrides[cur.iso] = day; saveStore(s);
+        try{ if(window.toast) toast('Salvato sul microsettore ✔'); }catch(_e){}
+      }
+    }catch(e){}
+  }
+
+  // Cancella sul micro se flag attivo, altrimenti sul settore
+  function clearOverrideSmart(){
+    try{
+      var cur = currentPanelKey(); if(!cur) return;
+      var s = loadStore();
+      var day = s.overrides[cur.iso]||{};
+      if(cur.useMicro && cur.mid){
+        if(day[cur.key]){ delete day[cur.key]; }
+      }else{
+        if(day[cur.sid]){ delete day[cur.sid]; }
+      }
+      s.overrides[cur.iso] = day; saveStore(s);
+    }catch(e){}
+  }
+
+  // Hook i pulsanti del pannello
+  function hookButtons(){
+    // Dopo il salvataggio originale, migra su micro
+    document.addEventListener('click', function(ev){
+      var t = ev.target;
+      if(t && t.id==='proSave'){
+        setTimeout(migrateOverrideIfNeeded, 40);
+      }
+    }, true);
+    // Sostituisci clear
+    document.addEventListener('click', function(ev){
+      var t = ev.target;
+      if(t && t.id==='proClear'){
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        clearOverrideSmart();
+        alert('Override rimosso');
+      }
+    }, true);
+  }
+
+  // ——— APPLY: micro ha precedenza su settore ———
+  function applyMicroFullDay(fc){
+    try{
+      if(!fc) return;
+      var sm = sectorAndMicroForLatLon(fc.latitude, fc.longitude); if(!sm) return;
+      var s = loadStore();
+      var days = (fc.daily && fc.daily.time) || [];
+      for(var d=0; d<days.length; d++){
+        var iso = days[d];
+        var per = s.overrides && s.overrides[iso]; if(!per) continue;
+        var ov = per[sm.key] || null; // micro prima!
+        if(!ov || ov.code==null) continue;
+        var code = +ov.code;
+        if(Array.isArray(fc.daily.weathercode)) fc.daily.weathercode[d] = code;
+        // applica a tutte le ore del giorno
+        if(fc.hourly && Array.isArray(fc.hourly.weathercode)){
+          // individua intervallo del giorno
+          var times=(fc.hourly.time||[]);
+          var start=-1, end=times.length;
+          for(var i=0;i<times.length;i++){ if((times[i]||'').startsWith(iso)){ start=i; break; } }
+          if(start>=0){
+            for(var j=start;j<Math.min(end, start+24);j++){ fc.hourly.weathercode[j] = code; }
+          }
+        }
+      }
+    }catch(e){}
+  }
+
+  // Timebands solo micro (sovrascrive quanto applicato prima)
+  function inRange(h, start, end){ return (start<end) ? (h>=start && h<end) : (h>=start || h<end); }
+  function bandToRange(name){
+    var k=(name||'').toLowerCase();
+    if(k==='mattina') return {start:6,end:12};
+    if(k==='pomeriggio') return {start:12,end:18};
+    if(k==='sera') return {start:18,end:24};
+    if(k==='notte') return {start:0,end:6};
+    return null;
+  }
+  function applyMicroTimebands(fc){
+    try{
+      if(!fc || !fc.hourly || !fc.daily) return;
+      var sm = sectorAndMicroForLatLon(fc.latitude, fc.longitude); if(!sm) return;
+      var s = loadStore();
+      var days = (fc.daily.time||[]);
+      for(var d=0; d<days.length; d++){
+        var iso = days[d];
+        var per = s.overrides && s.overrides[iso]; if(!per) continue;
+        var ov = per[sm.key];
+        if(!ov || !ov.ranged || ov.ranged.code==null) continue;
+        var code = Number(ov.ranged.code);
+        // trova indice orario del giorno
+        var times = (fc.hourly.time||[]);
+        var startIdx=-1, endIdx=times.length;
+        for(var i=0;i<times.length;i++){ if((times[i]||'').startsWith(iso)){ startIdx=i; break; } }
+        if(startIdx<0) continue;
+        for(var j=startIdx+1;j<times.length;j++){ if(!times[j].startsWith(iso)){ endIdx=j; break; } }
+        if(!isFinite(endIdx)) endIdx=Math.min(times.length, startIdx+24);
+
+        var hs=0, he=24;
+        if(ov.ranged.type==='band'){
+          var br=bandToRange(ov.ranged.band); if(!br) continue; hs=br.start; he=br.end;
+        }else if(ov.ranged.type==='hours'){
+          hs=clamp(Number(ov.ranged.start)||0,0,23);
+          he=clamp(Number(ov.ranged.end)||24,1,24);
+        }
+        for(var k=startIdx;k<endIdx;k++){
+          var hh= +String(times[k]).slice(11,13);
+          if(inRange(hh,hs,he)){
+            if(Array.isArray(fc.hourly.weathercode)) fc.hourly.weathercode[k] = code;
+          }
+        }
+      }
+    }catch(e){}
+  }
+
+  // Wrap/daisy-chain alle funzioni esistenti
+  (function patchApply(){
+    var old = window.applySectorCondMiniToForecast;
+    if(typeof old==='function' && !old.__microWrapped){
+      window.applySectorCondMiniToForecast = function(fc){
+        var r = old.apply(this, arguments);
+        try{ applyMicroFullDay(fc); }catch(_e){}
+        return r;
+      };
+      window.applySectorCondMiniToForecast.__microWrapped = true;
+    }
+    function wrapRender(){
+      var rr = window.render;
+      if(typeof rr==='function' && !rr.__microWrapped){
+        window.render = function(){
+          var out = rr.apply(this, arguments);
+          try{ if(window.fc) applyMicroTimebands(window.fc); }catch(_e){}
+          return out;
+        };
+        window.render.__microWrapped = true;
+      }
+      var rn = window.run;
+      if(typeof rn==='function' && !rn.__microWrapped){
+        window.run = async function(){
+          var res = await rn.apply(this, arguments);
+          try{ if(window.fc) applyMicroTimebands(window.fc); }catch(_e){}
+          return res;
+        };
+        window.run.__microWrapped = true;
+      }
+    }
+    wrapRender();
+    setInterval(wrapRender, 800);
+  })();
+
+  // ——— Elenco modifiche ———
+  function openListModal(){
+    try{
+      var s = loadStore();
+      var box = document.createElement('div');
+      box.id = 'proMicroList';
+      box.style.cssText = 'position:fixed;inset:0;z-index:1000000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:12px;';
+      var html = '<div style="background:#0b1f28;color:#e6f1f5;max-width:720px;width:96vw;border-radius:12px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,.35);">'
+               + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+               + '<strong>Modifiche attive (micro & settore)</strong>'
+               + '<button id="proListClose" style="all:unset;cursor:pointer;font-size:18px">✕</button></div>'
+               + '<div style="max-height:60vh;overflow:auto;margin-top:8px;">';
+      var any=false;
+      var days = Object.keys(s.overrides||{}).sort();
+      for(var di=0; di<days.length; di++){
+        var iso = days[di]; var per = s.overrides[iso]||{};
+        var keys = Object.keys(per);
+        if(!keys.length) continue;
+        any = true;
+        html += '<h4 style="margin:10px 0 6px 0;">'+iso+'</h4>';
+        html += '<table style="width:100%;border-collapse:collapse;"><thead><tr><th align="left">Settore/µ</th><th align="left">Codice</th><th align="left">Fascia</th><th></th></tr></thead><tbody>';
+        for(var k=0;k<keys.length;k++){
+          var kk = keys[k]; var ov = per[kk]||{};
+          var cod = (ov && ov.code!=null) ? String(ov.code) : (ov && ov.ranged && ov.ranged.code!=null ? String(ov.ranged.code)+' (fascia)' : '—');
+          var rng = (ov && ov.ranged) ? (ov.ranged.type==='band' ? ov.ranged.band : (ov.ranged.start+'–'+ov.ranged.end)) : '';
+          html += '<tr style="border-top:1px solid rgba(255,255,255,.08)"><td style="padding:6px 4px">'+kk+'</td><td>'+cod+'</td><td>'+rng+'</td>'
+               + '<td style="text-align:right"><button data-iso="'+iso+'" data-key="'+kk+'" class="pro-del" style="padding:4px 8px;border-radius:8px;background:#602a2a;border:1px solid rgba(255,255,255,.12);color:#e6f1f5;cursor:pointer">Rimuovi</button></td></tr>';
+        }
+        html += '</tbody></table>';
+      }
+      if(!any) html += '<p>Nessuna modifica salvata.</p>';
+      html += '</div></div>';
+      box.innerHTML = html;
+      document.body.appendChild(box);
+      box.querySelector('#proListClose').onclick = function(){ box.remove(); };
+      box.addEventListener('click', function(e){ if(e.target===box) box.remove(); });
+      var btns = box.querySelectorAll('.pro-del');
+      btns.forEach(function(b){
+        b.addEventListener('click', function(){
+          var iso=this.getAttribute('data-iso'), key=this.getAttribute('data-key');
+          var s=loadStore(); if(s.overrides[iso] && s.overrides[iso][key]){ delete s.overrides[iso][key]; saveStore(s); }
+          box.remove(); openListModal();
+        }, false);
+      });
+    }catch(e){}
+  }
+
+  // Init
+  function init(){ injectUi(); hookButtons(); }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+  // In caso di pannello ricreato dinamicamente
+  var mo = new MutationObserver(function(list){
+    for(var m of list){
+      for(var n of (m.addedNodes||[])){ if(n && n.id==='sector-pro-panel'){ setTimeout(injectUi, 60); } }
+    }
+  });
+  try{ mo.observe(document.body, {childList:true, subtree:true}); }catch(_e){}
+})();
+</script>
+
+
+<script id="forecast-focus-js">
+(function(){
+
+  function positionBackButton(){
+    try{
+      const holder = document.getElementById('forecastBack');
+      if(!holder) return;
+      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
+      if(sf){
+        const rect = sf.getBoundingClientRect();
+        const top = rect.top + window.scrollY + 8;
+        const left = Math.max(rect.left + window.scrollX - 48, 12);
+        holder.style.top = top + 'px';
+        holder.style.left = left + 'px';
+      }else{
+        holder.style.top = '16px';
+        holder.style.left = '16px';
+      }
+    }catch(e){}
+  }
+
+  if(window.__forecastFocusInit) return; window.__forecastFocusInit = true;
+
+  function widget(){ return document.getElementById('widget'); }
+  function forecastHasRows(){
+    try{
+      const t = document.getElementById('forecast');
+      return t && t.rows && t.rows.length > 1; // header + almeno una riga
+    }catch(e){ return false; }
+  }
+  function enterFocus(){
+    const w = widget();
+    if(!w) return;
+    if(!forecastHasRows()) return;
+    w.classList.add('forecast-only'); positionBackButton();
+    try{ w.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
+  }
+  function exitFocus(){
+    const w = widget();
+    if(!w) return;
+    w.classList.remove('forecast-only');
+    try{ document.getElementById('mapArea')?.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
+  }
+
+  // Inserisce un piccolo pulsante "← Torna alla mappa"
+  function ensureBackButton(){
+    const w = widget(); if(!w) return;
+    if(document.getElementById('forecastBack')) return;
+    const holder = document.createElement('div');
+    holder.id = 'forecastBack';
+    holder.innerHTML = '<button type="button" aria-label="Torna alla mappa" title="Torna alla mappa" tabindex="0">&#8592;</button>';
+    holder.addEventListener('click', exitFocus);
+    w.appendChild(holder);
+  }
+
+  // Hook non distruttivo su run(q): quando la ricerca finisce e c'è la previsione, attiva la modalità
+  (function hookRun(){
+    try{
+      const old = window.run;
+      if(typeof old === 'function' && !old.__focusHook){
+        window.run = async function(){
+          const r = await old.apply(this, arguments);
+          try{ ensureBackButton(); enterFocus(); }catch(e){}
+          return r;
+        };
+        window.run.__focusHook = true;
+      }
+    }catch(e){}
+  })();
+
+  // Se l'utente svuota l'input o preme ESC nella barra, torna alla mappa
+  (function bindSearch(){
+    try{
+      const inp = document.getElementById('cityInput');
+      if(inp && !inp.__focusBind){
+        inp.addEventListener('input', function(){
+          if(!this.value.trim()) exitFocus();
+        });
+        inp.addEventListener('keydown', function(ev){
+          if(ev.key === 'Escape'){ exitFocus(); }
+        });
+        inp.__focusBind = true;
+      }
+    }catch(e){}
+  })();
+
+  // Pulsante back disponibile appena pronto
+  
+  window.addEventListener('resize', positionBackButton);
+  window.addEventListener('scroll', positionBackButton, {passive:true});
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ensureBackButton, {once:true});
+  }else{
+    ensureBackButton();
+  }
 })();
 </script>
 
