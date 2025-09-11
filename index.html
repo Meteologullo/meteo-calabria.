@@ -2519,6 +2519,271 @@ html, body { margin:0 !important; padding:0 !important; }
   #mapArea, .map-wrap { position: relative !important; }
 }
 </style>
+
+
+<style id="banner-mobile-one-line-fit-strong-2025-09-11">
+@media (max-width: 540px){
+  .mlg-banner{
+    max-width: 100vw !important;
+    padding-left: max(8px, env(safe-area-inset-left)) !important;
+    padding-right: max(8px, env(safe-area-inset-right)) !important;
+  }
+  .mlg-banner .mlg-title{
+    width: 100% !important;
+    text-align: center !important;
+    display: block !important;
+    margin: 4px 0 !important;
+  }
+  .mlg-banner .mlg-nav{
+    display: flex !important;
+    flex-wrap: nowrap !important;        /* never wrap */
+    white-space: nowrap !important;
+    gap: 4px !important;
+    align-items: center !important;
+    justify-content: center !important;   /* CENTER the row */
+    text-align: center !important;
+    overflow: hidden !important;          /* no horizontal scroll */
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin: 0 auto !important;
+  }
+  .mlg-banner .mlg-pill{
+    padding: 4px 8px !important;          /* slimmer */
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+    border-width: 1px !important;
+  }
+}
+</style>
+
+
+
+<script id="banner-mobile-one-line-fit-strong-js-2025-09-11">
+(function(){
+  function fitNav(nav){
+    if(!nav) return;
+    // Build/ensure inner wrapper
+    let inner = nav.querySelector(':scope > .mlg-fitwrap');
+    if(!inner){
+      inner = document.createElement('div');
+      inner.className = 'mlg-fitwrap';
+      while(nav.firstChild){ inner.appendChild(nav.firstChild); }
+      nav.appendChild(inner);
+    }
+    const cs = getComputedStyle(nav);
+    inner.style.display = 'inline-flex';
+    inner.style.flexWrap = 'nowrap';
+    inner.style.whiteSpace = 'nowrap';
+    inner.style.alignItems = 'center';
+    inner.style.columnGap = (cs.gap || '4px');
+    inner.style.rowGap = '0px';
+    inner.style.transformOrigin = 'center center';  // scale from center
+    inner.style.willChange = 'transform';
+    // center the wrapper itself
+    inner.style.margin = '0 auto';
+
+    // reset scale before measuring
+    inner.style.transform = 'scale(1)';
+    if(window.innerWidth > 540){
+      return; // desktop/tablet
+    }
+
+    // Available width with safety margin
+    const rect = nav.getBoundingClientRect();
+    const padL = parseFloat(cs.paddingLeft) || 0;
+    const padR = parseFloat(cs.paddingRight) || 0;
+    const borderL = parseFloat(cs.borderLeftWidth) || 0;
+    const borderR = parseFloat(cs.borderRightWidth) || 0;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const safety = Math.max(4, Math.ceil(3 * dpr)); // 4-6 px
+    const avail = Math.max(0, rect.width - padL - padR - borderL - borderR - safety);
+
+    // content width needed (unscaled)
+    const needed = inner.scrollWidth;
+    if(avail > 0 && needed > 0){
+      // cushion below exact fit to avoid edge clipping
+      const s = Math.min(1, (avail / needed) * 0.985);
+      const scale = (s > 0 && isFinite(s)) ? s : 1;
+      inner.style.transform = 'scale(' + scale + ')';
+
+      // ensure nav height fits scaled content
+      const h = inner.getBoundingClientRect().height;
+      nav.style.minHeight = Math.ceil(h) + 'px';
+    }
+  }
+
+  function run(){
+    document.querySelectorAll('.mlg-banner .mlg-nav').forEach(fitNav);
+  }
+
+  // Refit on layout changes
+  const ro = new ResizeObserver(run);
+  window.addEventListener('resize', run, {passive:true});
+  window.addEventListener('orientationchange', run);
+  document.addEventListener('DOMContentLoaded', function(){
+    run();
+    setTimeout(run, 50);
+    setTimeout(run, 200);
+    setTimeout(run, 600);
+    if(document.fonts && document.fonts.ready){
+      document.fonts.ready.then(run).catch(function(){});
+    }
+  });
+  window.addEventListener('load', run);
+
+  // Watch mutations within nav
+  const mo = new MutationObserver(run);
+  document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.mlg-banner .mlg-nav').forEach(function(nav){
+      try{
+        ro.observe(nav);
+        mo.observe(nav, {childList:true, subtree:true, characterData:true});
+      }catch(e){}
+    });
+  });
+})();
+</script>
+
+
+<style id="mlg-title-no-stripe-2025-09-11">
+/* Rimuove la "striscetta bianca" a sinistra del titolo */
+@media (max-width: 860px){
+  .mlg-title .mlg-dot{ display:none !important; } /* nasconde il pallino decorativo */
+}
+/* Evita effetti di highlight/outline che possono sembrare una riga */
+.mlg-title, .mlg-title *{
+  -webkit-tap-highlight-color: transparent !important;
+  outline: none !important;
+  user-select: none !important;
+}
+</style>
+
+<style id="mlg-banner-compact-2025-09-11">
+/* Compatta il banner in mobile: meno blu sopra e sotto, senza stravolgere lo stile */
+@media (max-width: 540px){
+  .mlg-banner{
+    padding-top: 8px !important;           /* prima era più alto */
+    padding-bottom: 8px !important;
+    margin-bottom: 8px !important;         /* riduce lo spazio blu sotto i pulsanti */
+  }
+  .mlg-banner .mlg-inner{
+    row-gap: 4px !important;               /* stringe lo spazio tra titolo e pulsanti */
+    min-height: 0 !important;              /* niente altezza minima gonfiata */
+  }
+  .mlg-banner .mlg-title{
+    margin: 2px auto 2px !important;       /* più vicino ai pulsanti */
+  }
+  .mlg-banner .mlg-nav{
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  /* Se dopo il banner c'è molta aria, riducila un po' */
+  .mlg-banner + *{
+    margin-top: 8px !important;
+  }
+}
+</style>
+
+<style id="mlg-banner-compact-plus-2025-09-11">
+/* Ancora più compatto sopra al titolo, senza arrivare a pelo */
+@media (max-width: 540px){
+  .mlg-banner{
+    padding-top: 4px !important;      /* prima 8px */
+    padding-bottom: 6px !important;
+  }
+  .mlg-banner .mlg-inner{
+    row-gap: 2px !important;          /* avvicina titolo e pulsanti */
+  }
+  .mlg-banner .mlg-title{
+    margin-top: 0 !important;
+    margin-bottom: 2px !important;
+    line-height: 1.05 !important;     /* stringe un filo la riga del titolo */
+    font-size: clamp(18px, 5.4vw, 22px) !important; /* leggermente più snello su telefoni piccoli */
+  }
+}
+</style>
+
+<style id="mlg-banner-bright-2025-09-11">
+/* ——— Banner più luminoso + bordo giallo sul tasto Home ——— */
+
+/* Titolo più brillante */
+.mlg-banner .mlg-title{
+  color: #ffffff !important;
+  text-shadow: 0 2px 6px rgba(0,0,0,.45), 0 0 1px rgba(255,255,255,.18) !important;
+}
+
+/* Pill più leggibili e "invoglianti" */
+.mlg-banner .mlg-pill{
+  color: #eef6ff !important;                     /* testo più chiaro */
+  border-color: rgba(255,255,255,.35) !important;/* bordo un filo più visibile */
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.35),
+    0 8px 16px rgba(0,0,0,.28) !important;       /* profondità */
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
+}
+.mlg-banner .mlg-pill:hover,
+.mlg-banner .mlg-pill:focus-visible{
+  filter: brightness(1.12) saturate(1.05);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.45),
+    0 10px 20px rgba(0,0,0,.32) !important;
+}
+
+/* Stato attivo per "Home": solo il bordo giallo (riempimento invariato) */
+.mlg-banner .mlg-pill.is-active{
+  border-color: #FFD54A !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,213,74,.65),
+    0 0 0 2px rgba(255,213,74,.18),
+    0 12px 22px rgba(0,0,0,.32) !important;
+  filter: brightness(1.06) contrast(1.02);
+}
+
+/* Accessibilità: focus chiaro anche da tastiera */
+.mlg-banner .mlg-pill:focus-visible{
+  outline: 2px solid rgba(255,255,255,.45);
+  outline-offset: 2px;
+}
+
+/* In mobile manteniamo le dimensioni compatte esistenti */
+@media (max-width: 540px){
+  .mlg-banner .mlg-pill{ color: #f5fbff !important; }
+}
+</style>
+
+<script id="mlg-banner-bright-js-2025-09-11">
+// Evidenzia "Home" con bordo giallo (solo bordo).
+// Trova il pill corrispondente alla Home sia per testo che per href.
+(function(){
+  function markHome(){
+    var navs = document.querySelectorAll('.mlg-banner .mlg-nav');
+    navs.forEach(function(nav){
+      var anchors = nav.querySelectorAll('a, button, [role="link"]');
+      anchors.forEach(function(a){
+        var txt = (a.textContent || '').trim().toLowerCase();
+        var isHomeText = txt === 'home' || txt === 'homepage' || txt === 'inizio';
+        var href = (a.getAttribute && a.getAttribute('href')) || '';
+        var isHomeHref = href === '/' || /index\.html?$/.test(href || '') || href === '' || href === '#home';
+        if(isHomeText || isHomeHref){
+          a.classList.add('is-active');
+        }
+      });
+    });
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', markHome);
+  }else{
+    markHome();
+  }
+  window.addEventListener('load', markHome);
+})();
+</script>
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
