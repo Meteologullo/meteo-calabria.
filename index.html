@@ -318,6 +318,88 @@ html, body { overscroll-behavior: contain; }
   display: none !important;
 }
 
+/* === Override: nav pills match site's Info/Search buttons (closer) === */
+.mlg-pill{
+  position: relative;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing:.2px;
+  text-decoration:none;
+  color:#ffffff;
+  background: linear-gradient(135deg, #3FD2FF 0%, #2E63FF 100%);
+  border: 1px solid rgba(255,255,255,0.30);
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255,255,255,0.25);
+  text-shadow: 0 2px 8px rgba(0,0,0,.35);
+  transition: transform .06s ease, box-shadow .15s ease, filter .15s ease;
+}
+.mlg-pill::after{
+  content:"";
+  position:absolute; inset:2px;
+  border-radius:inherit;
+  background: radial-gradient(120% 120% at 20% 10%, rgba(255,255,255,.22), rgba(255,255,255,0) 55%);
+  pointer-events:none;
+}
+.mlg-pill:hover{
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255,255,255,0.30);
+}
+.mlg-pill:active{ transform: translateY(0); filter: brightness(.98); }
+.mlg-pill:focus-visible{
+  outline: 3px solid rgba(255,255,255,.7);
+  outline-offset: 2px;
+}
+/* Smaller on narrow viewports */
+@media (max-width: 860px){
+  .mlg-pill{ padding: 10px 16px; font-weight: 800; }
+}
+/* === FIX MOBILE NAV VISIBILITY === */
+@media (max-width: 860px){
+  .mlg-banner{ z-index: 1000; }
+  .mlg-inner{ flex-wrap: wrap; align-items: flex-start; row-gap: 8px; }
+  .mlg-title{ padding-right: 6px; }
+  .mlg-nav{
+    display: flex !important;    /* forza la visualizzazione su mobile */
+    order:2; width:100%;
+    overflow-x:auto; overflow-y:hidden;
+    flex-wrap:nowrap; gap:10px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 6px 6px 10px;
+    margin: 0;
+  }
+  .mlg-nav::-webkit-scrollbar{ display:none; }
+  .mlg-pill{ padding: 12px 16px; flex: 0 0 auto; } /* chip di dimensione fissa */
+}
+
+/* === MOBILE: titolo centrato, pulsanti compatti, no scorrimento === */
+@media (max-width: 860px){
+  .mlg-inner{ flex-wrap:wrap; justify-content:center; row-gap:8px; }
+  .mlg-title{ width:100%; display:flex; justify-content:center; text-align:center; margin:2px 0 4px; }
+  .mlg-nav{
+    display:flex !important;
+    width:100%;
+    flex-wrap:wrap;                 /* va a capo, NON scorrevole */
+    justify-content:center;
+    gap:8px 10px;
+    overflow:visible;               /* niente overflow */
+    padding: 2px 8px 10px;
+    margin:0;
+  }
+  .mlg-pill{
+    padding:8px 12px;
+    font-size: clamp(13px, 3.7vw, 15px);
+    box-shadow:
+      0 8px 18px rgba(0,0,0,.30),
+      inset 0 1px 0 rgba(255,255,255,0.22);
+  }
+}
+
 </style>
 <style>
 /* === Mobile & Map Visual Tweaks (added) === */
@@ -952,31 +1034,18 @@ html, body { overscroll-behavior: contain; }
 html, body { overscroll-behavior: contain; }
 </style>
 <script>
-(function(){
-
-  function positionBackButton(){
-    try{
-      const holder = document.getElementById('forecastBack');
-      if(!holder) return;
-      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
-      if(sf){
-        const rect = sf.getBoundingClientRect();
-        const top = rect.top + window.scrollY + 8;
-        const left = Math.max(rect.left + window.scrollX - 48, 12);
-        holder.style.top = top + 'px';
-        holder.style.left = left + 'px';
-      }else{
-        holder.style.top = '16px';
-        holder.style.left = '16px';
-      }
-    }catch(e){}
-  }
-
-  function align(){ var b=document.querySelector('#hourlyPanel .scroll-x'); if(b) b.scrollLeft = 0; }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', align); else align();
-  try{ new MutationObserver(align).observe(document.getElementById('hourlyPanel'),{childList:true,subtree:true}); }catch(e){}
-})();
+  // Optional: active state sync for chips (works for both desktop & mobile)
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('a.mlg-pill');
+    if (!a) return;
+    const key = a.dataset.key;
+    if (!key) return;
+    document.querySelectorAll('.mlg-pill').forEach(el => {
+      el.classList.toggle('active', el.dataset.key === key);
+    });
+  });
 </script>
+
 <style id="part-summary-css">
 /* === Summary parts (mattina/pomeriggio/sera/notte) === */
 .parts{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:space-between}
@@ -2246,6 +2315,210 @@ document.addEventListener('DOMContentLoaded', function(){
   #dayParts .part svg{ max-height:28px !important; width:auto !important; }
 }
 </style>
+<style id="mlg-banner-style">
+/* === MLG Banner (inserito) =============================================== */
+:root{
+  --mlg-blue:#1e43a5;
+  --mlg-blue-2:#163a93;
+}
+.mlg-banner{ 
+  width:100vw;
+  margin-left:calc(50% - 50vw);
+  margin-right:calc(50% - 50vw);
+  background:linear-gradient(180deg,var(--mlg-blue),var(--mlg-blue-2));
+  color:#fff;
+  box-shadow:0 6px 16px rgba(0,0,0,.28);
+  border-radius:0; /* edge-to-edge */
+}
+.mlg-banner .mlg-inner{
+  max-width:1100px; margin:0 auto;
+  display:flex; align-items:center; gap:14px;
+  padding:12px 16px;
+}
+.mlg-title{ display:flex; align-items:center; gap:10px; font-weight:800; 
+            letter-spacing:.2px; font-size:clamp(18px,2.4vw,22px); }
+.mlg-dot{ width:11px; height:11px; border-radius:50%; background:#cfe0ff;
+          box-shadow:0 0 0 3px #ffffff33; flex:0 0 auto;}
+.mlg-nav{ margin-left:auto; display:flex; gap:10px; flex-wrap:wrap; }
+.mlg-pill{ display:inline-flex; align-items:center; justify-content:center;
+           padding:10px 16px; border-radius:999px; font-weight:700; 
+           text-decoration:none; color:#fff; background:#ffffff18; 
+           border:1px solid #ffffff2b; transition:background .15s, transform .05s; }
+.mlg-pill:hover{ background:#ffffff2e; }
+.mlg-pill:active{ transform:translateY(1px); }
+.mlg-toggle{ display:none; margin-left:auto; border:1px solid #ffffff2b; 
+             background:#ffffff18; color:#fff; font-weight:800; 
+             border-radius:999px; padding:10px 14px; cursor:pointer; }
+.mlg-menu{ display:none; border-top:1px solid #ffffff24; 
+           background:linear-gradient(180deg,var(--mlg-blue-2),#102b78); }
+.mlg-menu.open{ display:block; }
+.mlg-menu .mlg-grid{ max-width:1100px; margin:0 auto; padding:10px 16px 14px;
+                     display:grid; gap:10px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.mlg-menu .mlg-pill{ justify-content:center; }
+@media (max-width: 860px){
+  .mlg-nav{ display:none; }
+  .mlg-toggle{ display:inline-flex; }
+}
+@media (min-width: 861px){
+  .mlg-menu{ display:none !important; }
+}
+/* Per sicurezza: evita contenuti decorativi indesiderati da CSS globali */
+.mlg-banner *::before, .mlg-banner *::after{ content: normal !important; }
+
+
+/* Reset top gap and polish spacing */
+html, body { margin: 0 !important; }
+.mlg-banner { position: relative; margin-bottom: 14px; }
+
+/* Mobile chip scroller */
+@media (max-width: 860px){
+  .mlg-inner{ flex-wrap: wrap; align-items: flex-start; row-gap: 8px; }
+  .mlg-title{ padding-right: 6px; }
+  .mlg-nav{
+    order:2; width:100%;
+    overflow-x:auto; overflow-y:hidden;
+    flex-wrap:nowrap; gap:10px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 6px;
+    margin-left:0;
+  }
+  .mlg-nav::-webkit-scrollbar{ display:none; }
+  .mlg-pill{ padding:9px 14px; }
+}
+</style>
+
+<!-- === MLG Banner: mobile compact override (2025-09-11) === -->
+<style id="mlg-banner-mobile-compact-2025-09-11">
+@media (max-width: 860px){
+  /* Stack title + single-row scroller, keep it tiny */
+  .mlg-banner{ margin-bottom:8px !important; }
+  .mlg-banner .mlg-inner{
+    padding:6px 10px !important;
+    row-gap:6px !important;
+    flex-wrap:wrap !important;
+    align-items:center !important;
+  }
+  .mlg-banner .mlg-title{
+    width:100% !important;
+    justify-content:center !important;
+    text-align:center !important;
+    margin:0 !important;
+    gap:8px !important;
+  }
+  .mlg-banner .mlg-title span{ line-height:1.1 !important; }
+  .mlg-banner .mlg-dot{ width:8px !important; height:8px !important; box-shadow:0 0 0 2px #ffffff33 !important; }
+
+  /* Buttons: one single row, smaller, horizontal scroll if needed */
+  .mlg-banner .mlg-nav{
+    order:2 !important;
+    width:100% !important;
+    display:flex !important;
+    flex-wrap:nowrap !important;
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+    -webkit-overflow-scrolling:touch !important;
+    gap:8px !important;
+    padding:4px 6px 8px !important;
+    margin:0 !important;
+    scrollbar-width:none !important;
+  }
+  .mlg-banner .mlg-nav::-webkit-scrollbar{ display:none !important; }
+  .mlg-banner .mlg-pill{
+    flex:0 0 auto !important;
+    padding:6px 10px !important;
+    font-size:13px !important;
+    line-height:1.1 !important;
+  }
+}
+</style>
+
+<!-- === MLG Banner: mobile compact override v2 (top gap + smaller pills) === -->
+<style id="mlg-banner-mobile-compact-v2">
+/* Kill default browser margins that create the white strip */
+html, body { margin:0 !important; padding:0 !important; }
+/* Ensure banner really sticks to the very top */
+.mlg-banner{ margin-top:0 !important; border-top:0 !important; }
+/* Tighter mobile layout */
+@media (max-width: 860px){
+  .mlg-banner .mlg-inner{
+    padding:6px 10px !important;
+    row-gap:4px !important;
+  }
+  .mlg-banner .mlg-nav{
+    gap:6px !important;
+    padding:2px 6px 6px !important; /* less vertical padding so buttons don't clip */
+  }
+  .mlg-banner .mlg-pill{
+    padding:5px 9px !important;
+    font-size:12px !important;
+    line-height:1.1 !important;
+  }
+  /* Optional: slightly reduce dot size too */
+  .mlg-banner .mlg-dot{ width:7px !important; height:7px !important; }
+}
+</style>
+
+<!-- === MLG Auto-dismiss styles (Sezione Previsioni) === -->
+<style id="mlg-auto-dismiss-css">
+.mlg-autodismiss{
+  will-change: height, opacity, margin;
+  transition: opacity .5s ease, height .5s ease, margin .5s ease, padding .5s ease;
+  overflow: hidden;
+}
+.mlg-autodismiss.is-hiding{
+  opacity: 0;
+  height: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+</style>
+
+<!-- === MLG BottomBar tighten (mobile) — 2025-09-11 === -->
+<style id="mlg-bottombar-tight-mobile">
+/* Default: shave extra space just in case */
+#mapArea{ margin-bottom: 12px !important; }
+#bottomBar{ margin-top: 0 !important; }
+/* Mobile-specific even tighter spacing */
+@media (max-width: 860px){
+  #mapArea{ margin-bottom: 8px !important; }
+  #bottomBar{ margin-top: 0 !important; }
+}
+</style>
+
+<!-- === MLG Map date: move to right on mobile (avoid covering map) === -->
+<style id="mlg-mapdate-mobile-right">
+@media (max-width: 860px){
+  .map-date{
+    left: auto !important;
+    right: 10px !important;
+    top: 10px !important;
+    /* keep it discrete */
+    font-size: .9rem !important;
+    padding: 5px 9px !important;
+  }
+}
+</style>
+
+<!-- === MLG Map date: FORCE right on mobile (handles inline styles) === -->
+<style id="mlg-mapdate-mobile-right-force">
+@media (max-width: 860px){
+  /* High-specificity fallbacks */
+  #mapArea .map-date,
+  .map-wrap .map-date,
+  .map-date.map-date{
+    position:absolute !important;
+    inset: 10px 10px auto auto !important; /* top right */
+    right: 10px !important;
+    left: initial !important;
+    transform: none !important;
+  }
+  /* Extra: if container has padding, stay within */
+  #mapArea, .map-wrap { position: relative !important; }
+}
+</style>
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -2256,6 +2529,23 @@ window.CITIES = Array.isArray(window.CITIES) ? window.CITIES : [];
 window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 </script>
 <body>
+<header class="mlg-banner" role="banner">
+  <div class="mlg-inner">
+    <div class="mlg-title" aria-label="Meteo Lo Gullo">
+      <span class="mlg-dot" aria-hidden="true"></span>
+      <span>Meteo Lo Gullo</span>
+    </div>
+    <nav class="mlg-nav" aria-label="Sezioni">
+      <a class="mlg-pill" href="#info" data-key="info" id="mlg-info-link">Info</a>
+    <a class="mlg-pill" href="https://www.meteologullo.com/" data-key="home">Home</a>
+      <a class="mlg-pill" href="https://www.meteologullo.com/stazioni-meteorologiche-mlg" data-key="mlgmap">MLG Map</a>
+      <a class="mlg-pill" href="https://www.meteologullo.com/blog" data-key="news">News</a>
+      <a class="mlg-pill" href="https://www.meteologullo.com/blank" data-key="chi-siamo">Chi Siamo</a>
+      <a class="mlg-pill" href="https://www.meteologullo.com/blog/categories/meteo-curiosit%C3%A0" data-key="curiosita">Curiosità</a>
+    </nav></div></div>
+</header>
+
+
 
 <!-- === Mini Bollettino Meteo (iniettato non-distruttivo) === -->
 <div id="miniBollettino" class="panel" style="display:none" aria-live="polite">
@@ -5100,103 +5390,18 @@ html, body { overscroll-behavior: contain; }
 <div class="fb-page" data-height="430" data-hide-cover="false" data-href="https://www.facebook.com/METEOLOGULLO/" data-show-facepile="false" data-small-header="true" data-tabs="timeline" data-width="500"></div>
 </div>
 <script>
-    (function(){
+  // Optional: active state sync for chips (works for both desktop & mobile)
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('a.mlg-pill');
+    if (!a) return;
+    const key = a.dataset.key;
+    if (!key) return;
+    document.querySelectorAll('.mlg-pill').forEach(el => {
+      el.classList.toggle('active', el.dataset.key === key);
+    });
+  });
+</script>
 
-  function positionBackButton(){
-    try{
-      const holder = document.getElementById('forecastBack');
-      if(!holder) return;
-      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
-      if(sf){
-        const rect = sf.getBoundingClientRect();
-        const top = rect.top + window.scrollY + 8;
-        const left = Math.max(rect.left + window.scrollX - 48, 12);
-        holder.style.top = top + 'px';
-        holder.style.left = left + 'px';
-      }else{
-        holder.style.top = '16px';
-        holder.style.left = '16px';
-      }
-    }catch(e){}
-  }
-
-      const out = document.getElementById('mlg-news-list');
-      const feeds = [
-        'https://www.meteologullo.com/meteornews?format=rss',
-        'https://www.meteologullo.com/meteornews-feed.xml',
-        'https://www.meteologullo.com/blog?format=rss',
-        'https://www.meteologullo.com/blog-feed.xml'
-      ];
-      async function load(){
-        for(const u of feeds){
-          try{
-            const r = await fetch(u, {mode:'cors'});
-            if(!r.ok) continue;
-            const t = await r.text();
-            const doc = new DOMParser().parseFromString(t,'text/xml');
-            const items = [...doc.querySelectorAll('item,entry')].slice(0,6);
-            if(!items.length) continue;
-            out.innerHTML='';
-            items.forEach(it=>{
-              const title = it.querySelector('title')?.textContent?.trim() || 'Articolo';
-              const link = it.querySelector('link')?.getAttribute('href') || it.querySelector('link')?.textContent || 'https://www.meteologullo.com/meteornews';
-              out.insertAdjacentHTML('beforeend', '<a class="item" href="'+link+'" target="_blank" rel="noopener"><div class="k">News</div><div class="t">'+title+'</div></a>');
-            });
-            return;
-          }catch(e){ /* try next */ }
-        }
-      }
-      load();
-    })();
-    (function(){
-
-  function positionBackButton(){
-    try{
-      const holder = document.getElementById('forecastBack');
-      if(!holder) return;
-      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
-      if(sf){
-        const rect = sf.getBoundingClientRect();
-        const top = rect.top + window.scrollY + 8;
-        const left = Math.max(rect.left + window.scrollX - 48, 12);
-        holder.style.top = top + 'px';
-        holder.style.left = left + 'px';
-      }else{
-        holder.style.top = '16px';
-        holder.style.left = '16px';
-      }
-    }catch(e){}
-  }
-
-      const section = document.getElementById('mlg-home-ux');
-      document.addEventListener('submit', function(){ section && section.classList.add('hide'); }, true);
-    })();
-    (function(){
-
-  function positionBackButton(){
-    try{
-      const holder = document.getElementById('forecastBack');
-      if(!holder) return;
-      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
-      if(sf){
-        const rect = sf.getBoundingClientRect();
-        const top = rect.top + window.scrollY + 8;
-        const left = Math.max(rect.left + window.scrollX - 48, 12);
-        holder.style.top = top + 'px';
-        holder.style.left = left + 'px';
-      }else{
-        holder.style.top = '16px';
-        holder.style.left = '16px';
-      }
-    }catch(e){}
-  }
-
-      if(document.getElementById('facebook-jssdk')) return;
-      var js=document.createElement('script'); js.id='facebook-jssdk';
-      js.src='https://connect.facebook.net/it_IT/sdk.js#xfbml=1&version=v18.0';
-      document.body.appendChild(js);
-    })();
-  </script>
 </section>
 <script id="part-summary-js">
 (function(){
@@ -5875,53 +6080,18 @@ html, body { overscroll-behavior: contain; }
 </script>
 <!-- === Simple password gate for admin panel (added by ChatGPT) === -->
 <script>
-(function(){
-
-  function positionBackButton(){
-    try{
-      const holder = document.getElementById('forecastBack');
-      if(!holder) return;
-      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
-      if(sf){
-        const rect = sf.getBoundingClientRect();
-        const top = rect.top + window.scrollY + 8;
-        const left = Math.max(rect.left + window.scrollX - 48, 12);
-        holder.style.top = top + 'px';
-        holder.style.left = left + 'px';
-      }else{
-        holder.style.top = '16px';
-        holder.style.left = '16px';
-      }
-    }catch(e){}
-  }
-
-  const fab = document.getElementById('fab');
-  if(!fab) return;
-
-  const KEY = 'mapAuthOk';
-  function isAuthed(){ return sessionStorage.getItem(KEY) === '1'; }
-  function promptAuth(){
-    const pw = prompt('Inserisci la password per accedere al pannello di controllo:');
-    if(pw === 'Angelo1' || pw === 'Giuseppe1'){
-      sessionStorage.setItem(KEY,'1');
-      return true;
-    }
-    if(pw !== null) alert('Password errata');
-    return false;
-  }
-
-  function gate(e){
-    if(isAuthed()) return;           // già autenticato
-    if(!promptAuth()){
-      e.stopImmediatePropagation();
-      e.preventDefault();
-    }
-  }
-
-  fab.addEventListener('click', gate, true);        // cattura click (prima degli altri listener)
-  fab.addEventListener('contextmenu', gate, true);  // cattura click destro
-})();
+  // Optional: active state sync for chips (works for both desktop & mobile)
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('a.mlg-pill');
+    if (!a) return;
+    const key = a.dataset.key;
+    if (!key) return;
+    document.querySelectorAll('.mlg-pill').forEach(el => {
+      el.classList.toggle('active', el.dataset.key === key);
+    });
+  });
 </script>
+
 <script id="compact-empty-js">
 (function(){
 
@@ -7890,101 +8060,31 @@ pushMsg(`${text}${body}`, "ai");
 })();
 </script>
 <script>
-(function(){
-
-  function positionBackButton(){
-    try{
-      const holder = document.getElementById('forecastBack');
-      if(!holder) return;
-      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
-      if(sf){
-        const rect = sf.getBoundingClientRect();
-        const top = rect.top + window.scrollY + 8;
-        const left = Math.max(rect.left + window.scrollX - 48, 12);
-        holder.style.top = top + 'px';
-        holder.style.left = left + 'px';
-      }else{
-        holder.style.top = '16px';
-        holder.style.left = '16px';
-      }
-    }catch(e){}
-  }
-
-  function findDaysBar(){
-    const selectors = [
-      '#nav', '#bottomBar',
-      '#dayParts', '#daysBar', '#daySelector', '#mlgDays',
-      '[data-role="days"]', '.days-bar', '.days', '.day-parts', '.daysNav', '.days-tabs'
-    ];
-    // collect candidates and pick the last visible in DOM order
-    let found = null;
-    for(const sel of selectors){
-      const nodes = Array.from(document.querySelectorAll(sel));
-      for(const n of nodes){ if(n && n.offsetParent !== null) found = n; }
-    }
-    return found;
-  }
-  function placeBox(){
-    const box = document.getElementById('mlgAiBox');
-    if(!box) return;
-    const bar = findDaysBar();
-    if(bar && bar.insertAdjacentElement){
-      bar.insertAdjacentElement('afterend', box); // GUARANTEED below the bar
-    }else if(bar && bar.parentNode){
-      bar.parentNode.insertBefore(box, bar.nextSibling);
-    }
-    // small spacing if the bar has sticky styles
-    box.style.marginTop = '10px';
-    box.style.visibility = 'visible';
-  }
-  document.addEventListener('DOMContentLoaded', placeBox);
-  // Re-run once if the layout changes (e.g., SPA hydrate)
-  const obs = new MutationObserver((m)=>{
-    if(!document.getElementById('mlgAiBox')) return;
-    const bar = findDaysBar();
-    if(bar && bar.nextElementSibling !== document.getElementById('mlgAiBox')){
-      placeBox(); obs.disconnect();
-    }
+  // Optional: active state sync for chips (works for both desktop & mobile)
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('a.mlg-pill');
+    if (!a) return;
+    const key = a.dataset.key;
+    if (!key) return;
+    document.querySelectorAll('.mlg-pill').forEach(el => {
+      el.classList.toggle('active', el.dataset.key === key);
+    });
   });
-  obs.observe(document.documentElement, {childList:true, subtree:true});
-})();
 </script>
+
 <script>
-(function(){
-
-  function positionBackButton(){
-    try{
-      const holder = document.getElementById('forecastBack');
-      if(!holder) return;
-      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
-      if(sf){
-        const rect = sf.getBoundingClientRect();
-        const top = rect.top + window.scrollY + 8;
-        const left = Math.max(rect.left + window.scrollX - 48, 12);
-        holder.style.top = top + 'px';
-        holder.style.left = left + 'px';
-      }else{
-        holder.style.top = '16px';
-        holder.style.left = '16px';
-      }
-    }catch(e){}
-  }
-
-  if(window.__mlgBooted) return; window.__mlgBooted = true;
-  function call(fn){
-    try{ if(typeof fn==='function'){ fn(); return true; } }catch(e){}
-    return false;
-  }
-  function byName(n){ try{ return (typeof window[n]==='function') ? window[n] : null; }catch(e){ return null; } }
-  function tryNames(names){ for(const n of names){ if(call(byName(n))) return true; } return false; }
-  document.addEventListener('DOMContentLoaded', function(){
-    // map/markers & autoload
-    tryNames(['initApp','init','setup','start','boot','loadCalabria','load']);
-    // remote stores if available
-    tryNames(['loadGlobalStoresFromRemote']);
-  }, {once:true});
-})();
+  // Optional: active state sync for chips (works for both desktop & mobile)
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('a.mlg-pill');
+    if (!a) return;
+    const key = a.dataset.key;
+    if (!key) return;
+    document.querySelectorAll('.mlg-pill').forEach(el => {
+      el.classList.toggle('active', el.dataset.key === key);
+    });
+  });
 </script>
+
 <script id="assistente-calabria-offline-2025-08-10">
 (function(){
 
@@ -13765,215 +13865,18 @@ try{
 
 
 <script>
-(function(){
-  // Force override after everything is defined
-  function getSelIdx(){
-    try{
-      var strip=document.querySelector('#dailyPanel .days');
-      if(strip){
-        var items=[].slice.call(strip.querySelectorAll('.day'));
-        var i=items.findIndex(function(el){return el.classList && el.classList.contains('sel');});
-        if(i>=0) return i;
-      }
-    }catch(e){}
-    return Number(window.curDay||0)||0;
-  }
-  function dayRows(H, selIdx){
-    var t = H.time || H.datetime || [];
-    var rows=[];
-    try{
-      var d0 = new Date();
-      d0.setHours(0,0,0,0);
-      var target = new Date(d0);
-      target.setDate(target.getDate()+selIdx);
-      function ymd(x){ var d=new Date(x); return [d.getFullYear(),d.getMonth(),d.getDate()].join('-'); }
-      var tgt = ymd(target);
-      for (var i=0;i<t.length;i++){
-        var di = new Date(t[i]);
-        if(ymd(di)===tgt){ rows.push(i); }
-      }
-    }catch(e){ /* fallback: all rows */ rows = t.map((_,i)=>i); }
-    return rows;
-  }
-  function classifyWind(wmax, gmax){
-    if((wmax>=60) || (gmax>=70)) return "forti";
-    if(wmax>=35) return "moderati";
-    return "deboli";
-  }
-  function hourOf(H, i){
-    if(H.hour && H.hour[i]!=null) return Number(H.hour[i]);
-    var ti = H.time && String(H.time[i]);
-    if(ti){
-      var m = ti.match(/T(\d{2})/);
-      if(m) return Number(m[1]);
-    }
-    return null;
-  }
-  function phraseForSegment(i, rows, H){
-    var idxs = rows.filter(function(k){
-      var h = hourOf(H,k);
-      if(h==null) return true;
-      if(i===0) return h>=6 && h<12;
-      if(i===1) return h>=12 && h<18;
-      if(i===2) return h>=18 && h<24;
-      if(i===3) return h>=0 && h<6;
+  // Optional: active state sync for chips (works for both desktop & mobile)
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('a.mlg-pill');
+    if (!a) return;
+    const key = a.dataset.key;
+    if (!key) return;
+    document.querySelectorAll('.mlg-pill').forEach(el => {
+      el.classList.toggle('active', el.dataset.key === key);
     });
-    var pc = (H.precipitation || H.precip || H.prec || []).map(Number);
-    var codes = (H.weathercode||[]);
-    var sum = 0;
-    idxs.forEach(function(k){ var v = +(pc[k]||0); if(isFinite(v)) sum+=v; });
-    var freq = {};
-    idxs.forEach(function(k){ var c = +(codes[k]||0); if(!isFinite(c)) return; freq[c]=(freq[c]||0)+1; });
-    var dom = null, domN = -1; for (var k in freq){ if(freq[k]>domN){ dom=+k; domN=freq[k]; } }
-    function skyFromCode(c){
-      if([0].includes(c)) return "cielo sereno";
-      if([1,2].includes(c)) return "cielo poco o parzialmente nuvoloso";
-      if([3].includes(c)) return "cielo molto nuvoloso o coperto";
-      if([45,48].includes(c)) return "foschie o banchi di nebbia";
-      if([80,81,82].includes(c)) return "piogge e schiarite";
-      if([61,63,65,66,67].includes(c)) return "piogge";
-      if([51,53,55,56,57].includes(c)) return "pioviggine";
-      if([71,73,75,77,85,86].includes(c)) return "neve";
-      if([95,96,99].includes(c)) return "temporali";
-      return "condizioni variabili";
-    }
-    function intensityFrom(mm){
-      if(mm>=20) return "abbondanti";
-      if(mm>=8) return "moderate";
-      if(mm>=1) return "deboli";
-      return "a tratti";
-    }
-    var sky = skyFromCode(dom);
-    var fasciaLab = ["al mattino","al pomeriggio","in serata","di notte"];
-    if(sum>0.1){
-      var qual = "";
-      if([61,63,65,66,67,80,81,82].includes(dom)){
-        qual = " " + intensityFrom(sum);
-      }else if([51,53,55,56,57].includes(dom)){
-        qual = " " + (sum>1?"moderata":"debole");
-      }
-      var what = sky;
-      if(sky==="piogge"){ what = "piogge"+qual; }
-      else if(sky==="pioviggine"){ what = "pioviggine"+qual; }
-      else if(sky==="piogge e schiarite"){ what = "piogge e schiarite"; }
-      else if(sky==="neve"){ what = "neve"+qual; }
-      else if(sky==="temporali"){ what = "temporali"; }
-      return what + " ("+fasciaLab[i]+")";
-    }else{
-      return sky + " " + ["al mattino","al pomeriggio","in serata","di notte"][i];
-    }
-  }
-  function computeWet(rows,H){
-    var pc = (H.precipitation || H.prec || H.precip || []).map(Number);
-    var wet=[false,false,false,false];
-    rows.forEach(function(k){
-      var h = hourOf(H,k);
-      var val = +(pc[k]||0);
-      var iw = (val>0.05);
-      if(h==null){ if(iw){ wet=[true,true,true,true]; } return; }
-      if(h>=6 && h<12){ wet[0] = wet[0] || iw; }
-      else if(h>=12 && h<18){ wet[1] = wet[1] || iw; }
-      else if(h>=18 && h<24){ wet[2] = wet[2] || iw; }
-      else { wet[3] = wet[3] || iw; }
-    });
-    return wet;
-  }
-  function whenPhraseFromIndex(idx){
-    if(idx===0) return "per le prossime ore";
-    if(idx===1) return "per domani";
-    try{
-      var d = new Date(); d.setDate(d.getDate()+idx);
-      var it = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
-      return "per " + it[d.getDay()];
-    }catch(e){ return "nei prossimi giorni"; }
-  }
-  function getPlace(fc){
-    var p = (fc && (fc.place||fc.city||fc.name)) || (window.placeName) || "";
-    if(!p){
-      var el = document.querySelector('#search input, #placeName, .place-name');
-      if(el) p = el.value || el.textContent || "";
-    }
-    return p.trim();
-  }
-  function getWindClass(H, rows){
-    var w = (H.windspeed_10m || H.wind || []).map(Number);
-    var g = (H.gusts_10m || H.gust || []).map(Number);
-    var wmax = 0, gmax=0;
-    rows.forEach(function(k){
-      var a=+(w[k]||0); if(a>wmax) wmax=a;
-      var b=+(g[k]||0); if(b>gmax) gmax=b;
-    });
-    return classifyWind(wmax,gmax);
-  }
-
-  function override(){
-    var orig = window.computeFutureNarrative || null;
-    window.computeFutureNarrative = function(fc){
-      try{
-        var selIdx = getSelIdx();
-        var H = (fc && (fc.H || fc.hourly)) || (window.H) || {};
-        var place = getPlace(fc) || (fc && fc.place) || "";
-        var rows = (function(){ try{ return (fc && fc.rows && fc.rows.length) ? fc.rows : dayRows(H, selIdx); }catch(e){ return dayRows(H, selIdx); } })();
-        var wet = computeWet(rows,H);
-        var isToday = (selIdx===0);
-        var order = (isToday && wet[3]) ? [3,0,1,2] : [0,1,2,3];
-        var segs = order.map(function(i){ return phraseForSegment(i, rows, H); }).filter(Boolean);
-        var anyWet = wet[0]||wet[1]||wet[2]||wet[3];
-        var whenPhrase = whenPhraseFromIndex(selIdx);
-        var lead = "Secondo Meteo Lo Gullo " + whenPhrase + " a " + place + " ";
-        if(anyWet){
-          lead += "sono previste " + segs.join(", ") + ".";
-        }else{
-          // sky dominant whole day
-          var codes = (H.weathercode||[]);
-          var freq = {}; rows.forEach(function(k){ var c=+(codes[k]||0); if(!isFinite(c)) return; freq[c]=(freq[c]||0)+1; });
-          var dom=null,domN=-1; for(var k in freq){ if(freq[k]>domN){ dom=+k; domN=freq[k]; } }
-          var sky = (function(c){
-            if([0].includes(c)) return "cielo sereno";
-            if([1,2].includes(c)) return "cielo poco o parzialmente nuvoloso";
-            if([3].includes(c)) return "cielo molto nuvoloso o coperto";
-            if([45,48].includes(c)) return "foschie o banchi di nebbia";
-            return "condizioni stabili";
-          })(dom);
-          lead += "non sono previste precipitazioni e il " + sky + " si manterrà per tutta la giornata.";
-        }
-        // details
-        var temps = (H.temperature_2m || H.t || []);
-        var tmin=null,tmax=null; rows.forEach(function(k){ var v=+(temps[k]||NaN); if(isFinite(v)){ tmin=(tmin==null?v:Math.min(tmin,v)); tmax=(tmax==null?v:Math.max(tmax,v)); } });
-        var tempLine = (tmin!=null && tmax!=null) ? ("Temperature tra " + Math.round(tmin) + "° e " + Math.round(tmax) + "°.") : null;
-        var windLine = "Venti " + getWindClass(H, rows) + ".";
-        var fasciaOrari = ["06–12","12–18","18–24","00–06"];
-        var cons = [];
-        if(wet[3]) cons.push("alla notte ("+fasciaOrari[3]+")");
-        if(wet[0]) cons.push("al mattino ("+fasciaOrari[0]+")");
-        if(wet[1]) cons.push("al pomeriggio ("+fasciaOrari[1]+")");
-        if(wet[2]) cons.push("in serata ("+fasciaOrari[2]+")");
-        var laundryLine = (cons.length ? ("Bucato sconsigliato " + (cons.length===1? cons[0] : (cons.slice(0,-1).join(', ') + " e " + cons.slice(-1))) + ".") : "Bucato consigliato per tutta la giornata.");
-        var details = [tempLine, windLine, laundryLine].filter(Boolean);
-        var meta = [];
-        return {lead, meta, details};
-      }catch(e){
-        // Fall back to original if anything goes wrong
-        if(typeof orig === 'function'){ try { return orig(fc); } catch(_){} }
-        return {lead:"", meta:[], details:[]};
-      }
-    };
-
-    // Ensure refresh on interactions
-    try{
-      document.addEventListener('click', function(ev){
-        var d = ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day');
-        if(d){ setTimeout(function(){ try{ window.renderNarrativeFuture && window.renderNarrativeFuture(); }catch(e){} }, 20); }
-      }, true);
-      document.addEventListener('mlg:dayparts-rendered', function(){ try{ window.renderNarrativeFuture && window.renderNarrativeFuture(); }catch(e){} }, true);
-      // force initial refresh once
-      setTimeout(function(){ try{ window.renderNarrativeFuture && window.renderNarrativeFuture(); }catch(e){} }, 60);
-    }catch(e){}
-  }
-  if(document.readyState==='complete' || document.readyState==='interactive'){ override(); }
-  else { document.addEventListener('DOMContentLoaded', override); }
-})();
+  });
 </script>
+
 
 
 <script id="mini-bollettino-js">
@@ -14347,6 +14250,145 @@ try{
   }else{
     try{ AutoClicker.start(); }catch(_e){}
   }
+})();
+</script>
+<script>
+  // Optional: active state sync for chips (works for both desktop & mobile)
+  document.addEventListener('click', function(e){
+    const a = e.target.closest('a.mlg-pill');
+    if (!a) return;
+    const key = a.dataset.key;
+    if (!key) return;
+    document.querySelectorAll('.mlg-pill').forEach(el => {
+      el.classList.toggle('active', el.dataset.key === key);
+    });
+  });
+</script>
+
+
+
+
+<script>
+  // Robust bridge for "Info": forward to the original control and hide it.
+  (function(){
+    const navInfo = document.getElementById('mlg-info-link');
+    if (!navInfo) return;
+
+    function isVisible(el){
+      const cs = getComputedStyle(el);
+      return cs && cs.display !== 'none' && cs.visibility !== 'hidden' && el.offsetParent !== null;
+    }
+
+    function findOriginalInfo(){
+      // Candidates that often represent the floating "Info" pill
+      const selectors = [
+        '[aria-label="Info"]',
+        'button#info, a#info, [data-role="info"]',
+        '.info, .btn-info'
+      ];
+      for (const sel of selectors){
+        const el = document.querySelector(sel);
+        if (el && /info/i.test(el.textContent || el.getAttribute('aria-label') || '') ) return el;
+      }
+      // Fallback: element with the text "Info" that looks clickable
+      const nodes = Array.from(document.querySelectorAll('a, button, [role="button"], div, span'));
+      for (const el of nodes){
+        const t = (el.textContent || '').trim();
+        const clickable = (el.onclick || el.getAttribute('onclick')) || getComputedStyle(el).cursor === 'pointer';
+        if (/^info$/i.test(t) && isVisible(el) && clickable) return el;
+      }
+      // Last resort: first visible element with exact text "Info"
+      for (const el of nodes){
+        if (/^info$/i.test((el.textContent || '').trim()) && isVisible(el)) return el;
+      }
+      return null;
+    }
+
+    const original = findOriginalInfo();
+    if (original){
+      // Hide the floating button from the UI but keep it in DOM so its listeners work
+      original.style.display = 'none';
+      // Also hide a possible parent capsule to avoid empty space (common pattern)
+      const parent = original.parentElement;
+      if (parent && parent.childElementCount === 1 && getComputedStyle(parent).position === 'fixed'){
+        parent.style.display = 'none';
+      }
+      // Wire the nav pill
+      navInfo.addEventListener('click', function(e){
+        e.preventDefault();
+        try {
+          original.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, view:window}));
+        } catch(err){
+          // fallback to .click()
+          original.click && original.click();
+        }
+      });
+    } else {
+      // If not found, degrade gracefully (you can replace with your own modal opener)
+      navInfo.addEventListener('click', function(e){
+        e.preventDefault();
+        alert('Pulsante Info non trovato nel DOM: collegami al tuo handler per aprire il pannello.');
+      });
+    }
+  })();
+</script>
+
+
+<!-- === MLG Auto-dismiss script (Sezione Previsioni) === -->
+<script id="mlg-auto-dismiss-js">
+(() => {
+  const DISMISS_AFTER_MS = 4500; // show ~4.5s, then hide
+  const norm = (s) => (s || "").toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const matchTexts = ["sezione previsioni", "sezione previsione"];
+
+  const headings = Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,h6"));
+  let headingEl = headings.find(h => matchTexts.some(m => norm(h.textContent).includes(m)));
+  if (!headingEl) return;
+
+  // Climb to a sensible container to collapse the whole info box
+  const container = headingEl.closest("section,article,.card,.panel,.box,.content,.container,div");
+  if (!container) return;
+
+  container.classList.add("mlg-autodismiss");
+  setTimeout(() => {
+    container.classList.add("is-hiding");
+    const done = () => {
+      container.style.display = "none";
+      container.removeEventListener("transitionend", done);
+    };
+    container.addEventListener("transitionend", done);
+    // Safety in case transitionend doesn't fire
+    setTimeout(done, 1200);
+  }, DISMISS_AFTER_MS);
+})();
+</script>
+
+<!-- === MLG Map date: JS nudge to right on mobile in case of inline !important === -->
+<script id="mlg-mapdate-mobile-right-js">
+(function(){
+  const apply = () => {
+    if (window.matchMedia('(max-width: 860px)').matches){
+      const el = document.querySelector('.map-date');
+      if (el){
+        try{
+          el.style.setProperty('left','auto','important');
+          el.style.setProperty('right','10px','important');
+          el.style.setProperty('top','10px','important');
+          el.style.removeProperty('transform');
+        }catch(e){}
+      }
+    }
+  };
+  // Run now and after DOM mutations (in case the map injects it later)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', apply);
+  } else { apply(); }
+  const mo = new MutationObserver(apply);
+  mo.observe(document.documentElement, {subtree:true, childList:true});
+  // Also re-apply on orientation changes / resize
+  window.addEventListener('resize', apply, {passive:true});
+  window.addEventListener('orientationchange', apply);
 })();
 </script>
 </body>
