@@ -2070,6 +2070,182 @@ details.part summary h4{ text-shadow: 0 1px 2px rgba(0,0,0,.26); }
 #miniBollettino .mb-btn:disabled{opacity:.6;cursor:not-allowed}
 #miniBollettino .tag{display:inline-block;margin-right:.35rem;padding:.08rem .45rem;border-radius:999px;background:rgba(255,255,255,.14);font-size:.85em}
 </style>
+
+<!-- === FIX 2025‑09‑11: Keep dayParts in a single horizontal row on mobile === -->
+<style id="fix-dayparts-row-mobile-2025-09-11">
+/* Force day-parts to stay inline (row) on phones, overriding older grid rules */
+@media (max-width: 700px){
+  #dayParts .parts{
+    display:flex !important;
+    flex-wrap:nowrap !important;
+    gap:0.5rem !important;
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    scroll-snap-type:x proximity;
+  }
+  #dayParts .part{
+    flex:0 0 auto !important;
+    min-width:72px !important;   /* keeps each panel readable */
+    scroll-snap-align:start;
+  }
+  /* Neutralize any grid leftovers */
+  #dayParts .parts{ grid-template-columns:none !important; }
+  /* Ensure icons/text don't wrap awkwardly inside */
+  #dayParts .part h4{ white-space:nowrap; }
+}
+</style>
+
+<style id="fix-dayparts-row-mobile-2025-09-11B">
+@media (max-width: 700px){
+  /* Row-only layout with horizontal scroll — no vertical expansion */
+  #dayParts .parts{
+    display:grid !important;
+    grid-template-columns:none !important;
+    grid-auto-flow:column !important;
+    grid-auto-columns:minmax(96px, 1fr) !important;
+    gap:8px !important;
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    scroll-snap-type:x proximity;
+  }
+  /* Make each card compact and snap nicely */
+  #dayParts .parts > .part{
+    min-width:0 !important;
+    scroll-snap-align:start;
+  }
+  /* Do NOT grow to full row when "open" on mobile */
+  #dayParts .parts > .part[open]{
+    width:auto !important;
+    max-width:none !important;
+  }
+  /* Collapse internal detail inside the day-part on phones
+     (the expanded view is handled elsewhere in the page) */
+  #dayParts .part .detail{ display:none !important; }
+}
+</style>
+
+<style id="fix-dayparts-row-mobile-2025-09-11C">
+@media (max-width: 700px){
+  /* Small, side-by-side cards */
+  #dayParts .parts{
+    display:grid !important;
+    grid-auto-flow:column !important;
+    grid-template-columns:none !important;
+    grid-auto-columns:clamp(84px, 26vw, 112px) !important;
+    gap:8px !important;
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch !important;
+    scroll-snap-type:x mandatory;
+    padding-bottom:4px; /* room for scrollbar */
+  }
+  #dayParts .parts > .part{
+    flex:0 0 auto !important;
+    min-width:clamp(84px, 26vw, 112px) !important;
+    max-width:clamp(84px, 26vw, 112px) !important;
+    scroll-snap-align:start;
+    margin:0 !important;
+  }
+
+  /* Keep cards compact: prevent tall growth */
+  #dayParts .part .detail,
+  #dayParts .part[open] .detail{ display:none !important; }
+  #dayParts .part[open]{ width:auto !important; max-width:unset !important; }
+
+  /* Text hygiene */
+  #dayParts .part h4,
+  #dayParts .part .label,
+  #dayParts .part .temp { 
+      white-space:nowrap !important; 
+      overflow:hidden !important; 
+      text-overflow:ellipsis !important;
+  }
+  #dayParts .part h4{ font-size:0.9rem !important; }
+  #dayParts .part .temp{ font-size:1rem !important; }
+
+  /* Images/icons shouldn't stretch the card */
+  #dayParts .part img, 
+  #dayParts .part svg{ max-height:36px !important; width:auto !important; }
+}
+</style>
+
+<!-- === 2025-09-11D: Remove hint + compact sizing on mobile === -->
+<style id="fix-dayparts-compact-2025-09-11D">
+@media (max-width: 700px){
+  /* overall section tighter */
+  #dayParts{ margin:6px 0 !important; }
+  /* smaller side-by-side cards */
+  #dayParts .parts{
+    gap:6px !important;
+    grid-auto-columns:clamp(72px, 22vw, 96px) !important;
+    padding-bottom:2px !important;
+  }
+  #dayParts .parts > .part{
+    min-width:clamp(72px, 22vw, 96px) !important;
+    max-width:clamp(72px, 22vw, 96px) !important;
+    padding:8px !important;
+    border-radius:14px !important;
+  }
+  #dayParts .part h4{ font-size:0.82rem !important; line-height:1.05 !important; }
+  #dayParts .part .temp{ font-size:0.92rem !important; line-height:1.1 !important; }
+  #dayParts .part img, 
+  #dayParts .part svg{ max-height:32px !important; width:auto !important; }
+
+  /* hide any subtext/notes below the row to save space */
+  #dayParts .hint, 
+  #dayParts .help, 
+  #dayParts .subtitle{ display:none !important; }
+}
+</style>
+
+<script id="remove-tap-hint-2025-09-11D">
+document.addEventListener('DOMContentLoaded', function(){
+  var root = document.querySelector('#dayParts') || document;
+  var sels = 'p,span,small,div,h1,h2,h3,h4,h5,h6';
+  root.querySelectorAll(sels).forEach(function(el){
+    var t = (el.innerText || '').trim();
+    if(!t) return;
+    if(t.startsWith('Tocca un pannello')){
+      // remove the node or hide its closest small wrapper
+      var target = el;
+      // if it sits inside a tiny wrapper with no other visible content, remove wrapper
+      if (el.parentElement && el.parentElement.children.length === 1) target = el.parentElement;
+      target.remove();
+    }
+  });
+});
+</script>
+
+<!-- === 2025-09-11E: Hide pseudo-element hint + extra-compact mobile sizing === -->
+<style id="fix-dayparts-compact-2025-09-11E">
+/* Remove the pseudo-element hint everywhere */
+#dayParts .parts::after,
+.card #dayParts .parts::after,
+.card .parts::after{
+  content: none !important;
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+@media (max-width: 700px){
+  #dayParts{ margin:4px 0 !important; }
+  #dayParts .parts{
+    gap:4px !important;
+    grid-auto-columns:clamp(64px, 20vw, 88px) !important;
+    padding-bottom:1px !important;
+  }
+  #dayParts .parts > .part{
+    min-width:clamp(64px, 20vw, 88px) !important;
+    max-width:clamp(64px, 20vw, 88px) !important;
+    padding:6px !important;
+    border-radius:12px !important;
+  }
+  #dayParts .part h4{ font-size:0.78rem !important; line-height:1.02 !important; }
+  #dayParts .part .temp{ font-size:0.90rem !important; line-height:1.05 !important; }
+  #dayParts .part img, 
+  #dayParts .part svg{ max-height:28px !important; width:auto !important; }
+}
+</style>
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -14042,6 +14218,135 @@ try{
   else setup();
 
   window.MLG_buildMiniBollettino = (mode='oggi') => build(mode);
+})();
+</script>
+
+<!-- === PATCH 2025-09-11 — Auto-reclick TODAY after search; cancel on user selection (non-destructive) === -->
+<script id="today-auto-reclick-after-search-2025-09-11">
+(function(){
+  if(window.__todayAutoReclickInstalled__) return;
+  window.__todayAutoReclickInstalled__ = true;
+
+  function $(s){ return document.querySelector(s); }
+  function $all(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
+
+  function getStrip(){ return $('#dailyPanel .days'); }
+
+  function todayMMDD(){
+    try{ return new Date().toISOString().slice(5,10); }catch(e){ return ""; }
+  }
+
+  function extractMMDDFromText(t){
+    if(!t) return "";
+    var m = String(t).match(/(\d{2})[-\/\.](\d{2})/); // "MM-DD" or "MM/DD"
+    return m ? (m[1] + "-" + m[2]) : "";
+  }
+
+  function getTodayEl(strip){
+    if(!strip) return null;
+    var items = $all('.day', strip);
+    if(!items.length){
+      items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+    }
+    if(!items.length) return null;
+    // 1) Try via standardized data-mmdd (set by other patches)
+    var key = todayMMDD();
+    for(var i=0;i<items.length;i++){
+      var mmdd = items[i].getAttribute('data-mmdd') || extractMMDDFromText(items[i].querySelector('div') && items[i].querySelector('div').textContent);
+      if(mmdd === key){ return items[i]; }
+    }
+    // 2) Fallback: assume first tile is "today"
+    return items[0];
+  }
+
+  var AutoClicker = {
+    timers: [],
+    active: false,
+    target: null,
+    start: function(){
+      try{
+        this.stop();
+        var strip = getStrip();
+        if(!strip) return;
+        var todayEl = getTodayEl(strip);
+        if(!todayEl) return;
+        this.active = true;
+        this.target = todayEl;
+        todayEl.classList.add('today');
+        // Multiple re-clicks to ensure all dependent panels refresh,
+        // spaced to survive async re-renders.
+        var delays = [150, 320, 650, 1000, 1500, 2100, 2800];
+        for(var i=0;i<delays.length;i++){
+          (function(ms, el, self){
+            self.timers.push(setTimeout(function(){
+              if(!self.active) return;
+              if(!document.body.contains(el)){ self.stop(); return; }
+              try{ el.dispatchEvent(new MouseEvent('click', {bubbles:true})); }catch(_e){}
+            }, ms));
+          })(delays[i], todayEl, this);
+        }
+      }catch(e){ /* swallow */ }
+    },
+    stop: function(){
+      this.active = false;
+      while(this.timers.length){ try{ clearTimeout(this.timers.pop()); }catch(_e){} }
+      this.target = null;
+    }
+  };
+
+  // Cancel auto-clicks if the user selects a different day.
+  document.addEventListener('click', function(ev){
+    try{
+      var day = ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day');
+      if(!day) return;
+      if(!ev.isTrusted) return;          // ignore our programmatic clicks
+      if(!AutoClicker.active) return;
+      if(AutoClicker.target && day !== AutoClicker.target){
+        AutoClicker.stop();
+      }
+    }catch(_e){}
+  }, true);
+
+  // Start the auto-click cycle when forecasts are (re)rendered after a search.
+  (function hookRun(){
+    try{
+      var old = window.run;
+      if(typeof old === 'function' && !old.__todayAutoReclickHook){
+        window.run = async function(){
+          var r = await old.apply(this, arguments);
+          try{ AutoClicker.start(); }catch(_e){}
+          return r;
+        };
+        window.run.__todayAutoReclickHook = true;
+      }
+    }catch(_e){}
+  })();
+
+  // Fallback: observe #dailyPanel for the 7-day strip appearing/refreshed.
+  (function setupObserver(){
+    try{
+      var panel = document.getElementById('dailyPanel');
+      if(!panel || panel.__todayAutoReclickObserver__) return;
+      panel.__todayAutoReclickObserver__ = true;
+      var mo = new MutationObserver(function(muts){
+        for(var i=0;i<muts.length;i++){
+          var m = muts[i];
+          if(m.type === 'childList' && panel.querySelector('.days .day')){
+            AutoClicker.start();
+            break;
+          }
+        }
+      });
+      mo.observe(panel, {childList:true, subtree:true});
+    }catch(_e){}
+  })();
+
+  // Boot: try once on DOM ready as well.
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ try{ AutoClicker.start(); }catch(_e){} }, {once:true});
+  }else{
+    try{ AutoClicker.start(); }catch(_e){}
+  }
 })();
 </script>
 </body>
