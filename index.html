@@ -1023,6 +1023,15 @@ html, body { overscroll-behavior: contain; }
 /* prevent viewport jump on focus */
 html, body { overscroll-behavior: contain; }
 </style>
+<style id="dayparts-night-first-order">
+/* --- Mostra "Notte" come primo pannello (a sinistra) senza cambiare il DOM --- */
+#dayParts .parts{ display:flex !important; flex-wrap:wrap; } /* assicura flex */
+#dayParts .parts .part:nth-child(4){ order:0; }  /* Notte */
+#dayParts .parts .part:nth-child(1){ order:1; }  /* Mattina */
+#dayParts .parts .part:nth-child(2){ order:2; }  /* Pomeriggio */
+#dayParts .parts .part:nth-child(3){ order:3; }  /* Sera */
+</style>
+
 <style id="compact-empty-fix">
 /* == Compact layout when no forecast rows are present == */
 #widget.empty{
@@ -2031,6 +2040,36 @@ details.part summary h4{ text-shadow: 0 1px 2px rgba(0,0,0,.26); }
 #narrativeBox:empty{ display:none !important; }
 </style>
 
+
+<!-- === PATCH: headline sopra il 7-giorni (compact) === -->
+<style id="mlg-search-headline-css">
+#searchHeadline{ 
+  margin: .25rem auto .5rem auto; 
+  padding: .25rem .5rem;
+  width: min(100%, 980px);
+  font-weight: 700;
+  font-size: clamp(14px, 3.7vw, 18px);
+  line-height: 1.4;
+  backdrop-filter: none;
+  background: transparent;
+  border: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#searchHeadlineTitle{ display:inline; }
+</style>
+
+
+<style id="mini-bollettino-css">
+#miniBollettino .mb-btn{
+  background:var(--clr-accent,#facc15);
+  color:#000;border:none;border-radius:10px;
+  padding:.35rem .75rem;font-weight:800;cursor:pointer
+}
+#miniBollettino .mb-btn:disabled{opacity:.6;cursor:not-allowed}
+#miniBollettino .tag{display:inline-block;margin-right:.35rem;padding:.08rem .45rem;border-radius:999px;background:rgba(255,255,255,.14);font-size:.85em}
+</style>
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -2041,6 +2080,21 @@ window.CITIES = Array.isArray(window.CITIES) ? window.CITIES : [];
 window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 </script>
 <body>
+
+<!-- === Mini Bollettino Meteo (iniettato non-distruttivo) === -->
+<div id="miniBollettino" class="panel" style="display:none" aria-live="polite">
+  <div class="mb-head" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:.4rem">
+    <strong style="font-family:'Baloo 2',cursive;font-size:1.1rem">Mini bollettino · Meteo Lo Gullo</strong>
+    <div class="mb-actions" style="display:flex;gap:6px">
+      <button id="mbOggi" type="button" class="mb-btn" title="Sintesi per oggi">Oggi</button>
+      <button id="mbDomani" type="button" class="mb-btn" title="Sintesi per domani">Domani</button>
+      <button id="mbCopia" type="button" class="mb-btn" title="Copia testo">Copia</button>
+    </div>
+  </div>
+  <div id="mbContent" class="mb-content" style="font-size:1rem;line-height:1.35"></div>
+  <div id="mbLaundry" class="mb-laundry" style="margin-top:.5rem;font-weight:700"></div>
+</div>
+
 <!-- —— Search —— -->
 <section aria-label="Introduzione sezione Previsioni" class="panel intro" id="pageIntro">
 <h2 class="intro-title">Sezione <span style="white-space:nowrap">Previsioni</span></h2>
@@ -3194,10 +3248,15 @@ function renderStation(live,name,dist){
 
 function renderHourly(data,idx){
 const rows=[];
+  // Determine the base day for this slice
+  var baseISO = (data && data.hourly && data.hourly.time && data.hourly.time[idx]) ? String(data.hourly.time[idx]).slice(0,10) : '';
+  var todayISO = (function(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); })();
+  var applyLive = (baseISO === todayISO);
+
   for(let i=idx;i<idx+24&&i<data.hourly.time.length;i++){
-    // adjust forecast using LIVE data (temperature & humidity offsets)
-    const tempOffset = (LIVE && !isNaN(LIVE.t)) ? (LIVE.t - data.hourly.temperature_2m[idx]) : 0;
-    const urOffset = (LIVE && !isNaN(LIVE.ur)) ? (LIVE.ur - data.hourly.relativehumidity_2m[idx]) : 0;
+    // adjust forecast using LIVE data (temperature & humidity offsets) only for TODAY
+    const tempOffset = (applyLive && LIVE && !isNaN(LIVE.t)) ? (LIVE.t - data.hourly.temperature_2m[idx]) : 0;
+    const urOffset = (applyLive && LIVE && !isNaN(LIVE.ur)) ? (LIVE.ur - data.hourly.relativehumidity_2m[idx]) : 0;
     const isNightTime = data.hourly.is_day && data.hourly.is_day[i]===0;
 
     rows.push(
@@ -3224,14 +3283,16 @@ const rows=[];
               <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Ora</th>
               <th style="padding:10px 12px; background:rgba(255,255,255,.16);"></th>
               <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Cond.</th>
-              <th style="padding:10px 12px; background:rgba(255,255,255,.16);">T°</th>
+              <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Temp.</th>
               <th style="padding:10px 12px; background:rgba(255,255,255,.16);">UR</th>
               <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Pioggia</th>
-              <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Prob%</th>
+              <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Prob.</th>
               <th style="padding:10px 12px; background:rgba(255,255,255,.16);">Vento</th>
             </tr>
           </thead>
-          <tbody>${rows.join("")}</tbody>
+          <tbody>
+            ${rows.join("\n")}
+          </tbody>
         </table>
       </div>
     </div>`;
@@ -3264,7 +3325,7 @@ function dailyHeadlineCode(data, i){
 
 
 function renderDaily(data){
-  let h='<div class="card"><h3>7 Giorni</h3><div class="days">';
+  let h='<div class="card"><h3>Previsioni fino a una settimana</h3><div class="days">';
   for(let i=0;i<data.daily.time.length;i++){
     h += `
       <div class="day">
@@ -3432,6 +3493,27 @@ try{
 }catch(e){}
 sEl.innerHTML=renderStation(live,st.nome||g.name,st.distance||0);
 
+
+
+try{
+  // Usa ESCLUSIVAMENTE la stringa ricercata (q) o, in fallback, g.name
+  const __placeName = (typeof q === 'string' && q.trim()) || (g && g.name) || '';
+  // Crea/aggiorna una sola riga minimale sopra il box 7-giorni
+  const daily = document.getElementById('dailyPanel');
+  if(daily && daily.parentNode){
+    let head = document.getElementById('searchHeadline');
+    if(!head){
+      head = document.createElement('div');
+      head.id = 'searchHeadline';
+      head.innerHTML = '<span id="searchHeadlineTitle"></span>';
+      daily.parentNode.insertBefore(head, daily);
+    }
+    const title = document.getElementById('searchHeadlineTitle');
+    if(title){
+      title.textContent = 'Previsioni di Meteo Lo Gullo per ' + (__placeName || 'la località cercata');
+    }
+  }
+}catch(_e){}
 hEl.innerHTML=renderHourly(window.fc,idx);
     
 try{
@@ -4964,27 +5046,68 @@ html, body { overscroll-behavior: contain; }
   const dayPartsEl = document.getElementById('dayParts');
   if(!dayPartsEl) return;
   function renderParts(fc){
-    if(!fc||!fc.hourly||!fc.timezone) return '';
-    // build next 24h segments
-    const now = Date.now();
-    const parts=[
-      {name:'Mattina', start:6, end:12},
-      {name:'Pomeriggio', start:12, end:18},
-      {name:'Sera', start:18, end:24},
-      {name:'Notte', start:0, end:6}
+    if(!fc||!fc.hourly) return '';
+    // Determine the base day ISO (YYYY-MM-DD) for the panel
+    var baseISO = (fc.daily && fc.daily.time && fc.daily.time[0]) ? String(fc.daily.time[0]).slice(0,10)
+                 : (fc.hourly.time && fc.hourly.time[0] ? String(fc.hourly.time[0]).slice(0,10) : '');
+    function addDaysISO(iso, d){
+      try{ var dt = new Date(iso + "T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }catch(e){ return iso; }
+    }
+    var nextISO = addDaysISO(baseISO, 1);
+    var full = window.fc || fc; // use full forecast so we can access next day's hours for 'Notte'
+
+    var parts=[
+      {name:'Mattina', start:6, end:12, iso: baseISO},
+      {name:'Pomeriggio', start:12, end:18, iso: baseISO},
+      {name:'Sera', start:18, end:24, iso: baseISO},
+      {name:'Notte', start:0, end:6, iso: nextISO, nextNight:true}
     ];
-    let html='<div class="card"><h3>Mattina → Notte</h3><div class="parts">';
-    parts.forEach(part=>{
-      // select hours within next 24h belonging to part window relative to today
-      const rows=[];
-      for(let i=0;i<fc.hourly.time.length;i++){
-        const t=Date.parse(fc.hourly.time[i]);
-        if(t<now) continue;
-        const h=new Date(t).getHours();
-        let targetDay = new Date(now).getDate();
-        if(part.name==='Notte' && h >=0 && h<part.end){
-          // allow early next day 0-5
+
+    if(dayPartsEl){ try{ dayPartsEl.dataset.dayIso = baseISO; }catch(e){} };
+    var html='<div class="card"><h3>Notte → Sera</h3><div class="parts">';
+    parts.forEach(function(part){
+      var rows=[];
+      // collect rows from the FULL forecast matching the target iso and hour range
+      var T = (full.hourly && full.hourly.time) || [];
+      for(var i=0;i<T.length;i++){
+        var t = String(T[i]||'');
+        if(t.slice(0,10)!==part.iso) continue;
+        var h = parseInt(t.slice(11,13),10);
+        if(h>=part.start && h<part.end) rows.push(i);
+      }
+      if(!rows.length) return;
+
+      // choose representative weather (first row by time for simplicity)
+      var idx=rows[0];
+      var isNight = !!(full.hourly.is_day && full.hourly.is_day[idx]===0);
+      var icon = window.iconHTML_NOEMOJI ? window.iconHTML_NOEMOJI(full.hourly.weathercode[idx], isNight) : '';
+
+      // temps
+      var tmin=Infinity, tmax=-Infinity;
+      rows.forEach(function(i){ tmin=Math.min(tmin, Number(full.hourly.temperature_2m[i])); tmax=Math.max(tmax, Number(full.hourly.temperature_2m[i])); });
+
+      // LIVE clamp only if the panel's base day is TODAY and the band is the current one
+      try{
+        var todayISO = (function(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); })();
+        if(baseISO===todayISO && window.LIVE && Number.isFinite(Number(window.LIVE.t))){
+          var nowH = new Date().getHours();
+          var inBand = (part.name==='Mattina' && nowH>=6 && nowH<12) ||
+                       (part.name==='Pomeriggio' && nowH>=12 && nowH<18) ||
+                       (part.name==='Sera' && nowH>=18 && nowH<24) ||
+                       (part.name==='Notte' && (nowH>=0 && nowH<6));
+          if(inBand){ tmax = Math.max(tmax, Math.round(Number(window.LIVE.t))); }
         }
+      }catch(e){}
+
+      html += '\n      <details class="part">\n        <summary><h4>'+part.name+'</h4>'+icon+'<div class="temp>'+
+               '">'+(isFinite(tmax)?Math.round(tmax):'—')+'°</div><div class="min">'+(isFinite(tmin)?Math.round(tmin):'—')+'°</div></summary>\n'+
+               '        <div class="detail"></div>\n      </details>';
+      
+      // attachListeners will fill details on toggle using hourlySubsetHTML(full, rows)
+    });
+    html+='</div></div>';
+    return html;
+}
         if(h>=part.start && h<part.end){
           rows.push(i);
         }
@@ -5026,22 +5149,38 @@ html += `
     return window.renderHourly(sub,0);
   }
   function attachListeners(){
+    var el = document.getElementById('dayParts');
+    var baseISO = el && el.dataset ? el.dataset.dayIso : '';
+    function addDaysISO(iso, d){
+      try{ var dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }catch(e){ return iso; }
+    }
+    var nextISO = addDaysISO(baseISO, 1);
+    var defs = [
+      {iso: baseISO, start:6, end:12},
+      {iso: baseISO, start:12, end:18},
+      {iso: baseISO, start:18, end:24},
+      {iso: nextISO, start:0, end:6}
+    ];
     dayPartsEl.querySelectorAll('.part').forEach((partEl, idx)=>{
       partEl.addEventListener('toggle', function(){
         if(!this.open) return;
-        // if already filled, skip
         const detailBox = this.querySelector('.detail');
         if(detailBox.dataset.filled) return;
-        const partNames=['Mattina','Pomeriggio','Sera','Notte'];
-        const ranges=[[6,12],[12,18],[18,24],[0,6]];
-        const range=ranges[idx];
-        const now = Date.now();
+        const def = defs[idx] || defs[0];
         const rows=[];
-        for(let i=0;i<window.fc.hourly.time.length;i++){
-          const t=Date.parse(window.fc.hourly.time[i]);
-          if(t<now) continue;
-          const h=new Date(t).getHours();
-          if(range[0]<range[1]){ if(h>=range[0]&&h<range[1]) rows.push(i); }
+        const T = (window.fc && window.fc.hourly && window.fc.hourly.time) || [];
+        for(let i=0;i<T.length;i++){
+          const t = String(T[i]||'');
+          if(t.slice(0,10)!==def.iso) continue;
+          const h = parseInt(t.slice(11,13),10);
+          if(h>=def.start && h<def.end) rows.push(i);
+        }
+        if(!rows.length){ detailBox.innerHTML=''; detailBox.dataset.filled='1'; return; }
+        detailBox.innerHTML = hourlySubsetHTML(window.fc, rows);
+        detailBox.dataset.filled='1';
+      }, {passive:true});
+    });
+  }
           else{ if(h>=range[0]||h<range[1]) rows.push(i); }
         }
         detailBox.innerHTML = hourlySubsetHTML(window.fc, rows);
@@ -5839,7 +5978,7 @@ html, body { overscroll-behavior: contain; }
       {name:'Sera', start:18, end:24},
       {name:'Notte', start:0, end:6}
     ];
-    let html='<div class="card"><h3>Mattina → Notte</h3><div class="parts">';
+    let html='<div class="card"><h3>Notte → Sera</h3><div class="parts">';
     parts.forEach(part=>{
       const rows=[];
       fc.hourly.time.forEach((t,idx)=>{
@@ -9333,7 +9472,7 @@ clicks=0;},700); if(clicks>=3){ clicks=0; openPro(); } });
   }
 
   function renderDailyForced(fc){
-    let h='<div class="card"><h3>7 Giorni</h3><div class="days">';
+    let h='<div class="card"><h3>Previsioni fino a una settimana</h3><div class="days">';
     for(let i=0;i<fc.daily.time.length;i++){
       const head = dailyHeadlineCode(fc,i);
       h += `
@@ -9994,7 +10133,7 @@ function buildImg(icon){
 
   /* —— Renderer 7‑giorni che usa headlineCode —— */
   function renderDailyFromHourly(fc){
-    let h='<div class="card"><h3>7 Giorni</h3><div class="days">';
+    let h='<div class="card"><h3>Previsioni fino a una settimana</h3><div class="days">';
     const n = (fc && fc.daily && fc.daily.time) ? fc.daily.time.length : 0;
     for(let i=0;i<n;i++){
       const head = headlineCode(fc, i);
@@ -10876,7 +11015,7 @@ function buildImg(icon){
     const isToday = isTodayISO(dayISO);
 
     const ranges = partRanges(); const names = partNames();
-    let html = '<div class="card"><h3>Mattina&nbsp;→&nbsp;Notte</h3><div class="parts">';
+    let html = '<div class="card"><h3>Notte&nbsp;→&nbsp;Sera</h3><div class="parts">';
 
     ranges.forEach((rng, idx)=>{
       // pick source + base day: for Notte of today use NEXT day's 00–06 from the FULL forecast
@@ -10901,11 +11040,11 @@ function buildImg(icon){
         const inRange = (rng[0] < rng[1]) ? (h>=rng[0] && h<rng[1]) : (h>=rng[0] || h<rng[1]);
         if(inRange) allRows.push(i);
       }
-      // subset to future rows if today
-      const futureRows = isToday ? allRows.filter(i => Date.parse(srcFc.hourly.time[i]) >= now) : allRows;
+      // subset to future rows when the band day equals *today*
+const baseIsCurrent = (function(){ try { return String(baseISO).slice(0,10) === todayISO(); } catch(_e) { return false; } })();
+const futureRows = baseIsCurrent ? allRows.filter(i => Date.parse(srcFc.hourly.time[i]) >= now) : allRows;
 
-      
-const isPastTile = isToday && !(rng[0]===0 && rng[1]===6) && allRows.length>0 && futureRows.length===0;
+const isPastTile = baseIsCurrent && allRows.length>0 && futureRows.length===0;
 const rowsForStats = futureRows; // stats only on future
 
 // --- robust fallback: if there are no FUTURE rows (edge cases), fall back to ALL rows of the band ---
@@ -11036,7 +11175,17 @@ html += '</details>';
   /* Minimal future-aware narrative for "oggi" (keeps the same box styling) */
   function computeFutureNarrative(fc){
     try{
-      const iso = fc.daily?.time?.[Number(window.curDay||0)];
+      const iso = fc.daily?.time?.[((typeof window.selectedDayIndex==='function') ? window.selectedDayIndex() : (function(){
+  try{
+    var strip=document.querySelector('#dailyPanel .days');
+    if(strip){
+      var items=Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      var sel=items.findIndex(function(el){return el.classList&&el.classList.contains('sel');});
+      if(sel>=0) return sel;
+    }
+  }catch(_e){}
+  return Number(window.curDay||0)||0;
+})())];
       if(!iso) return null;
       const isToday = isTodayISO(iso);
       const H = fc.hourly||{}, D = fc.daily||{};
@@ -11069,8 +11218,28 @@ html += '</details>';
       }
 
       // For today, derive tmin/tmax from remaining hours; else use daily aggregates
-      let tmax = isToday ? round(Math.max(...rows.map(i=>H.temperature_2m?.[i]??NaN))) : round(D.temperature_2m_max?.[Number(window.curDay||0)]);
-      let tmin = isToday ? round(Math.min(...rows.map(i=>H.temperature_2m?.[i]??NaN))) : round(D.temperature_2m_min?.[Number(window.curDay||0)]);
+      let tmax = isToday ? round(Math.max(...rows.map(i=>H.temperature_2m?.[i]??NaN))) : round(D.temperature_2m_max?.[((typeof window.selectedDayIndex==='function') ? window.selectedDayIndex() : (function(){
+  try{
+    var strip=document.querySelector('#dailyPanel .days');
+    if(strip){
+      var items=Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      var sel=items.findIndex(function(el){return el.classList&&el.classList.contains('sel');});
+      if(sel>=0) return sel;
+    }
+  }catch(_e){}
+  return Number(window.curDay||0)||0;
+})())]);
+      let tmin = isToday ? round(Math.min(...rows.map(i=>H.temperature_2m?.[i]??NaN))) : round(D.temperature_2m_min?.[((typeof window.selectedDayIndex==='function') ? window.selectedDayIndex() : (function(){
+  try{
+    var strip=document.querySelector('#dailyPanel .days');
+    if(strip){
+      var items=Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      var sel=items.findIndex(function(el){return el.classList&&el.classList.contains('sel');});
+      if(sel>=0) return sel;
+    }
+  }catch(_e){}
+  return Number(window.curDay||0)||0;
+})())]);
 
       const place = (window.CITIES?.[0]?.city) || document.getElementById("cityInput")?.value || "località selezionata";
       const when = (function(){
@@ -11126,19 +11295,44 @@ html += '</details>';
         }catch(_e){ return "oggi"; }
       })();
 
-      const whereWet = ["al mattino","al pomeriggio","in serata","di notte"].filter((_,i)=>wet[i]);
-      let precip = "non sono previste precipitazioni significative";
+      const _labels = ["al mattino","al pomeriggio","in serata","di notte"];let _idx = [0,1,2,3].filter(i=>wet[i]);// Se oggi e piove di notte, mettiamo "di notte" prima di "al mattino" per evitare ambiguità
+if (isToday && wet[3]) { _idx = [3].concat([0,1,2].filter(i=>wet[i])); }
+const whereWet = _idx.map(i=>_labels[i]);let precip = "non sono previste precipitazioni significative";
       if(pmax>=70 || sum>=5) precip="sono probabili rovesci";
       if(ts) precip="sono possibili temporali";
       if(whereWet.length) precip += " " + (whereWet.length===1? whereWet[0] : "(" + whereWet.join(", ") + ")");
-      const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "deboli");
-      const lead = `A ${place}, ${when} ${precip}. La temperatura si porterà intorno a ${isFinite(tmax)?tmax+"°C":"--"} nelle ore più calde e verso ${isFinite(tmin)?tmin+"°C":"--"} nelle ore più fresche.`;
+      
+// Descrizione del cielo anche senza precipitazioni: calcolata dal meteo prevalente nelle ore considerate
+(function(){
+  try{
+    const codes = (H.weathercode||[]);
+    const freq = {};
+    for(const i of rows){ const c = +((codes[i])||0); if(!isFinite(c)) continue; freq[c]=(freq[c]||0)+1; }
+    let dom = null, domN=-1;
+    for(const k in freq){ if(freq[k]>domN){ dom=+k; domN=freq[k]; } }
+    function skyFromCode(c){
+      if([0].includes(c)) return "cielo sereno";
+      if([1].includes(c)) return "prevalentemente sereno";
+      if([2].includes(c)) return "poco nuvoloso";
+      if([3].includes(c)) return "molto nuvoloso o coperto";
+      if([45,48].includes(c)) return "foschie o banchi di nebbia";
+      if([51,53,55,56,57].includes(c)) return "pioviggine a tratti";
+      if([61,63,65,66,67,80,81,82].includes(c)) return "piogge sparse";
+      if([71,73,75,77,85,86].includes(c)) return "neve o neve mista";
+      if([95,96,99].includes(c)) return "temporali locali";
+      return "condizioni variabili";
+    }
+    window.__mlgSkyDesc = skyFromCode(dom);
+  }catch(_e){ window.__mlgSkyDesc = undefined; }
+})();
+
+const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "deboli");
+      const lead = `Secondo Meteo Lo Gullo a ${place}, ${when} ${precip}. La temperatura si porterà intorno a ${isFinite(tmax)?tmax+"°C":"--"} nelle ore più calde e verso ${isFinite(tmin)?tmin+"°C":"--"} nelle ore più fresche.`;
       const meta = `Pioggia residua: ${sum.toFixed(1)} mm (probabilità massima ${pmax}%).`;
-      const details = [
-        (wmax||gmax) ? `Venti ${venti}${isFinite(gmax)?", raffiche fino a "+Math.round(gmax)+" km/h":""}.` : "Venti deboli.",
+      const details = [ (window.__mlgSkyDesc?("Cielo: "+window.__mlgSkyDesc+"."):null), (wmax||gmax) ? `Venti ${venti}${isFinite(gmax)?", raffiche fino a "+Math.round(gmax)+" km/h":""}.` : "Venti deboli.",
         "Dati riferiti alle sole ore rimanenti di oggi."
       ];
-      return {lead, meta, details};
+      return {lead, meta, details: details.filter(Boolean)};
     }catch(_e){ return null; }
   }
 
@@ -11162,6 +11356,17 @@ html += '</details>';
 
   /* Install overrides */
   (function install(){
+
+// === AUTO PATCH: refresh narrative on dayparts-rendered & day click ===
+try{
+  document.addEventListener('mlg:dayparts-rendered', function(){ try{ renderNarrativeFuture(); }catch(_e){} }, true);
+  // fallback: also react to direct clicks on 7-day tiles
+  document.addEventListener('click', function(ev){
+    var el = ev.target && ev.target.closest ? ev.target.closest('#dailyPanel .day') : null;
+    if(el){ setTimeout(function(){ try{ renderNarrativeFuture(); }catch(_e){} }, 20); }
+  }, true);
+}catch(_e){}
+
     // Override renderDayParts with our future-aware version
     const origRDP = window.renderDayParts;
     window.renderDayParts = function(fc){
@@ -11286,6 +11491,13 @@ html += '</details>';
   }
   function applyLiveToTile(){
     try{
+      // Apply LIVE only if selected day is today (index 0)
+      var strip = document.querySelector('#dailyPanel .days');
+      if(strip){
+        var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+        var sel = items.findIndex(function(el){ return el.classList.contains('sel'); });
+        if(sel > 0) return; // not today -> do nothing
+      }
       const liveVal = Number(LIVE && LIVE.t);
       if(!Number.isFinite(liveVal)) return;
       const h = new Date().getHours();
@@ -11301,6 +11513,9 @@ html += '</details>';
         if(!Number.isFinite(shown) || liveRounded > shown){
           tempEl.textContent = liveRounded + '°';
         }
+      });
+    }catch(e){}
+  }
       });
     }catch(e){}
   }
@@ -11354,6 +11569,15 @@ html += '</details>';
         || (name.includes('notte') && h>=0 && h<6);
   }
   function updatePanel(){
+    // Apply LIVE only for today (selected day index 0)
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(strip){
+        var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+        var sel = items.findIndex(function(el){ return el.classList.contains('sel'); });
+        if(sel > 0) return;
+      }
+    }catch(e){}
     const liveVal = Number(LIVE && LIVE.t);
     if(!Number.isFinite(liveVal)) return;
     const h = new Date().getHours();
@@ -11749,6 +11973,2077 @@ html += '</details>';
 </script>
 <!-- ======= END LOCKED REGION ======= -->
 
+
+<!-- === PATCH 2025‑09‑07: Tri‑orario sotto i pannelli giornalieri (default) === -->
+<style id="tri-under-daily-css">
+  /* contenitore sotto le fasce (mattina/pomeriggio/sera/notte) */
+  #dailyDetailPanel{ margin:16px auto; max-width:980px; }
+  #dailyDetailPanel .card{
+    background:var(--glass);
+    border-radius:var(--radius);
+    padding:0.6rem 0.8rem 1rem;
+    color:var(--text);
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 8px 24px rgba(0,0,0,.20);
+  }
+  #dailyDetailPanel .card h3{
+    margin:0 0 .4rem;
+    font-size:1.02rem;
+    display:flex; align-items:center; gap:.5rem;
+  }
+  /* lista tri‑oraria riusa la stessa grammatica della hourly-list */
+  #dailyDetailPanel .hourly-list{display:flex;flex-direction:column;gap:6px;margin-top:6px;}
+  #dailyDetailPanel .hour-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:rgba(255,255,255,.07);border-radius:10px;font-size:.95rem}
+  #dailyDetailPanel .hour-row .hr-time{font-weight:700;width:84px;flex-shrink:0;text-align:left;}
+  #dailyDetailPanel .hour-row .hr-icon{width:34px;flex-shrink:0;display:flex;justify-content:center;}
+  #dailyDetailPanel .hour-row .hr-desc{flex:1;min-width:140px;opacity:.95;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #dailyDetailPanel .hour-row .hr-temp{width:56px;text-align:right;flex-shrink:0;}
+  #dailyDetailPanel .hour-row .hr-rain{width:72px;text-align:right;flex-shrink:0;}
+  #dailyDetailPanel .hour-row .hr-wind{width:70px;text-align:right;flex-shrink:0;font-size:.85rem;opacity:.95;}
+  @media(max-width:520px){
+    #dailyDetailPanel .hour-row{flex-wrap:wrap;row-gap:4px}
+    #dailyDetailPanel .hour-row .hr-desc{order:4;width:100%}
+    #dailyDetailPanel .hour-row .hr-rain{width:auto;flex:1;text-align:left}
+    #dailyDetailPanel .hour-row .hr-wind{width:auto;flex:0 0 auto;text-align:right}
+  }
+</style>
+<script id="tri-under-daily-js">
+(function(){
+
+  // Inserisce/assicura il pannello subito sotto #dayParts
+  function ensurePanel(){
+    var fasce = document.getElementById('dayParts');
+    if(!fasce || !fasce.parentNode) return null;
+    var panel = document.getElementById('dailyDetailPanel');
+    if(!panel){
+      panel = document.createElement('section');
+      panel.id = 'dailyDetailPanel';
+      panel.innerHTML = '<div class="card"><h3>Dettaglio triorario</h3><div class="content"></div></div>';
+    }
+    if(fasce.nextSibling !== panel){
+      fasce.parentNode.insertBefore(panel, fasce.nextSibling);
+    }
+    return panel;
+  }
+
+  // Utility: descrizione WMO se disponibile
+  function descFor(code){
+    try{
+      if(typeof window.wmoDesc === 'function') return window.wmoDesc(code);
+    }catch(e){}
+    // fallback stringa generica
+    return '—';
+  }
+
+  // Costruisce lista tri‑oraria dal sotto‑forecast (un solo giorno)
+  function renderTriList(fc){
+    var h = fc && fc.hourly || {};
+    var n = (h.time||[]).length;
+    if(!n) return '<div class="hourly-list"></div>';
+
+    function avg(arr, idxs){
+      var s=0, c=0; for(var i=0;i<idxs.length;i++){ var v=arr[idxs[i]]; if(isFinite(v)){ s+=v; c++; } }
+      return c? (Math.round((s/c)*10)/10) : 0;
+    }
+    function sum(arr, idxs){
+      var s=0; for(var i=0;i<idxs.length;i++){ var v=arr[idxs[i]]; if(isFinite(v)) s+=v; }
+      return Math.round(s*10)/10;
+    }
+    function maxProb(prob, idxs){
+      var m=0; for(var i=0;i<idxs.length;i++){ var v=prob[idxs[i]]; if(isFinite(v) && v>m) m=v; }
+      return m;
+    }
+
+    var rowsHTML = [];
+    for(var i=0; i<n; i+=3){
+      var idxs = [i, i+1, i+2].filter(function(j){ return j<n; });
+      var timeStart = String(h.time[i]).slice(11,16);
+      var timeEnd   = String(h.time[Math.min(i+2, n-1)]).slice(11,16);
+      // icona: prendi l'ora con più precipitazione, altrimenti la centrale
+      var best = idxs[0];
+      if(h.precipitation){ for(var k=0;k<idxs.length;k++){ var j=idxs[k]; if((h.precipitation[j]||0) > (h.precipitation[best]||0)) best = j; } }
+      else if(idxs.length>=2){ best = idxs[Math.floor(idxs.length/2)]; }
+      var isNight = !!(h.is_day && (idxs.reduce(function(s,j){ return s + (h.is_day[j]===0?1:0); },0) > (idxs.length/2)));
+      var iconHTML = (typeof window.iconHTML_NOEMOJI==='function') ? window.iconHTML_NOEMOJI(h.weathercode[best], isNight) : '';
+      var code = h.weathercode ? h.weathercode[best] : null;
+      var tAvg = avg(h.temperature_2m||[], idxs);
+      var rain = sum(h.precipitation||[], idxs);
+      var wind = avg(h.wind_speed_10m||[], idxs);
+      var prob = (h.precipitation_probability) ? maxProb(h.precipitation_probability, idxs) : null;
+      var probTxt = (prob!=null && isFinite(prob)) ? (Math.round(prob) + '%') : '';
+
+      rowsHTML.push(
+        '<div class="hour-row">' +
+          '<div class="hr-time">'+ timeStart + '–' + timeEnd +'</div>' +
+          '<div class="hr-icon">' + iconHTML + '</div>' +
+          '<div class="hr-desc">' + descFor(code) + '</div>' +
+          '<div class="hr-temp">' + (isFinite(tAvg)? Math.round(tAvg)+'°' : '—') + '</div>' +
+          '<div class="hr-rain">' + (isFinite(rain)? (rain.toFixed(1)+' mm') : '0.0 mm') + (probTxt? ' · ' + probTxt : '') + '</div>' +
+          '<div class="hr-wind">' + (isFinite(wind)? Math.round(wind)+' km/h' : '—') + '</div>' +
+        '</div>'
+      );
+    }
+    return '<div class="hourly-list">' + rowsHTML.join('') + '</div>';
+  }
+
+  // Sotto‑forecast per giorno (se definito globalmente lo uso, altrimenti semplice fallback)
+  function subForecastByDay(fc, index){
+    if(typeof window.subForecastByDay === 'function') return window.subForecastByDay(fc, index);
+    if(!fc || !fc.hourly || !fc.daily || index<0) return fc;
+    var dayISO = fc.daily.time[index];
+    var rows = [];
+    for(var i=0;i<fc.hourly.time.length;i++){
+      if((fc.hourly.time[i]||'').indexOf(dayISO)===0) rows.push(i);
+    }
+    if(!rows.length) return fc;
+    var sub = JSON.parse(JSON.stringify(fc));
+    Object.keys(sub.hourly).forEach(function(k){
+      sub.hourly[k] = rows.map(function(i){ return fc.hourly[k][i]; });
+    });
+    ['time','temperature_2m_max','temperature_2m_min','weathercode'].forEach(function(k){
+      if(sub.daily && sub.daily[k]) sub.daily[k] = [fc.daily[k][index]];
+    });
+    return sub;
+  }
+
+  function selectedDayIndex(){
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(!strip) return 0;
+      var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      var sel   = items.findIndex(function(el){ return el.classList.contains('sel'); });
+      return (sel>=0 ? sel : 0);
+    }catch(e){ return 0; }
+  }
+
+  function renderDefaultTri(){
+    var panel = ensurePanel(); if(!panel) return;
+    var content = panel.querySelector('.content'); if(!content) return;
+    var fc = window.fc; if(!fc || !fc.hourly) { content.innerHTML = ''; return; }
+    var idx = selectedDayIndex();
+    var sub = subForecastByDay(fc, idx);
+    content.innerHTML = renderTriList(sub);
+  }
+
+  // Re‑render on relevant events
+  document.addEventListener('DOMContentLoaded', function(){
+    try{ renderDefaultTri(); }catch(e){}
+  });
+  // quando strip 7‑giorni cambia (patch esistente emette mlg:dayparts-rendered)
+  document.addEventListener('mlg:dayparts-rendered', function(){
+    try{ renderDefaultTri(); }catch(e){}
+  }, true);
+  // fallback: riascolta click sulla strip se non c'è l'evento custom
+  document.addEventListener('click', function(ev){
+    var d = ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day');
+    if(d){ setTimeout(renderDefaultTri, 30); }
+  }, true);
+
+  // Se una nuova previsione viene caricata, prova a renderizzare
+  try{
+    var _oldRun = window.run;
+    if(typeof _oldRun === 'function' && !_oldRun.__triInject){
+      window.run = function(){
+        var out = _oldRun.apply(this, arguments);
+        try{ renderDefaultTri(); }catch(e){}
+        return out;
+      };
+      window.run.__triInject = true;
+    }
+  }catch(e){}
+
+  // Esponi un gancio per forzare manualmente
+  window.__renderTriUnderDaily = renderDefaultTri;
+
+})();
+</script>
+
+
+<!-- === PATCH 2025‑09‑09 — Tri‑orario mobile tightening === -->
+<style id="tri-mobile-tighten-2025-09-09">
+/* Recupera spazio laterale e riduce lo spazio fra ora e icona
+   senza toccare l'HTML/JS. Solo override CSS, sicuro. */
+
+@media (max-width: 700px){
+  /* Card che contiene il dettaglio tri‑orario */
+  #dailyDetailPanel .card{
+    padding: .5rem .6rem .7rem !important;
+  }
+
+  /* Riga tri‑oraria più compatta */
+  #dailyDetailPanel .hour-row{
+    padding: 8px 8px !important;
+  }
+
+  /* Ora + icona: più vicine e più strette */
+  #dailyDetailPanel .hour-row .hr-time{
+    width: 70px !important;      /* prima ~84px */
+    margin-right: 2px !important;
+  }
+  #dailyDetailPanel .hour-row .hr-icon{
+    width: 26px !important;      /* prima ~34px */
+  }
+
+  /* Descrizione più snella */
+  #dailyDetailPanel .hour-row .hr-desc{
+    padding: 0 4px !important;
+    min-width: 120px !important;
+  }
+
+  /* Colonnine finali leggermente più strette */
+  #dailyDetailPanel .hour-row .hr-temp{ width: 50px !important; }
+  #dailyDetailPanel .hour-row .hr-rain{ width: 60px !important; }
+  #dailyDetailPanel .hour-row .hr-wind{ width: 60px !important; }
+
+  /* Se viene mostrata la tabella tri‑oraria nel modal, compattiamo anche lì */
+  #triModal .hourly-table td,
+  #triModal .hourly-table th{
+    padding: 8px 6px !important;
+  }
+}
+
+/* Extra su telefoni molto piccoli */
+@media (max-width: 420px){
+  #dailyDetailPanel .hour-row{ padding: 7px 6px !important; }
+  #dailyDetailPanel .hour-row .hr-time{ width: 64px !important; }
+  #dailyDetailPanel .hour-row .hr-icon{ width: 24px !important; }
+  #dailyDetailPanel .hour-row .hr-desc{ min-width: 104px !important; }
+}
+</style>
+
+<!-- === PATCH 2025-09-10 — Troncamento descrizione fenomeni === -->
+<style id="tri-mobile-desc-ellipsis-2025-09-10">
+/* Taglia automaticamente la descrizione (sereno / poco nuvoloso / ecc.)
+   con ellissi dove necessario, su mobile e nel modal della tabella. */
+
+@media (max-width: 700px){
+  /* Daily detail panel */
+  #dailyDetailPanel .hour-row .hr-desc{
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;          /* permette l'ellissi nei layout flex */
+  }
+
+  /* Modal table */
+  #triModal .hourly-table{
+    table-layout: fixed;   /* necessario per l'ellissi sulle celle */
+    width: 100%;
+  }
+  #triModal .hourly-table td,
+  #triModal .hourly-table th{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Larghezze minime fissate per lasciare alla descrizione lo spazio rimanente */
+  #triModal .hourly-table td:nth-child(1){ width: 56px; } /* ora */
+  #triModal .hourly-table td:nth-child(2){ width: 40px; } /* icona */
+  #triModal .hourly-table td:nth-child(4){ width: 58px; } /* temp */
+  #triModal .hourly-table td:nth-child(5){ width: 58px; } /* UR */
+  #triModal .hourly-table td:nth-child(6){ width: 66px; } /* mm */
+  #triModal .hourly-table td:nth-child(7){ width: 58px; } /* % pioggia */
+  #triModal .hourly-table td:nth-child(8){ width: 66px; } /* vento */
+}
+</style>
+
+
+<!-- === PATCH 2025-09-10 — Icona fenomeno più grande su mobile (tri-orario) === -->
+<style id="tri-mobile-bigger-icon-2025-09-10">
+@media (max-width: 700px){
+  /* Aumenta la dimensione dell'icona del fenomeno nelle tri-orarie */
+  #dailyDetailPanel .hour-row .hr-icon{
+    width: 32px !important;     /* prima 26px */
+    height: 32px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Se l'icona è un <img> o un <svg>, scala coerentemente */
+  #dailyDetailPanel .hour-row .hr-icon img,
+  #dailyDetailPanel .hour-row .hr-icon svg{
+    width: 32px !important;
+    height: 32px !important;
+    max-width: 32px !important;
+  }
+
+  /* recupero 2px riducendo leggermente la colonna oraria */
+  #dailyDetailPanel .hour-row .hr-time{ width: 68px !important; }
+}
+
+@media (max-width: 420px){
+  #dailyDetailPanel .hour-row .hr-icon,
+  #dailyDetailPanel .hour-row .hr-icon img,
+  #dailyDetailPanel .hour-row .hr-icon svg{
+    width: 28px !important;
+    height: 28px !important;
+    max-width: 28px !important;
+  }
+  #dailyDetailPanel .hour-row .hr-time{ width: 62px !important; }
+}
+</style>
+
+
+<!-- === PATCH 2025-09-10 — Allinea precipitazione e probabilità nella stessa riga === -->
+<style id="tri-mobile-rain-prob-nowrap-2025-09-10">
+@media (max-width: 700px){
+  /* Libera spazio e impedisce l'andata a capo disordinata */
+  #dailyDetailPanel .hour-row .hr-temp{ width: 44px !important; }
+  #dailyDetailPanel .hour-row .hr-wind{ width: 52px !important; }
+
+  /* Niente larghezze rigide su pioggia/prob; tienile sempre in linea */
+  #dailyDetailPanel .hour-row .hr-rain,
+  #dailyDetailPanel .hour-row .hr-prob{
+    width: auto !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+    flex: 0 1 auto !important;
+  }
+
+  /* Se esiste un wrapper centrale (alcuni temi lo hanno) mantieni tutto su una riga */
+  #dailyDetailPanel .hour-row .hr-metrics,
+  #dailyDetailPanel .hour-row .hr-middle{
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    min-width: 0 !important;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 420px){
+  #dailyDetailPanel .hour-row .hr-temp{ width: 42px !important; }
+  #dailyDetailPanel .hour-row .hr-wind{ width: 48px !important; }
+}
+</style>
+
+
+<!-- === PATCH 2025-09-10 — Vento: 'km/h' sempre affianco, non sotto === -->
+<style id="tri-mobile-wind-inline-2025-09-10">
+@media (max-width: 700px){
+  /* Forza la cella del vento ad essere su una sola riga */
+  #dailyDetailPanel .hour-row .hr-wind{
+    display: inline-flex !important;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 4px;
+    white-space: nowrap !important;
+    width: 56px !important;            /* leggermente compatta ma sufficiente */
+    min-width: 56px !important;
+    flex: 0 0 56px !important;
+  }
+  /* I figli non devono forzare stack verticali */
+  #dailyDetailPanel .hour-row .hr-wind > *{
+    display: inline !important;
+    white-space: inherit !important;
+  }
+
+  /* Evita ritorni a capo nella sezione centrale per lasciare spazio al vento */
+  #dailyDetailPanel .hour-row .hr-middle,
+  #dailyDetailPanel .hour-row .hr-metrics{
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    min-width: 0 !important;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 420px){
+  #dailyDetailPanel .hour-row .hr-wind{
+    width: 52px !important;
+    min-width: 52px !important;
+    flex: 0 0 52px !important;
+  }
+}
+</style>
+
+
+<!-- === PATCH 2025-09-10 — Riduci margini laterali + icone un po' più grandi === -->
+<style id="tri-mobile-tight-gutters-bigger-icons-2025-09-10">
+@media (max-width: 700px){
+  /* Stringe i "binari" laterali nel box Dettaglio triorario */
+  #dailyDetailPanel{
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+  /* Card contenitore: elimina margini inutili ai lati */
+  #dailyDetailPanel .card{
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    border-radius: 16px;
+  }
+  /* Eventuali liste / body interni: azzera padding orizzontale per far aderire le card */
+  #dailyDetailPanel .card-body,
+  #dailyDetailPanel .list-group,
+  #dailyDetailPanel .list-group-flush,
+  #dailyDetailPanel .hourly-container{
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  /* Le singole righe/card devono occupare tutto lo spazio utile */
+  #dailyDetailPanel .hour-row,
+  #dailyDetailPanel .list-group-item,
+  #dailyDetailPanel .hour-card{
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    border-radius: 14px;
+  }
+
+  /* Icone fenomeno un po' più grandi */
+  #dailyDetailPanel .hour-row .hr-icon{
+    width: 36px !important;
+    height: 36px !important;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #dailyDetailPanel .hour-row .hr-icon img,
+  #dailyDetailPanel .hour-row .hr-icon svg{
+    width: 36px !important;
+    height: 36px !important;
+    max-width: 36px !important;
+  }
+
+  /* Leggera compensazione: colonna ora appena più stretta */
+  #dailyDetailPanel .hour-row .hr-time{ width: 66px !important; }
+}
+
+/* Telefoni molto piccoli */
+@media (max-width: 420px){
+  #dailyDetailPanel{ padding-left: 4px !important; padding-right: 4px !important; }
+  #dailyDetailPanel .hour-row .hr-icon,
+  #dailyDetailPanel .hour-row .hr-icon img,
+  #dailyDetailPanel .hour-row .hr-icon svg{
+    width: 32px !important; height: 32px !important; max-width: 32px !important;
+  }
+  #dailyDetailPanel .hour-row .hr-time{ width: 62px !important; }
+}
+</style>
+
+
+<!-- === PATCH 2025-09-10 — Gutter laterali a 0px su mobile === -->
+<style id="tri-mobile-zero-gutters-2025-09-10">
+@media (max-width: 700px){
+  /* Nessun margine né padding ai lati del pannello */
+  #dailyDetailPanel{
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+  }
+  /* Aderenza totale delle card al bordo del box */
+  #dailyDetailPanel .card,
+  #dailyDetailPanel .hour-card,
+  #dailyDetailPanel .list-group,
+  #dailyDetailPanel .list-group-item,
+  #dailyDetailPanel .hourly-container,
+  #dailyDetailPanel .card-body{
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+</style>
+
+
+<!-- === PATCH 2025-09-10 — ZERO gutters: selettori esatti (.content, .hourly-card) === -->
+<style id="tri-mobile-zero-gutters-strong-2025-09-10">
+@media (max-width:700px){
+  /* Il padding laterale viene da .content: azzeriamolo */
+  #dailyDetailPanel .content{ padding-left:0 !important; padding-right:0 !important; }
+  /* Anche eventuali card/list interni */
+  #dailyDetailPanel .card, 
+  #dailyDetailPanel .card-body,
+  #dailyDetailPanel .list-group,
+  #dailyDetailPanel .list-group-flush{ padding-left:0 !important; padding-right:0 !important; margin-left:0 !important; margin-right:0 !important; }
+
+  /* Il contenitore delle tri-orarie (hourly-card) deve occupare 100% */
+  #dailyDetailPanel .hourly-card{ max-width:none !important; width:100% !important; margin-left:0 !important; margin-right:0 !important; }
+
+  /* Se la stessa vista è resa dentro #dayParts usiamo gli stessi fix */
+  #dayParts .part .detail{ padding-left:0 !important; padding-right:0 !important; }
+  #dayParts .part .detail .hourly-card{ max-width:none !important; width:100% !important; margin-left:0 !important; margin-right:0 !important; }
+
+  /* Niente margine orizzontale anche alla lista righe */
+  .hourly-list{ margin-left:0 !important; margin-right:0 !important; }
+}
+</style>
+
+
+<!-- === PATCH 2025-09-10 — Intestazioni colonne su mobile (ORA / TEMP°C / PREC. / PROB% / VENTO) === -->
+<style id="tri-mobile-column-headers-2025-09-10">
+@media (max-width:700px){
+  /* creiamo spazio per le etichette sopra la prima riga */
+  #dailyDetailPanel .hourly-list{ position:relative; padding-top: 18px !important; }
+  #dailyDetailPanel .hour-row:first-child .hr-time,
+  #dailyDetailPanel .hour-row:first-child .hr-temp,
+  #dailyDetailPanel .hour-row:first-child .hr-rain,
+  #dailyDetailPanel .hour-row:first-child .hr-prob,
+  #dailyDetailPanel .hour-row:first-child .hr-wind{
+    position: relative;
+  }
+  #dailyDetailPanel .hour-row:first-child .hr-time::before{
+    content: "ORA";
+    position:absolute; top:-16px; left:0;
+    font-size:10px; letter-spacing:.3px; opacity:.75;
+  }
+  #dailyDetailPanel .hour-row:first-child .hr-temp::before{
+    content: "TEMP°C";
+    position:absolute; top:-16px; left:0;
+    font-size:10px; letter-spacing:.3px; opacity:.75;
+  }
+  #dailyDetailPanel .hour-row:first-child .hr-rain::before{
+    content: "PREC.";
+    position:absolute; top:-16px; left:0;
+    font-size:10px; letter-spacing:.3px; opacity:.75;
+  }
+  #dailyDetailPanel .hour-row:first-child .hr-prob::before{
+    content: "PROB%";
+    position:absolute; top:-16px; left:0;
+    font-size:10px; letter-spacing:.3px; opacity:.75;
+  }
+  #dailyDetailPanel .hour-row:first-child .hr-wind::before{
+    content: "VENTO";
+    position:absolute; top:-16px; right:0; /* il valore è allineato a destra */
+    font-size:10px; letter-spacing:.3px; opacity:.75;
+    text-align:right; width:100%;
+  }
+}
+</style>
+
+
+<!-- === PATCH 2025-09-10 — Header fuori dalle card con etichette colonne === -->
+<style id="tri-mobile-outside-header-2025-09-10-old">
+@media (max-width:700px){
+  #dailyDetailPanel .card > h3{ display:none !important; } /* nasconde 'Dettaglio triorario' */
+
+  #dailyDetailPanel .tri-header{
+    display:grid;
+    grid-template-columns: 66px 36px 44px auto auto 56px; /* ORA | (icona) | TEMP | PREC | PROB | VENTO */
+    align-items:end;
+    gap:6px;
+    padding: 0 8px 4px;
+    font-size:10px;
+    letter-spacing:.3px;
+    opacity:.8;
+  }
+  #dailyDetailPanel .tri-header .hdr-time{ grid-column:1; }
+  #dailyDetailPanel .tri-header .hdr-icon{ grid-column:2; } /* vuoto: solo per allineare */
+  #dailyDetailPanel .tri-header .hdr-temp{ grid-column:3; }
+  #dailyDetailPanel .tri-header .hdr-rain{ grid-column:4; }
+  #dailyDetailPanel .tri-header .hdr-prob{ grid-column:5; }
+  #dailyDetailPanel .tri-header .hdr-wind{ grid-column:6; text-align:right; }
+
+  /* Telefoni molto piccoli */
+  @media (max-width:420px){
+    #dailyDetailPanel .tri-header{
+      grid-template-columns: 62px 32px 42px auto auto 52px;
+      padding: 0 6px 4px;
+    }
+  }
+}
+</style>
+
+
+<script id="tri-mobile-outside-header-js-2025-09-10">
+(function(){
+  function ensureHeader(){
+    var panel = document.getElementById('dailyDetailPanel');
+    if(!panel) return;
+    var card = panel.querySelector('.card');
+    if(!card) return;
+    var content = card.querySelector('.content');
+    if(!content) return;
+
+    // nascondi l'H3 (fallback anche se il CSS non carica)
+    var h3 = card.querySelector('h3');
+    if(h3) h3.style.display = 'none';
+
+    // crea header se non esiste
+    if(!card.querySelector('.tri-header')){
+      var hdr = document.createElement('div');
+      hdr.className = 'tri-header';
+      hdr.innerHTML = '<span class="hdr-time">ORA</span>' +
+                      '<span class="hdr-icon"></span>' +
+                      '<span class="hdr-temp">TEMP°C</span>' +
+                      '<span class="hdr-rain">PREC.</span>' +
+                      '<span class="hdr-prob">PROB%</span>' +
+                      '<span class="hdr-wind">VENTO</span>';
+      card.insertBefore(hdr, content);
+    }
+  }
+
+  // prova subito
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ensureHeader);
+  }else{
+    ensureHeader();
+  }
+
+  // se il pannello viene rigenerato, reinserisci l'header
+  var obs = new MutationObserver(function(){
+    ensureHeader();
+  });
+  obs.observe(document.documentElement, {childList:true, subtree:true});
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-10 — CLEANUP: un solo header fuori, nessun duplicato === -->
+<style id="tri-mobile-header-cleanup-2025-09-10">
+@media (max-width:700px){
+  /* 1) Disattiva etichette nella PRIMA RIGA (quelle pseudo-element) */
+  #dailyDetailPanel .hour-row:first-child .hr-time::before,
+  #dailyDetailPanel .hour-row:first-child .hr-temp::before,
+  #dailyDetailPanel .hour-row:first-child .hr-rain::before,
+  #dailyDetailPanel .hour-row:first-child .hr-prob::before,
+  #dailyDetailPanel .hour-row:first-child .hr-wind::before{
+    content: none !important;
+  }
+  /* 2) Ripristina l'offset top aggiunto allora */
+  #dailyDetailPanel .hourly-list{ padding-top: 0 !important; }
+
+  /* 3) Nessuno spazio extra attorno al titolo/area header */
+  #dailyDetailPanel .card{ margin-top: 0 !important; }
+}
+</style>
+
+<script id="tri-mobile-header-dedupe-2025-09-10">
+(function(){
+  function dedupeHeader(){
+    var panel = document.getElementById('dailyDetailPanel');
+    if(!panel) return;
+    var card = panel.querySelector('.card');
+    if(!card) return;
+    var headers = card.querySelectorAll('.tri-header');
+    if(headers.length > 1){
+      // lascia solo il primo
+      for(var i=1;i<headers.length;i++){ headers[i].remove(); }
+    }
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', dedupeHeader);
+  }else{
+    dedupeHeader();
+  }
+  new MutationObserver(dedupeHeader).observe(document.getElementById('dailyDetailPanel')||document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-10 — Allineamento preciso intestazioni con prima riga === -->
+<style id="tri-mobile-outside-header-flex-2025-09-10">
+@media (max-width:700px){
+  #dailyDetailPanel .tri-header{
+    display:flex; align-items:flex-end; gap:6px;
+    padding:0 8px 4px;
+    font-size:10px; letter-spacing:.3px; opacity:.8;
+    position:relative;
+  }
+  #dailyDetailPanel .tri-header > span{ flex:0 0 auto; }
+  #dailyDetailPanel .tri-header .hdr-wind{ text-align:right; }
+}
+</style>
+<script id="tri-mobile-sync-widths-2025-09-10">
+(function(){
+  function syncHeader(){
+    var panel=document.getElementById('dailyDetailPanel'); if(!panel) return;
+    var card=panel.querySelector('.card'); if(!card) return;
+    var header=card.querySelector('.tri-header'); if(!header) return;
+    var firstRow=card.querySelector('.hour-row'); if(!firstRow) return;
+
+    var map=[
+      ['.hr-time','.hdr-time'],
+      ['.hr-icon','.hdr-icon'],
+      ['.hr-temp','.hdr-temp'],
+      ['.hr-rain','.hdr-rain'],
+      ['.hr-prob','.hdr-prob'],
+      ['.hr-wind','.hdr-wind']
+    ];
+    map.forEach(function(pair){
+      var cell=firstRow.querySelector(pair[0]);
+      var hdr=header.querySelector(pair[1]);
+      if(cell && hdr){
+        var w=Math.round(cell.getBoundingClientRect().width);
+        // protezione per valori strani
+        if(w>0 && w<400){
+          hdr.style.flex='0 0 '+w+'px';
+        }
+      }
+    });
+  }
+
+  function init(){
+    syncHeader();
+    window.addEventListener('resize', syncHeader);
+    var panel=document.getElementById('dailyDetailPanel')||document.documentElement;
+    new MutationObserver(syncHeader).observe(panel,{childList:true,subtree:true});
+  }
+
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); }
+  else { init(); }
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-10 — Allineamento pixel-perfect (posizionamento assoluto) === -->
+<style id="tri-mobile-outside-header-absolute-2025-09-10">
+@media (max-width:700px){
+  #dailyDetailPanel .tri-header{
+    position: relative;
+    height: 16px;                 /* spazio per le etichette */
+    padding: 0 8px 4px;
+    font-size: 10px;
+    letter-spacing: .3px;
+    opacity: .8;
+  }
+  #dailyDetailPanel .tri-header > span{
+    position: absolute; top: 0;
+    white-space: nowrap;
+    transform: translateX(0);     /* evitare eredità */
+  }
+  #dailyDetailPanel .tri-header .hdr-wind{ text-align: right; }
+}
+</style>
+<script id="tri-mobile-absolute-align-2025-09-10">
+(function(){
+  function alignAbsolute(){
+    var panel=document.getElementById('dailyDetailPanel'); if(!panel) return;
+    var card=panel.querySelector('.card'); if(!card) return;
+    var header=card.querySelector('.tri-header'); if(!header) return;
+    var firstRow=card.querySelector('.hour-row'); if(!firstRow) return;
+
+    var container=header.getBoundingClientRect();
+
+    var pairs=[
+      ['.hr-time','.hdr-time','left'],
+      ['.hr-icon',null,null], // solo offset
+      ['.hr-temp','.hdr-temp','left'],
+      ['.hr-rain','.hdr-rain','left'],
+      ['.hr-prob','.hdr-prob','left'],
+      ['.hr-wind','.hdr-wind','right']
+    ];
+
+    var leftSoFar = 0;
+    var lastRight = container.left;
+
+    // mappa cell -> {left,width}
+    var rects = {};
+    ['.hr-time','.hr-icon','.hr-temp','.hr-rain','.hr-prob','.hr-wind'].forEach(function(sel){
+      var el=firstRow.querySelector(sel);
+      if(el){
+        var r=el.getBoundingClientRect();
+        rects[sel]={left:r.left, width:r.width, right:r.right};
+      }
+    });
+
+    // posiziona ciascuna intestazione esattamente sopra la relativa cella
+    [['.hr-time','.hdr-time'],['.hr-temp','.hdr-temp'],['.hr-rain','.hdr-rain'],['.hr-prob','.hdr-prob']].forEach(function(p){
+      var cr=rects[p[0]]; var lab=header.querySelector(p[1]);
+      if(cr&&lab){
+        var l = Math.round(cr.left - container.left);
+        var w = Math.round(cr.width);
+        lab.style.left = l+'px';
+        lab.style.width = w+'px';
+        lab.style.textAlign = 'left';
+      }
+    });
+
+    var windR = rects['.hr-wind'], labW = header.querySelector('.hdr-wind');
+    if(windR && labW){
+      var l = Math.round(windR.left - container.left);
+      var w = Math.round(windR.width);
+      labW.style.left = l+'px';
+      labW.style.width = w+'px';
+      labW.style.textAlign = 'right';
+    }
+  }
+
+  function init(){
+    alignAbsolute();
+    window.addEventListener('resize', alignAbsolute);
+    var root=document.getElementById('dailyDetailPanel')||document.documentElement;
+    new MutationObserver(alignAbsolute).observe(root,{childList:true,subtree:true});
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); }
+  else { init(); }
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-10 — Crea .hr-prob wrappando la % dentro .hr-rain === -->
+<script id="tri-mobile-wrap-prob-2025-09-10">
+(function(){
+  function wrapProb(){
+    var rows = document.querySelectorAll('#dailyDetailPanel .hour-row');
+    rows.forEach(function(row){
+      // se esiste già .hr-prob per questa riga, salta
+      if(row.querySelector('.hr-prob')) return;
+      var rain = row.querySelector('.hr-rain');
+      if(!rain) return;
+      // lavora su HTML per gestire anche eventuali <span> interni
+      var html = rain.innerHTML;
+      // cerca l'ultima occorrenza di "·" seguita da una percentuale
+      var m = html.match(/(.+?)·\s*([0-9]+(?:\.[0-9]+)?)%\s*$/);
+      if(m){
+        rain.innerHTML = m[1] + '· <span class="hr-prob">' + m[2] + '%</span>';
+      }else{
+        // fallback: se finisce con % senza "·"
+        var m2 = html.match(/(.+?)([0-9]+(?:\.[0-9]+)?)%\s*$/);
+        if(m2){
+          rain.innerHTML = m2[1] + '<span class="hr-prob">' + m2[2] + '%</span>';
+        }
+      }
+    });
+  }
+  function init(){
+    wrapProb();
+    // riallinea anche quando i dati cambiano
+    var root = document.getElementById('dailyDetailPanel') || document.documentElement;
+    new MutationObserver(wrapProb).observe(root,{childList:true,subtree:true});
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); }
+  else { init(); }
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-10 — Expand tri-hour row into hourly cards on click === -->
+<style id="tri-hourly-expand-2025-09-10">
+/* Look & feel for sub-hour cards */
+#dailyDetailPanel .hour-row{ cursor: pointer; }
+#dailyDetailPanel .hour-row .subhours{
+  overflow: hidden;
+  transition: grid-template-rows .25s ease, padding .2s ease;
+  display: grid;
+  grid-template-rows: 0fr;     /* collapsed */
+}
+#dailyDetailPanel .hour-row.expanded .subhours{
+  grid-template-rows: 1fr;     /* expanded */
+  padding-top: 6px;
+}
+#dailyDetailPanel .hour-row .subhours > div{
+  min-height: 0;
+}
+#dailyDetailPanel .sub-hour{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; margin:6px 0;
+  border-radius:12px;
+  background: rgba(255,255,255,.06);
+}
+
+/* reuse same column classes for alignment */
+#dailyDetailPanel .sub-hour .hr-time{ width: 64px; font-weight:600; }
+#dailyDetailPanel .sub-hour .hr-icon{ width: 28px; display:flex; justify-content:center; }
+#dailyDetailPanel .sub-hour .hr-temp{ width: 44px; }
+#dailyDetailPanel .sub-hour .hr-rain{ width: auto; }
+#dailyDetailPanel .sub-hour .hr-prob{ width: auto; margin-left: 6px; }
+#dailyDetailPanel .sub-hour .hr-wind{ width: 56px; margin-left:auto; text-align:right; }
+#dailyDetailPanel .sub-hour .hr-desc{ flex:1 1 auto; min-width: 100px; }
+
+/* hover/active feedback */
+@media (hover:hover){
+  #dailyDetailPanel .hour-row:hover{ filter: brightness(1.02); }
+}
+#dailyDetailPanel .hour-row:active{ filter: brightness(0.98); }
+</style>
+
+
+<script id="tri-hourly-expand-js-2025-09-10">
+(function(){
+  function parseRange(txt){
+    // "09:00–11:00" or "09:00 - 11:00"
+    var m = txt.match(/(\d{2}):(\d{2}).*?(\d{2}):(\d{2})/);
+    if(!m) return [];
+    var s = parseInt(m[1],10), e = parseInt(m[3],10);
+    // normalize end possibly < start across midnight
+    var hours = [];
+    for(var h=s; ; h=(h+1)%24){
+      hours.push((h<10?'0':'')+h+':00');
+      if(h===e) break;
+      if(hours.length>24) break;
+    }
+    return hours;
+  }
+
+  function getHourlyFromTable(hourStr){
+    var tbl = document.querySelector('#triModal .hourly-table');
+    if(!tbl) return null;
+    var rows = Array.from(tbl.querySelectorAll('tr'));
+    // find a row whose first cell contains the hour string
+    for(var i=0;i<rows.length;i++){
+      var tcell = rows[i].querySelector('td,th');
+      if(!tcell) continue;
+      if((tcell.textContent||'').indexOf(hourStr) !== -1){
+        var tds = rows[i].querySelectorAll('td');
+        if(!tds || tds.length===0) continue;
+        // expected indexes (based on earlier patches):
+        // 1: time, 2: icon, 4: temp, 6: mm, 7: prob, 8: wind
+        var temp = (tds[2] && tds[2].textContent.trim()) || '';
+        var mm   = (tds[5] && tds[5].textContent.trim()) || '';
+        var prob = (tds[6] && tds[6].textContent.trim()) || '';
+        var wind = (tds[7] && tds[7].textContent.trim()) || '';
+        // icon
+        var iconCell = tds[1];
+        var iconHTML = iconCell ? iconCell.innerHTML : '';
+        return {temp: temp, mm: mm, prob: prob, wind: wind, iconHTML: iconHTML, desc: ''};
+      }
+    }
+    return null;
+  }
+
+  function buildSubHour(hourStr, data, fallbackIconHTML){
+    var el = document.createElement('div');
+    el.className = 'sub-hour';
+    el.innerHTML =
+      '<div class="hr-time">'+hourStr+'</div>'+
+      '<div class="hr-icon">'+(data && data.iconHTML ? data.iconHTML : (fallbackIconHTML||''))+'</div>'+
+      '<div class="hr-temp">'+(data && data.temp ? data.temp : '—')+'</div>'+
+      '<div class="hr-rain">'+(data && data.mm ? data.mm : '—')+'</div>'+
+      '<div class="hr-prob">'+(data && data.prob ? data.prob : '—')+'</div>'+
+      '<div class="hr-wind">'+(data && data.wind ? data.wind : '—')+'</div>';
+    return el;
+  }
+
+  function toggleRow(row){
+    row.classList.toggle('expanded');
+    var box = row.querySelector('.subhours');
+    if(!box){
+      box = document.createElement('div');
+      box.className = 'subhours';
+      box.innerHTML = '<div></div>';
+      row.appendChild(box);
+    }
+    var content = box.firstElementChild;
+    if(row.classList.contains('expanded')){
+      // populate once
+      if(!content.hasChildNodes()){
+        var timeTxt = (row.querySelector('.hr-time')||row).textContent;
+        var hours = parseRange(timeTxt);
+        var icon = row.querySelector('.hr-icon'); var fallbackIconHTML = icon ? icon.innerHTML : '';
+        hours.forEach(function(hs){
+          var d = getHourlyFromTable(hs);
+          content.appendChild(buildSubHour(hs, d, fallbackIconHTML));
+        });
+      }
+    }else{
+      // collapse (keep children for performance)
+    }
+  }
+
+  function attachHandlers(){
+    document.querySelectorAll('#dailyDetailPanel .hour-row').forEach(function(row){
+      if(row.dataset.expandableAttached) return;
+      row.dataset.expandableAttached = '1';
+      row.addEventListener('click', function(e){
+        // ignore clicks on links/buttons to avoid conflicts
+        if(e.target.closest('a,button')) return;
+        toggleRow(row);
+      });
+    });
+  }
+
+  function init(){
+    attachHandlers();
+    var root = document.getElementById('dailyDetailPanel') || document.documentElement;
+    new MutationObserver(attachHandlers).observe(root,{childList:true,subtree:true});
+  }
+
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); }
+  else { init(); }
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-10 — Sub-ore con dati REALI da fc.hourly === -->
+<script id="tri-hourly-expand-use-fc-2025-09-10">
+(function(){
+  function iconFor(code, hourText){
+    try{
+      var night = false;
+      // heuristica semplice: notte 20–5
+      var h = parseInt((hourText||'00').slice(0,2),10);
+      if(!(isNaN(h))) night = (h>=20 || h<=5);
+      if(typeof window.iconHTML_NOEMOJI==='function'){
+        return window.iconHTML_NOEMOJI(Number(code), night) || '';
+      }
+    }catch(_e){}
+    return '';
+  }
+  function wmo(code){
+    try{ if(typeof window.wmoDesc==='function') return window.wmoDesc(Number(code))||''; }catch(_e){}
+    return '';
+  }
+  function fmt(val, unit){
+    if(val==null || val==='') return '—';
+    return String(val) + (unit||'');
+  }
+  function getHourlyFromFC(hourStr){
+    try{
+      var fc = window.fc || null;
+      if(!fc || !fc.hourly) return null;
+      var t = fc.hourly.time||[];
+      var idx = -1;
+      for(var i=0;i<t.length;i++){
+        // t[i] is ISO like "2025-09-10T09:00"
+        var hh = (t[i]||'').slice(11,16);
+        if(hh===hourStr){ idx=i; break; }
+      }
+      if(idx<0) return null;
+      var temp = fc.hourly.temperature_2m ? (Math.round(fc.hourly.temperature_2m[idx]) + '°') : '';
+      var mm = fc.hourly.precipitation ? (Number(fc.hourly.precipitation[idx]).toFixed(1) + ' mm') : '';
+      var prob = fc.hourly.precipitation_probability ? (String(fc.hourly.precipitation_probability[idx]||0)+'%') : '';
+      var wind = fc.hourly.wind_speed_10m ? (Math.round(fc.hourly.wind_speed_10m[idx]) + ' km/h') : '';
+      var code = fc.hourly.weathercode ? fc.hourly.weathercode[idx] : null;
+      var iconHTML = iconFor(code, hourStr);
+      var desc = wmo(code);
+      return {temp: temp, mm: mm, prob: prob, wind: wind, iconHTML: iconHTML, desc: desc};
+    }catch(_e){ return null; }
+  }
+
+  // Hook dentro lo script di espansione esistente se presente
+  function patch(){
+    var ns = window.__triHourlyExpandNS = (window.__triHourlyExpandNS||{});
+    ns.getHourlyFromFC = getHourlyFromFC;
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', patch); } else { patch(); }
+})();
+</script>
+<script id="tri-hourly-expand-use-fc-wire-2025-09-10">
+(function(){
+  // Ricollega toggleRow per preferire i dati reali
+  function wire(){
+    var scr = document.querySelector('#tri-hourly-expand-js');
+    if(!scr) return;
+    // Se l'installer originale ha esposto i metodi, estendiamoli
+    var ns = window.__triHourlyExpandNS = (window.__triHourlyExpandNS||{});
+    ns._getData = function(hourStr){
+      // 1) prova da fc.hourly (reale)
+      if(ns.getHourlyFromFC){
+        var d = ns.getHourlyFromFC(hourStr);
+        if(d) return d;
+      }
+      // 2) fallback da tabella nel modal
+      try{
+        var tbl = document.querySelector('#triModal .hourly-table');
+        if(tbl){
+          var rows = Array.from(tbl.querySelectorAll('tr'));
+          for(var i=0;i<rows.length;i++){
+            var c = rows[i].querySelector('td,th');
+            if(!c) continue;
+            if((c.textContent||'').indexOf(hourStr)!==-1){
+              var tds=rows[i].querySelectorAll('td');
+              var temp=(tds[2]&&tds[2].textContent.trim())||'';
+              var mm=(tds[5]&&tds[5].textContent.trim())||'';
+              var prob=(tds[6]&&tds[6].textContent.trim())||'';
+              var wind=(tds[7]&&tds[7].textContent.trim())||'';
+              var iconCell=tds[1]; var iconHTML=iconCell?iconCell.innerHTML:'';
+              return {temp:temp, mm:mm, prob:prob, wind:wind, iconHTML:iconHTML, desc:''};
+            }
+          }
+        }
+      }catch(_e){}
+      return null;
+    };
+
+    // monkey-patch toggleRow from earlier script, keeping original as backup
+    var code = scr.textContent;
+    if(code && !window._triTogglePatched){
+      window._triTogglePatched = true;
+      // Define a global function used by click handler
+      window._tri_getDataForHour = ns._getData;
+      // Attach a capture listener to use the new data provider
+      document.addEventListener('click', function(e){
+        var row = e.target.closest && e.target.closest('#dailyDetailPanel .hour-row');
+        if(!row) return;
+        // The original handler will still run; we re-populate if needed
+        setTimeout(function(){
+          if(row.classList.contains('expanded')){
+            var box=row.querySelector('.subhours>div');
+            if(box && box.children.length>0){
+              // If placeholders present (—), replace with real data if available
+              Array.from(box.children).forEach(function(sh){
+                var h = (sh.querySelector('.hr-time')||{}).textContent||'';
+                var temp=sh.querySelector('.hr-temp');
+                var rain=sh.querySelector('.hr-rain');
+                var prob=sh.querySelector('.hr-prob');
+                var wind=sh.querySelector('.hr-wind');
+                var icon=sh.querySelector('.hr-icon');
+                var d = window._tri_getDataForHour(h);
+                if(d){
+                  if(temp) temp.textContent = d.temp||'—';
+                  if(rain) rain.textContent = d.mm||'—';
+                  if(prob) prob.textContent = d.prob||'—';
+                  if(wind) wind.textContent = d.wind||'—';
+                  if(icon && d.iconHTML){
+                    icon.innerHTML = d.iconHTML;
+                  }
+                }
+              });
+            }
+          }
+        }, 0);
+      }, true);
+    }
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', wire); } else { wire(); }
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-10 — Finder robusto dei dati orari + mapping locale === -->
+<script id="tri-hourly-expand-robust-source-2025-09-10">
+(function(){
+  function findForecast(){
+    // 1) Prefer window.fc se valido
+    if(window.fc && window.fc.hourly && Array.isArray(window.fc.hourly.time)) return window.fc;
+    // 2) Scansione superficiale delle proprietà globali (non enumerable di librerie)
+    var cand = null;
+    for (var k in window){
+      try{
+        var v = window[k];
+        if(!v || typeof v!=='object') continue;
+        if(v.hourly && v.hourly.time && Array.isArray(v.hourly.time) &&
+           (v.hourly.temperature_2m || v.hourly.temperature)){
+          cand = v; break;
+        }
+      }catch(_e){}
+    }
+    return cand;
+  }
+
+  function localTimeStr(iso){
+    try{
+      var d = new Date(iso);
+      // se è una stringa tipo "2024-09-10T06:00" senza timezone, trattala come locale
+      if(/T\d{2}:\d{2}$/.test(iso) && !/[Z\+\-]\d{2}:?\d{2}$/.test(iso)){
+        var hh = iso.slice(11,16);
+        return hh;
+      }
+      var h = d.getHours();
+      var m = d.getMinutes();
+      return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
+    }catch(_e){ return ''; }
+  }
+
+  function getHourlyFromAny(hourStr){
+    var fc = findForecast(); if(!fc) return null;
+    var t = fc.hourly.time||[];
+    var idx = -1;
+    for(var i=0;i<t.length;i++){
+      if(localTimeStr(t[i])===hourStr){ idx=i; break; }
+    }
+    if(idx<0) return null;
+    var H = fc.hourly;
+    var temp = H.temperature_2m ? (Math.round(H.temperature_2m[idx])+'°')
+              : H.temperature ? (Math.round(H.temperature[idx])+'°') : '';
+    var mm = H.precipitation ? (Number(H.precipitation[idx]||0).toFixed(1)+' mm') : '';
+    var prob = H.precipitation_probability ? (String(H.precipitation_probability[idx]||0)+'%') : '';
+    var wind = H.wind_speed_10m ? (Math.round(H.wind_speed_10m[idx]||0)+' km/h')
+              : H.windspeed_10m ? (Math.round(H.windspeed_10m[idx]||0)+' km/h') : '';
+    var code = H.weathercode ? H.weathercode[idx] : null;
+    var night = (parseInt(hourStr.slice(0,2),10)>=20 || parseInt(hourStr.slice(0,2),10)<=5);
+    var iconHTML = (typeof window.iconHTML_NOEMOJI==='function') ? (window.iconHTML_NOEMOJI(Number(code), night)||'') : '';
+    var desc = (typeof window.wmoDesc==='function') ? (window.wmoDesc(Number(code))||'') : '';
+    return {temp:temp, mm:mm, prob:prob, wind:wind, iconHTML:iconHTML, desc:desc};
+  }
+
+  function repopulateRow(row){
+    var box=row.querySelector('.subhours>div'); if(!box) return;
+    Array.from(box.children).forEach(function(sh){
+      var h = (sh.querySelector('.hr-time')||{}).textContent||'';
+      var data = getHourlyFromAny(h);
+      if(data){
+        var temp=sh.querySelector('.hr-temp'); if(temp) temp.textContent=data.temp||'—';
+        var rain=sh.querySelector('.hr-rain'); if(rain) rain.textContent=data.mm||'—';
+        var prob=sh.querySelector('.hr-prob'); if(prob) prob.textContent=data.prob||'—';
+        var wind=sh.querySelector('.hr-wind'); if(wind) wind.textContent=data.wind||'—';
+        var icon=sh.querySelector('.hr-icon'); if(icon && data.iconHTML) icon.innerHTML=data.iconHTML;
+      }
+    });
+  }
+
+  function hook(){
+    // Quando si espande una riga, ripopola immediatamente
+    document.addEventListener('click', function(e){
+      var row=e.target.closest && e.target.closest('#dailyDetailPanel .hour-row.expanded');
+      if(row) setTimeout(function(){ repopulateRow(row); }, 0);
+    }, true);
+  }
+
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', hook); } else { hook(); }
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-10 — 7‑Giorni: box senza spazio laterale su mobile (solo #dailyPanel) === -->
+<style id="daily-seven-zero-gutters-2025-09-10">
+@media (max-width: 700px){
+  /* Riduce solo il contenitore del 7‑giorni, senza toccare le singole card .day */
+  #dailyPanel .card{
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+  }
+  /* Un minimo di respiro per titolo e contenuto */
+  #dailyPanel .card h3{ margin: 0 8px 8px !important; }
+  #dailyPanel .days{ padding: 0 8px 4px !important; }
+}
+</style>
+
+<!-- === PATCH 2025-09-11 — Hourly table: remove past hours for TODAY (non-destructive wrapper) === -->
+<script id="hourly-skip-past-2025-09-11">
+(function(){
+  function todayISO(){
+    try{ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }catch(_e){ return ""; }
+  }
+  function filterFutureToday(data, idx){
+    try{
+      if(!data || !data.hourly || !Array.isArray(data.hourly.time)) return {data:data, idx:idx};
+      var baseISO = (data.hourly.time[idx] ? String(data.hourly.time[idx]).slice(0,10) : "");
+      if(!baseISO || baseISO !== todayISO()) return {data:data, idx:idx};
+      var now = Date.now();
+      var rows = [];
+      for(var i=0;i<data.hourly.time.length;i++){
+        var t = String(data.hourly.time[i]||"");
+        if(t.slice(0,10)!==baseISO) continue;
+        if(Date.parse(t) >= now) rows.push(i);
+      }
+      if(!rows.length) return {data:data, idx:idx};
+      // clone subset
+      var sub = JSON.parse(JSON.stringify(data));
+      Object.keys(sub.hourly).forEach(function(k){
+        if(Array.isArray(sub.hourly[k])) sub.hourly[k] = rows.map(function(i){ return data.hourly[k][i]; });
+      });
+      return {data:sub, idx:0};
+    }catch(_e){ return {data:data, idx:idx}; }
+  }
+  function apply(){
+    try{
+      var base = window.renderHourly;
+      if(typeof base !== "function") return;
+      if(base.__skipPastWrap) return;
+      var wrapped = function(data, idx){
+        var r = filterFutureToday(data, (typeof idx==="number"?idx:0));
+        return base.call(this, r.data, r.idx);
+      };
+      wrapped.__skipPastWrap = true;
+      // preserve any flags used by other patches
+      Object.keys(base).forEach(function(k){ wrapped[k] = base[k]; });
+      window.renderHourly = wrapped;
+    }catch(_e){}
+  }
+  // Try immediately and for a short while, in case other hotfixes override later
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded", apply, {once:true});
+  }else{
+    apply();
+  }
+  var tries = 0, timer = setInterval(function(){ apply(); if(++tries>40) clearInterval(timer); }, 100);
+})();
+</script>
+
+<!-- === PATCH 2025-09-11 — 7-day strip: highlight and auto-reselect TODAY (non-destructive) === -->
+<style id="today-highlight-style-2025-09-11">
+  /* Soft yellow highlight for today's tile in the 7-day strip */
+  #dailyPanel .days .day.today{
+    background: #fff7b3 !important;
+    box-shadow: 0 0 0 2px #ffd54d inset;
+  }
+</style>
+<script id="seven-day-today-autoselect-2025-09-11">
+(function(){
+  function todayMMDD(){
+    try{ return new Date().toISOString().slice(5,10); }catch(_e){ return ""; }
+  }
+  function markAndMaybeClickToday(strip){
+    try{
+      if(!strip) return;
+      var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      if(!items.length) return;
+      var key = todayMMDD();
+      var todayEl = null;
+      for(var i=0;i<items.length;i++){
+        var t = items[i].querySelector('div'); // first inner div contains "MM-DD"
+        var txt = (t && t.textContent) ? t.textContent.trim() : "";
+        if(txt === key){
+          todayEl = items[i];
+          break;
+        }
+      }
+      if(!todayEl){
+        // Fallback: assume first is today (common case)
+        todayEl = items[0];
+      }
+      if(!todayEl) return;
+      todayEl.classList.add('today');
+
+      // If it's already selected, still "re-press" it after a short delay to refresh dependent panels.
+      if(!todayEl.dataset.autoreclicked){
+        todayEl.dataset.autoreclicked = "1";
+        // Try a couple of times in case other async code overrides selection
+        var delays = [220, 600, 1200];
+        delays.forEach(function(ms, idx){
+          setTimeout(function(){
+            try{
+              // Make sure element is still in DOM
+              if(!document.body.contains(todayEl)) return;
+              todayEl.dispatchEvent(new MouseEvent('click', {bubbles:true}));
+            }catch(_e){}
+          }, ms);
+        });
+      }
+    }catch(_e){}
+  }
+
+  function tryFindAndApply(){
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(strip) markAndMaybeClickToday(strip);
+    }catch(_e){}
+  }
+
+  // Observe mutations to #dailyPanel to run when the 7-day strip appears/refreshes
+  function setupObserver(){
+    try{
+      var panel = document.getElementById('dailyPanel');
+      if(!panel || panel.__todayObserverSetup) return;
+      panel.__todayObserverSetup = true;
+      var mo = new MutationObserver(function(muts){
+        for(var i=0;i<muts.length;i++){
+          var m = muts[i];
+          if(m.type === 'childList'){
+            // If any new .days or .day nodes appeared, apply
+            if(panel.querySelector('.days .day')){
+              markAndMaybeClickToday(panel.querySelector('.days'));
+            }
+          }
+        }
+      });
+      mo.observe(panel, {childList:true, subtree:true});
+    }catch(_e){}
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){
+      setupObserver();
+      // Initial attempt (in case content is already there)
+      tryFindAndApply();
+      // A couple more attempts to be resilient to async rendering
+      setTimeout(tryFindAndApply, 150);
+      setTimeout(tryFindAndApply, 500);
+    }, {once:true});
+  }else{
+    setupObserver();
+    tryFindAndApply();
+    setTimeout(tryFindAndApply, 150);
+    setTimeout(tryFindAndApply, 500);
+  }
+})();
+</script>
+
+<!-- === PATCH 2025-09-11 — Override: border-only highlight for today's day (no yellow fill) === -->
+<style id="today-highlight-style-2025-09-11-border-only">
+  /* Only draw a yellow ring; do NOT fill the card */
+  #dailyPanel .days .day.today{
+    background: inherit !important;          /* keep original background */
+    box-shadow: 0 0 0 3px #ffd54d inset !important; /* inner ring as border */
+  }
+</style>
+
+<!-- === PATCH 2025-09-11 — 7-day strip: Italian short date labels "DD Mon" (e.g., "11 Set") === -->
+<script id="seven-day-labels-it-2025-09-11">
+(function(){
+  var IT_MONTHS = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
+  function fmtDDMon(mm, dd){
+    var m = parseInt(mm,10); var d = parseInt(dd,10);
+    if(!(m>=1 && m<=12) || !(d>=1 && d<=31)) return null;
+    return d + " " + IT_MONTHS[m-1];
+  }
+  function extractMMDDFromText(txt){
+    if(!txt) return null;
+    txt = String(txt).trim();
+    // Patterns: "MM-DD" or "YYYY-MM-DD"
+    var m1 = txt.match(/^([0-1]?\d)-([0-3]?\d)$/); // e.g., "9-7" or "09-07"
+    if(m1) return (m1[1].padStart(2,"0") + "-" + m1[2].padStart(2,"0"));
+    var m2 = txt.match(/^\d{4}-([0-1]?\d)-([0-3]?\d)$/); // "2025-09-11"
+    if(m2) return (m2[1].padStart(2,"0") + "-" + m2[2].padStart(2,"0"));
+    return null;
+  }
+  function isAlreadyItalian(txt){
+    if(!txt) return false;
+    return /(\bGen\b|\bFeb\b|\bMar\b|\bApr\b|\bMag\b|\bGiu\b|\bLug\b|\bAgo\b|\bSet\b|\bOtt\b|\bNov\b|\bDic\b)/.test(txt);
+  }
+  function todayMMDD(){ try{ return new Date().toISOString().slice(5,10);}catch(_e){return "";} }
+
+  function reformatStrip(strip){
+    try{
+      var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      if(!items.length) return;
+      items.forEach(function(dayEl, idx){
+        // Choose a label container: the first direct child div or span with text
+        var labelEl = dayEl.querySelector('div,span');
+        if(!labelEl) return;
+        var current = (labelEl.textContent || "").trim();
+        // If already in Italian short format, skip (idempotent)
+        if(isAlreadyItalian(current)) return;
+
+        // Extract source MM-DD
+        var mmdd = dayEl.getAttribute('data-mmdd') || extractMMDDFromText(current);
+        if(!mmdd){
+          // Try from data-date or aria-label if present
+          mmdd = extractMMDDFromText(dayEl.getAttribute('data-date') || dayEl.getAttribute('aria-label') || "");
+        }
+        if(!mmdd){
+          // Last resort: leave as is
+          return;
+        }
+        // Store standardized key for compatibility with other scripts
+        dayEl.setAttribute('data-mmdd', mmdd);
+
+        var mm = mmdd.slice(0,2), dd = mmdd.slice(3,5);
+        var pretty = fmtDDMon(mm, dd);
+        if(pretty){
+          labelEl.textContent = pretty;
+        }
+
+        // If this item is today, and no one marked it yet, mark and (optionally) re-click
+        if(mmdd === todayMMDD()){
+          dayEl.classList.add('today');
+          if(!dayEl.dataset.autoreclicked){
+            dayEl.dataset.autoreclicked = "1";
+            setTimeout(function(){
+              try{ if(document.body.contains(dayEl)) dayEl.dispatchEvent(new MouseEvent('click', {bubbles:true})); }catch(_e){}
+            }, 240);
+          }
+        }
+      });
+    }catch(_e){}
+  }
+
+  function apply(){
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(strip) reformatStrip(strip);
+    }catch(_e){}
+  }
+
+  function setupObserver(){
+    try{
+      var panel = document.getElementById('dailyPanel');
+      if(!panel || panel.__itLabelsObserverSetup) return;
+      panel.__itLabelsObserverSetup = true;
+      var mo = new MutationObserver(function(muts){
+        for(var i=0;i<muts.length;i++){
+          var m = muts[i];
+          if(m.type === 'childList'){
+            if(panel.querySelector('.days .day')){
+              apply();
+            }
+          }
+        }
+      });
+      mo.observe(panel, {childList:true, subtree:true});
+    }catch(_e){}
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){
+      setupObserver();
+      apply();
+      setTimeout(apply, 120);
+      setTimeout(apply, 400);
+    }, {once:true});
+  }else{
+    setupObserver();
+    apply();
+    setTimeout(apply, 120);
+    setTimeout(apply, 400);
+  }
+})();
+</script>
+
+<!-- === PATCH 2025-09-11 — Narrative placement & refresh improvements === -->
+<script id="daily-narrative-fix-2025-09-11">
+(function(){
+  function ensurePlacementFix(){
+    try{
+      var box = document.getElementById('narrativeBox');
+      if(!box || !box.parentNode) return;
+      var dayParts = document.getElementById('dayParts');
+      var tri = document.getElementById('dailyDetailPanel');
+      var hourly = document.getElementById('hourlyPanel');
+      var anchor = null;
+      if(hourly && hourly.parentNode === box.parentNode){ anchor = hourly; }
+      else if(tri && tri.parentNode === box.parentNode){ anchor = tri; }
+      else if(dayParts && dayParts.parentNode === box.parentNode){ anchor = dayParts; }
+      if(anchor && anchor.nextSibling !== box){
+        anchor.parentNode.insertBefore(box, anchor.nextSibling);
+      }
+    }catch(_e){}
+  }
+
+  function hookHourly(){
+    try{
+      var base = window.renderHourly;
+      if(typeof base === 'function' && !base.__narrFix__){
+        var wrapped = function(){
+          var r = base.apply(this, arguments);
+          try{ ensurePlacementFix(); }catch(_e){}
+          try{ if(typeof window.render === 'function') window.render(); }catch(_e){}
+          return r;
+        };
+        wrapped.__narrFix__ = true;
+        Object.keys(base).forEach(function(k){ wrapped[k] = base[k]; });
+        window.renderHourly = wrapped;
+      }
+    }catch(_e){}
+  }
+
+  function boot(){
+    ensurePlacementFix();
+    hookHourly();
+    // Watch for layout changes
+    try{
+      var mo = new MutationObserver(function(){
+        try{ ensurePlacementFix(); }catch(_e){}
+      });
+      mo.observe(document.body, {childList:true, subtree:true});
+    }catch(_e){}
+    // A couple of delayed attempts for async renderers
+    setTimeout(ensurePlacementFix, 120);
+    setTimeout(ensurePlacementFix, 400);
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot, {once:true});
+  }else{
+    boot();
+  }
+})();
+</script>
+
+<!-- === PATCH assistant-below-narrative-v2-2025-09-11: move assistant under #narrativeBox and ensure visibility === -->
+<script id="assistant-below-narrative-v2-2025-09-11">
+(function(){
+  var RUN_FLAG = "assistant-below-narrative-v2-2025-09-11__mounted";
+  function ensureAssistantPlacement(){ 
+    try{ 
+      var ai = document.getElementById('mlgAiBox');
+      var narr = document.getElementById('narrativeBox');
+      if(!ai || !narr) return;
+
+      // Always ensure it's visible, even if other scripts set it hidden
+      try{ 
+        ai.style.visibility = 'visible';
+        if(ai.hasAttribute('style')){ 
+          // Strip only visibility:hidden if present in inline style
+          ai.setAttribute('style', ai.getAttribute('style').replace(/visibility\s*:\s*hidden\s*;?/i, ''));
+        }
+      }catch(_e){}
+
+      // Create (once) a dedicated mount right after #narrativeBox
+      var mountId = 'mlgAiMountAfterNarrative';
+      var mount = document.getElementById(mountId);
+      if(!mount){ 
+        mount = document.createElement('div');
+        mount.id = mountId;
+        // Keep layout tidy
+        mount.style.marginTop = '12px';
+        narr.parentNode.insertBefore(mount, narr.nextSibling);
+      }
+
+      // If AI is not already inside the mount, move it there (safe re-parenting)
+      if(ai.parentNode !== mount){ 
+        mount.appendChild(ai);
+      }
+    }catch(_e){ /* swallow */ }
+  }
+
+  function boot(){
+    if(window[RUN_FLAG]) return;
+    window[RUN_FLAG] = true;
+    ensureAssistantPlacement();
+
+    // Re-apply after common UI changes
+    setTimeout(ensureAssistantPlacement, 80);
+    setTimeout(ensureAssistantPlacement, 200);
+    setTimeout(ensureAssistantPlacement, 800);
+
+    try{ 
+      var mo = new MutationObserver(ensureAssistantPlacement);
+      mo.observe(document.documentElement, { childList:true, subtree:true });
+    }catch(_e){}
+  }
+
+  if(document.readyState === 'loading'){ 
+    document.addEventListener('DOMContentLoaded', boot, {once:true});
+  } else { 
+    boot();
+  }
+})();
+</script>
+
+
+<script>
+(function(){
+  // Force override after everything is defined
+  function getSelIdx(){
+    try{
+      var strip=document.querySelector('#dailyPanel .days');
+      if(strip){
+        var items=[].slice.call(strip.querySelectorAll('.day'));
+        var i=items.findIndex(function(el){return el.classList && el.classList.contains('sel');});
+        if(i>=0) return i;
+      }
+    }catch(e){}
+    return Number(window.curDay||0)||0;
+  }
+  function dayRows(H, selIdx){
+    var t = H.time || H.datetime || [];
+    var rows=[];
+    try{
+      var d0 = new Date();
+      d0.setHours(0,0,0,0);
+      var target = new Date(d0);
+      target.setDate(target.getDate()+selIdx);
+      function ymd(x){ var d=new Date(x); return [d.getFullYear(),d.getMonth(),d.getDate()].join('-'); }
+      var tgt = ymd(target);
+      for (var i=0;i<t.length;i++){
+        var di = new Date(t[i]);
+        if(ymd(di)===tgt){ rows.push(i); }
+      }
+    }catch(e){ /* fallback: all rows */ rows = t.map((_,i)=>i); }
+    return rows;
+  }
+  function classifyWind(wmax, gmax){
+    if((wmax>=60) || (gmax>=70)) return "forti";
+    if(wmax>=35) return "moderati";
+    return "deboli";
+  }
+  function hourOf(H, i){
+    if(H.hour && H.hour[i]!=null) return Number(H.hour[i]);
+    var ti = H.time && String(H.time[i]);
+    if(ti){
+      var m = ti.match(/T(\d{2})/);
+      if(m) return Number(m[1]);
+    }
+    return null;
+  }
+  function phraseForSegment(i, rows, H){
+    var idxs = rows.filter(function(k){
+      var h = hourOf(H,k);
+      if(h==null) return true;
+      if(i===0) return h>=6 && h<12;
+      if(i===1) return h>=12 && h<18;
+      if(i===2) return h>=18 && h<24;
+      if(i===3) return h>=0 && h<6;
+    });
+    var pc = (H.precipitation || H.precip || H.prec || []).map(Number);
+    var codes = (H.weathercode||[]);
+    var sum = 0;
+    idxs.forEach(function(k){ var v = +(pc[k]||0); if(isFinite(v)) sum+=v; });
+    var freq = {};
+    idxs.forEach(function(k){ var c = +(codes[k]||0); if(!isFinite(c)) return; freq[c]=(freq[c]||0)+1; });
+    var dom = null, domN = -1; for (var k in freq){ if(freq[k]>domN){ dom=+k; domN=freq[k]; } }
+    function skyFromCode(c){
+      if([0].includes(c)) return "cielo sereno";
+      if([1,2].includes(c)) return "cielo poco o parzialmente nuvoloso";
+      if([3].includes(c)) return "cielo molto nuvoloso o coperto";
+      if([45,48].includes(c)) return "foschie o banchi di nebbia";
+      if([80,81,82].includes(c)) return "piogge e schiarite";
+      if([61,63,65,66,67].includes(c)) return "piogge";
+      if([51,53,55,56,57].includes(c)) return "pioviggine";
+      if([71,73,75,77,85,86].includes(c)) return "neve";
+      if([95,96,99].includes(c)) return "temporali";
+      return "condizioni variabili";
+    }
+    function intensityFrom(mm){
+      if(mm>=20) return "abbondanti";
+      if(mm>=8) return "moderate";
+      if(mm>=1) return "deboli";
+      return "a tratti";
+    }
+    var sky = skyFromCode(dom);
+    var fasciaLab = ["al mattino","al pomeriggio","in serata","di notte"];
+    if(sum>0.1){
+      var qual = "";
+      if([61,63,65,66,67,80,81,82].includes(dom)){
+        qual = " " + intensityFrom(sum);
+      }else if([51,53,55,56,57].includes(dom)){
+        qual = " " + (sum>1?"moderata":"debole");
+      }
+      var what = sky;
+      if(sky==="piogge"){ what = "piogge"+qual; }
+      else if(sky==="pioviggine"){ what = "pioviggine"+qual; }
+      else if(sky==="piogge e schiarite"){ what = "piogge e schiarite"; }
+      else if(sky==="neve"){ what = "neve"+qual; }
+      else if(sky==="temporali"){ what = "temporali"; }
+      return what + " ("+fasciaLab[i]+")";
+    }else{
+      return sky + " " + ["al mattino","al pomeriggio","in serata","di notte"][i];
+    }
+  }
+  function computeWet(rows,H){
+    var pc = (H.precipitation || H.prec || H.precip || []).map(Number);
+    var wet=[false,false,false,false];
+    rows.forEach(function(k){
+      var h = hourOf(H,k);
+      var val = +(pc[k]||0);
+      var iw = (val>0.05);
+      if(h==null){ if(iw){ wet=[true,true,true,true]; } return; }
+      if(h>=6 && h<12){ wet[0] = wet[0] || iw; }
+      else if(h>=12 && h<18){ wet[1] = wet[1] || iw; }
+      else if(h>=18 && h<24){ wet[2] = wet[2] || iw; }
+      else { wet[3] = wet[3] || iw; }
+    });
+    return wet;
+  }
+  function whenPhraseFromIndex(idx){
+    if(idx===0) return "per le prossime ore";
+    if(idx===1) return "per domani";
+    try{
+      var d = new Date(); d.setDate(d.getDate()+idx);
+      var it = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
+      return "per " + it[d.getDay()];
+    }catch(e){ return "nei prossimi giorni"; }
+  }
+  function getPlace(fc){
+    var p = (fc && (fc.place||fc.city||fc.name)) || (window.placeName) || "";
+    if(!p){
+      var el = document.querySelector('#search input, #placeName, .place-name');
+      if(el) p = el.value || el.textContent || "";
+    }
+    return p.trim();
+  }
+  function getWindClass(H, rows){
+    var w = (H.windspeed_10m || H.wind || []).map(Number);
+    var g = (H.gusts_10m || H.gust || []).map(Number);
+    var wmax = 0, gmax=0;
+    rows.forEach(function(k){
+      var a=+(w[k]||0); if(a>wmax) wmax=a;
+      var b=+(g[k]||0); if(b>gmax) gmax=b;
+    });
+    return classifyWind(wmax,gmax);
+  }
+
+  function override(){
+    var orig = window.computeFutureNarrative || null;
+    window.computeFutureNarrative = function(fc){
+      try{
+        var selIdx = getSelIdx();
+        var H = (fc && (fc.H || fc.hourly)) || (window.H) || {};
+        var place = getPlace(fc) || (fc && fc.place) || "";
+        var rows = (function(){ try{ return (fc && fc.rows && fc.rows.length) ? fc.rows : dayRows(H, selIdx); }catch(e){ return dayRows(H, selIdx); } })();
+        var wet = computeWet(rows,H);
+        var isToday = (selIdx===0);
+        var order = (isToday && wet[3]) ? [3,0,1,2] : [0,1,2,3];
+        var segs = order.map(function(i){ return phraseForSegment(i, rows, H); }).filter(Boolean);
+        var anyWet = wet[0]||wet[1]||wet[2]||wet[3];
+        var whenPhrase = whenPhraseFromIndex(selIdx);
+        var lead = "Secondo Meteo Lo Gullo " + whenPhrase + " a " + place + " ";
+        if(anyWet){
+          lead += "sono previste " + segs.join(", ") + ".";
+        }else{
+          // sky dominant whole day
+          var codes = (H.weathercode||[]);
+          var freq = {}; rows.forEach(function(k){ var c=+(codes[k]||0); if(!isFinite(c)) return; freq[c]=(freq[c]||0)+1; });
+          var dom=null,domN=-1; for(var k in freq){ if(freq[k]>domN){ dom=+k; domN=freq[k]; } }
+          var sky = (function(c){
+            if([0].includes(c)) return "cielo sereno";
+            if([1,2].includes(c)) return "cielo poco o parzialmente nuvoloso";
+            if([3].includes(c)) return "cielo molto nuvoloso o coperto";
+            if([45,48].includes(c)) return "foschie o banchi di nebbia";
+            return "condizioni stabili";
+          })(dom);
+          lead += "non sono previste precipitazioni e il " + sky + " si manterrà per tutta la giornata.";
+        }
+        // details
+        var temps = (H.temperature_2m || H.t || []);
+        var tmin=null,tmax=null; rows.forEach(function(k){ var v=+(temps[k]||NaN); if(isFinite(v)){ tmin=(tmin==null?v:Math.min(tmin,v)); tmax=(tmax==null?v:Math.max(tmax,v)); } });
+        var tempLine = (tmin!=null && tmax!=null) ? ("Temperature tra " + Math.round(tmin) + "° e " + Math.round(tmax) + "°.") : null;
+        var windLine = "Venti " + getWindClass(H, rows) + ".";
+        var fasciaOrari = ["06–12","12–18","18–24","00–06"];
+        var cons = [];
+        if(wet[3]) cons.push("alla notte ("+fasciaOrari[3]+")");
+        if(wet[0]) cons.push("al mattino ("+fasciaOrari[0]+")");
+        if(wet[1]) cons.push("al pomeriggio ("+fasciaOrari[1]+")");
+        if(wet[2]) cons.push("in serata ("+fasciaOrari[2]+")");
+        var laundryLine = (cons.length ? ("Bucato sconsigliato " + (cons.length===1? cons[0] : (cons.slice(0,-1).join(', ') + " e " + cons.slice(-1))) + ".") : "Bucato consigliato per tutta la giornata.");
+        var details = [tempLine, windLine, laundryLine].filter(Boolean);
+        var meta = [];
+        return {lead, meta, details};
+      }catch(e){
+        // Fall back to original if anything goes wrong
+        if(typeof orig === 'function'){ try { return orig(fc); } catch(_){} }
+        return {lead:"", meta:[], details:[]};
+      }
+    };
+
+    // Ensure refresh on interactions
+    try{
+      document.addEventListener('click', function(ev){
+        var d = ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day');
+        if(d){ setTimeout(function(){ try{ window.renderNarrativeFuture && window.renderNarrativeFuture(); }catch(e){} }, 20); }
+      }, true);
+      document.addEventListener('mlg:dayparts-rendered', function(){ try{ window.renderNarrativeFuture && window.renderNarrativeFuture(); }catch(e){} }, true);
+      // force initial refresh once
+      setTimeout(function(){ try{ window.renderNarrativeFuture && window.renderNarrativeFuture(); }catch(e){} }, 60);
+    }catch(e){}
+  }
+  if(document.readyState==='complete' || document.readyState==='interactive'){ override(); }
+  else { document.addEventListener('DOMContentLoaded', override); }
+})();
+</script>
+
+
+<script id="mini-bollettino-js">
+(function(){
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+  const SLOTI = [
+    {key:'notte', from:0, to:6, label:'di notte (00–06)'},
+    {key:'mattino', from:6, to:12, label:'al mattino (06–12)'},
+    {key:'pomeriggio', from:12, to:18, label:'al pomeriggio (12–18)'},
+    {key:'sera', from:18, to:24, label:'in serata (18–24)'}
+  ];
+
+  const RAIN_WORDS = /(piogg|rovesc|tempor|tuon|nubifragi|grandine|neve|nevischio|scirocco)/i;
+  const CLEAR_WORDS = /(sereno|soleggiat|schiarit|poco nuvol|parzialmente nuvol)/i;
+  const CLOUD_WORDS = /(nuvol|copert|foschia|nebbia|smog)/i;
+
+  function getCity(){
+    const input = $('#cityInput') || $('.search input');
+    if(input && input.value && input.value.trim().length>1) return input.value.trim();
+    const h = $$('header h1, .station-header h2').map(x => (x.textContent||'').trim()).find(Boolean);
+    if(h) return h.replace(/\s+–.*$/, '').trim();
+    return 'la località selezionata';
+  }
+
+  function parseNumber(val){
+    if(val==null) return NaN;
+    const m = String(val).match(/-?\d+(?:[\.,]\d+)?/);
+    return m ? parseFloat(m[0].replace(',', '.')) : NaN;
+  }
+
+  function extractHourlyRows(root=document){
+    const table = $('#hourlyPanel table.hourly', root) || $('table.hourly', root);
+    if(!table) return [];
+
+    const rows = $$('tbody tr, tr', table).filter(r => r.querySelector('td'));
+    const out = [];
+    rows.forEach(tr => {
+      const tds = $$('td', tr);
+      if(!tds.length) return;
+
+      const oraTxt  = (tds[0]?.textContent || '').trim();
+      const hour = parseNumber(oraTxt);
+      if(!(hour>=0 && hour<24)) return;
+
+      const descr = (tds[2]?.textContent || tds[1]?.textContent || '').trim().toLowerCase();
+      const temp  = parseNumber(tds[3]?.textContent || tds[2]?.textContent);
+      const vento = parseNumber(tds[6]?.textContent || tds[5]?.textContent);
+      const precipTxt = (tds[7]?.textContent || tds[6]?.textContent || '').trim();
+      const pProb = /%/.test(precipTxt) ? parseNumber(precipTxt) : NaN;
+      const pMM   = /mm/i.test(precipTxt) ? parseNumber(precipTxt) : NaN;
+
+      out.push({hour, descr, temp, vento, pProb, pMM});
+    });
+    return out;
+  }
+
+  function extractDailyCard(root=document){
+    const day = $('.days .day.active', root) || $('.days .day', root);
+    if(!day) return null;
+    const minTxt = $('.min', day)?.textContent || '';
+    const maxTxt = $('.max', day)?.textContent || '';
+    const min = parseNumber(minTxt);
+    const max = parseNumber(maxTxt);
+    return {min, max};
+  }
+
+  function qualitaVenti(kmh){
+    if(!(kmh>0)) return null;
+    if(kmh < 11) return 'deboli';
+    if(kmh < 28) return 'moderati';
+    if(kmh < 50) return 'tesi';
+    return 'forti';
+  }
+
+  function riassuntoSlot(rows, from, to){
+    const inSlot = rows.filter(r => r.hour>=from && r.hour<to);
+    if(!inSlot.length) return null;
+
+    const hasThunder = inSlot.some(r => /tempor|tuon/i.test(r.descr));
+    const hasRain    = hasThunder || inSlot.some(r => RAIN_WORDS.test(r.descr) || (r.pProb && r.pProb>=40) || (r.pMM && r.pMM>=1));
+    const hasClear   = inSlot.some(r => CLEAR_WORDS.test(r.descr));
+    const hasCloud   = inSlot.some(r => CLOUD_WORDS.test(r.descr));
+
+    let label = null;
+    if(hasThunder) label = 'temporali';
+    else if(hasRain && hasClear) label = 'piogge e schiarite';
+    else if(hasRain) label = 'piogge';
+    else if(hasCloud && hasClear) label = 'nubi e schiarite';
+    else if(hasCloud) label = 'cielo nuvoloso';
+    else if(hasClear) label = 'cielo poco o parzialmente nuvoloso';
+    else label = 'condizioni stabili';
+
+    const ventiMed = (inSlot.reduce((s,r)=> s + (isFinite(r.vento)?r.vento:0),0) / Math.max(1, inSlot.filter(r=>isFinite(r.vento)).length)) || 0;
+    const ventoQ = qualitaVenti(ventiMed);
+
+    const tMin = Math.min(...inSlot.map(r=>isFinite(r.temp)?r.temp:Infinity));
+    const tMax = Math.max(...inSlot.map(r=>isFinite(r.temp)?r.temp:-Infinity));
+
+    return {
+      label,
+      ventoQ,
+      tMin: isFinite(tMin)?Math.round(tMin):null,
+      tMax: isFinite(tMax)?Math.round(tMax):null,
+      hasRain, hasThunder
+    };
+  }
+
+  function laundryAdvice(parts){
+    const bad = [];
+    const good = [];
+    parts.forEach(p => {
+      const slot = p.slot;
+      if(p.data?.hasRain || p.data?.hasThunder){
+        bad.push(slot.label);
+      }else{
+        good.push(slot.label);
+      }
+    });
+    const makeList = (arr)=> arr.map(x=> x.replace(/^al |^in /,'')).join(', ');
+    if(bad.length === 0){
+      return {text: 'Bucato consigliato per tutta la giornata.', type:'ok'};
+    }
+    if(good.length === 0){
+      return {text: 'Bucato sconsigliato per tutta la giornata.', type:'no'};
+    }
+    return {
+      text: 'Bucato sconsigliato ' + makeList(bad) + '.',
+      type: 'no'
+    };
+  }
+
+  function composeText(city, mode, parts, daily){
+    const periodIntro = (mode==='domani') ? 'per domani' : 'per le prossime ore';
+    const descr = parts
+      .filter(p => p.data)
+      .map(p => `${p.data.label} (${p.slot.key === 'notte' ? 'di notte' : p.slot.label.replace(/^al |^in /,'')})`)
+      .join(', ')
+      .replace(/, ([^,]+)$/,' e $1');
+
+    let out = `Secondo Meteo Lo Gullo ${periodIntro} a ${city} sono previsti ${descr}.`;
+
+    if(daily && (isFinite(daily.min) || isFinite(daily.max))){
+      const tbits = [];
+      if(isFinite(daily.min)) tbits.push(`minime intorno a ${Math.round(daily.min)}°C`);
+      if(isFinite(daily.max)) tbits.push(`massime fino a ${Math.round(daily.max)}°C`);
+      if(tbits.length) out += ` Temperature: ${tbits.join(', ')}.`;
+    }
+
+    const ventiQ = parts.map(p=>p.data?.ventoQ).filter(Boolean);
+    if(ventiQ.length){
+      const freq = ventiQ.reduce((m,v)=> (m[v]=(m[v]||0)+1,m),{});
+      const top = Object.entries(freq).sort((a,b)=>b[1]-a[1])[0]?.[0];
+      if(top) out += ` Venti ${top}.`;
+    }
+    return out;
+  }
+
+  function build(mode){
+    try{
+      const city = getCity();
+      const rows = extractHourlyRows(document);
+      if(!rows.length){
+        $('#miniBollettino')?.style && ( $('#miniBollettino').style.display = 'none' );
+        return;
+      }
+
+      const parts = SLOTI.map(slot => {
+        const data = riassuntoSlot(rows, slot.from, slot.to);
+        return {slot, data};
+      });
+
+      const daily = extractDailyCard(document);
+      const text = composeText(city, mode, parts, daily);
+
+      const mb = $('#miniBollettino');
+      if(!mb) return;
+
+      $('#mbContent').textContent = text;
+
+      const adv = laundryAdvice(parts);
+      const lav = $('#mbLaundry');
+      lav.textContent = adv.text;
+      lav.className = 'mb-laundry advice ' + (adv.type==='ok'?'ok':'no');
+
+      mb.style.display = '';
+
+      const oggi = $('#mbOggi'), domani = $('#mbDomani');
+      if(oggi && domani){
+        if(mode==='domani'){
+          domani.disabled = true; oggi.disabled = false;
+        }else{
+          oggi.disabled = true; domani.disabled = false;
+        }
+      }
+    }catch(e){
+      console.warn('Mini bollettino error', e);
+    }
+  }
+
+  function setup(){
+    const mb = $('#miniBollettino');
+    if(!mb) return;
+
+    $('#mbOggi')?.addEventListener('click', ()=>build('oggi'));
+    $('#mbDomani')?.addEventListener('click', ()=>build('domani'));
+    $('#mbCopia')?.addEventListener('click', async ()=>{
+      try{
+        const txt = $('#mbContent')?.textContent || '';
+        await navigator.clipboard.writeText(txt);
+        const t = document.createElement('div');
+        t.textContent = 'Testo copiato';
+        t.style.cssText = 'position:fixed;top:18px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:8px 12px;border-radius:10px;z-index:2000';
+        document.body.appendChild(t);
+        setTimeout(()=> t.remove(), 1200);
+      }catch(_){}
+    });
+
+    const hook = (node)=>{
+      try{
+        const mo = new MutationObserver(()=> build('oggi'));
+        mo.observe(node, {childList:true, subtree:true});
+      }catch(_){}
+    };
+    const hourly = $('#hourlyPanel') || document.body;
+    hook(hourly);
+
+    const sf = $('#searchForm') || $('form.search') || $('.search form');
+    if(sf){
+      sf.addEventListener('submit', ()=> setTimeout(()=>build('oggi'), 400));
+    }else{
+      const inp = $('#cityInput') || $('.search input');
+      inp && inp.addEventListener('change', ()=> setTimeout(()=>build('oggi'), 400));
+    }
+
+    setTimeout(()=> build('oggi'), 600);
+    setTimeout(()=> build('oggi'), 1600);
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', setup);
+  else setup();
+
+  window.MLG_buildMiniBollettino = (mode='oggi') => build(mode);
+})();
+</script>
 </body>
 </html>
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
@@ -12079,13 +14374,19 @@ html += '</details>';
   const EL_ID="narrativeBox";
   const MAP_LINK="https://www.meteologullo.com/stazioni-meteorologiche-mlg";
 
+  
   function ensurePlacement(){
     const box = document.getElementById(EL_ID);
     const fasce = document.getElementById("dayParts");
     if(!box || !fasce || !fasce.parentNode) return;
-    if(fasce.nextSibling !== box){
-      fasce.parentNode.insertBefore(box, fasce.nextSibling);
+    const tri  = document.getElementById("dailyDetailPanel");
+    // anchor = prefer the tri-hourly panel; fallback to dayParts
+    const anchor = (tri && tri.parentNode === fasce.parentNode) ? tri : fasce;
+    if(anchor.nextSibling !== box){
+      anchor.parentNode.insertBefore(box, anchor.nextSibling);
     }
+  }
+
   }
 
   function round(x){ const n=Number(x); return isFinite(n)?Math.round(n):NaN; }
@@ -12142,12 +14443,38 @@ html += '</details>';
       const tmax=round(T.temperature_2m_max?.[d]); const tmin=round(T.temperature_2m_min?.[d]);
       const place = (window.CITIES?.[0]?.city) || document.getElementById("cityInput")?.value || "località selezionata";
       const when = labelByIdx(d, dateStr);
-      const whereWet = ["al mattino","al pomeriggio","in serata","di notte"].filter((_,i)=>wet[i]);
-      let precip = "non sono previste precipitazioni significative";
+      const _labels = ["al mattino","al pomeriggio","in serata","di notte"];let _idx = [0,1,2,3].filter(i=>wet[i]);// Se oggi e piove di notte, mettiamo "di notte" prima di "al mattino" per evitare ambiguità
+if (isToday && wet[3]) { _idx = [3].concat([0,1,2].filter(i=>wet[i])); }
+const whereWet = _idx.map(i=>_labels[i]);let precip = "non sono previste precipitazioni significative";
       if(pmax>=70 || sum>=5) precip="sono probabili rovesci";
       if(ts) precip="sono possibili temporali";
       if(whereWet.length) precip += " " + (whereWet.length===1? whereWet[0] : "(" + whereWet.join(", ") + ")");
-      const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "deboli");
+      
+// Descrizione del cielo anche senza precipitazioni: calcolata dal meteo prevalente nelle ore considerate
+(function(){
+  try{
+    const codes = (H.weathercode||[]);
+    const freq = {};
+    for(const i of rows){ const c = +((codes[i])||0); if(!isFinite(c)) continue; freq[c]=(freq[c]||0)+1; }
+    let dom = null, domN=-1;
+    for(const k in freq){ if(freq[k]>domN){ dom=+k; domN=freq[k]; } }
+    function skyFromCode(c){
+      if([0].includes(c)) return "cielo sereno";
+      if([1].includes(c)) return "prevalentemente sereno";
+      if([2].includes(c)) return "poco nuvoloso";
+      if([3].includes(c)) return "molto nuvoloso o coperto";
+      if([45,48].includes(c)) return "foschie o banchi di nebbia";
+      if([51,53,55,56,57].includes(c)) return "pioviggine a tratti";
+      if([61,63,65,66,67,80,81,82].includes(c)) return "piogge sparse";
+      if([71,73,75,77,85,86].includes(c)) return "neve o neve mista";
+      if([95,96,99].includes(c)) return "temporali locali";
+      return "condizioni variabili";
+    }
+    window.__mlgSkyDesc = skyFromCode(dom);
+  }catch(_e){ window.__mlgSkyDesc = undefined; }
+})();
+
+const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "deboli");
       const hot = (tmax>=35);
       const risky = (ts || pmax>=70 || gmax>=70);
       const outdoor = risky || hot ? "sconsigliate" : (pmax<=30 && gmax<55 ? "consigliate" : "valutabili con cautela");
