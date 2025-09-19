@@ -2960,6 +2960,353 @@ table.hourly i.weather-icon,
   #hourlyPanel .row .weather-icon{ transform: scale(1.74) !important; }
 }
 </style>
+
+
+<!-- === MARINE v2 CSS (clean, single) === -->
+<style id="marine-panel-css">
+  #marinePanel{ display:none; margin-top:10px; }
+  #marinePanel .card{ background: var(--glass, rgba(0,0,0,0.2)); backdrop-filter: blur(var(--blur,6px)); border-radius: var(--radius,16px); padding: 12px 14px; }
+  #marinePanel h3{ margin: 0 0 .6rem; font-weight: 800; }
+  .sea-list{ display:flex; flex-direction:column; gap:6px; }
+  .sea-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:rgba(255,255,255,0.06); border-radius:10px; font-size:.95rem; }
+  .sea-time{ width:84px; font-weight:700; flex-shrink:0; }
+  .sea-icon{ width:36px; height:24px; display:flex; align-items:center; justify-content:center; flex-shrink:0; opacity:.9; }
+  .sea-desc{ min-width:130px; }
+  .sea-wave{ width:170px; text-align:right; }
+  .sea-wind{ width:130px; text-align:right; font-size:.9rem; display:flex; align-items:center; gap:6px; justify-content:flex-end; }
+  .sea-arrow{ width:14px; height:14px; border-right:2px solid currentColor; border-top:2px solid transparent; border-bottom:2px solid transparent; transform-origin: center center; }
+  .sea-badge{ font-size:.78rem; padding:.12rem .5rem; border-radius:999px; background:rgba(255,255,255,0.10); border:1px solid rgba(255,255,255,0.22); }
+  .sea-legend{ display:flex; gap:8px; flex-wrap:wrap; font-size:.82rem; opacity:.9; margin-top:8px; }
+  @media (max-width:680px){
+    #marinePanel .card{ padding: 10px 10px; }
+    .sea-row{ flex-wrap:wrap; row-gap:6px; padding:8px 10px; }
+    .sea-time{ width:auto; margin-right:6px; }
+    .sea-desc{ order:5; width:100%; }
+    .sea-wave{ width:100%; text-align:left; }
+    .sea-wind{ width:auto; margin-left:auto; }
+  }
+</style>
+
+<style id="marine-hourly-match-v4">
+/* Flatten inner card and use pill rows like hourly */
+#marinePanel .card{ background:transparent !important; box-shadow:none !important; border:none !important; padding:0 !important; }
+#marinePanel h3{ margin:0 0 6px !important; padding:8px 10px !important; background:transparent !important; border:none !important; }
+
+/* Column header like hourly */
+#marinePanel .sea-head{
+  display:grid; grid-template-columns: 96px 1fr 120px 130px; align-items:center;
+  font-size:.72rem; letter-spacing:.04em; text-transform:uppercase; opacity:.7;
+  padding:0 12px 6px; margin:0 6px;
+}
+#marinePanel .sea-h-time{}
+#marinePanel .sea-h-mare{ justify-self:start; }
+#marinePanel .sea-h-onda{ justify-self:start; }
+#marinePanel .sea-h-vento{ justify-self:end; }
+
+/* Rows */
+#marinePanel .sea-list{ padding:0 2px 10px; }
+#marinePanel .sea-row{
+  display:grid; grid-template-columns: 96px 1fr 120px 130px; grid-template-areas: "time center onda vento" "time sub sub vento";
+  align-items:center; gap:8px 14px;
+  margin:8px 6px; padding:12px 14px; border-radius:14px;
+  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+}
+#marinePanel .sea-time{ grid-area: time; font-weight:800; }
+#marinePanel .sea-icon{ display:inline-flex; margin-right:6px; }
+#marinePanel .sea-desc{ grid-area:center; display:flex; align-items:center; gap:10px; font-weight:800; }
+#marinePanel .sea-wave{ grid-area: onda; font-weight:700; font-variant-numeric: tabular-nums; }
+#marinePanel .sea-wind{ grid-area: vento; display:flex; justify-content:flex-end; align-items:center; gap:8px; font-weight:700; }
+#marinePanel .sea-row .sea-sub{ grid-area: sub; }
+
+/* Turn the status into a yellow temp-like chip */
+#marinePanel .sea-badge{
+  background:#ffb000; color:#1b180f; border:0; border-radius:10px; padding:.22rem .5rem; font-weight:800; box-shadow: inset 0 -2px 0 rgba(0,0,0,.18);
+}
+
+/* Second line for wave details */
+#marinePanel .sea-wave:before{ content:""; display:none; }
+#marinePanel .sea-row .sea-sub{ font-size:.92rem; opacity:.95; border-top:1px dashed rgba(255,255,255,.14); padding-top:4px; display:block; }
+#marinePanel .sea-row .sea-sub{ grid-column: 2 / span 2; }
+
+/* Mobile */
+@media (max-width: 720px){
+  #marinePanel .sea-head{ grid-template-columns: 86px 1fr 98px 96px; padding:0 10px 6px; }
+  #marinePanel .sea-row{ grid-template-columns: 86px 1fr 98px 96px; }
+}
+@media (max-width: 420px){
+  #marinePanel .sea-head{ grid-template-columns: 78px 1fr 1fr; grid-template-areas: "t m o"; }
+  #marinePanel .sea-h-vento{ display:none; }
+  #marinePanel .sea-row{ grid-template-columns: 78px 1fr 1fr; grid-template-areas: "time center onda" "time sub sub"; }
+  #marinePanel .sea-wind{ display:none; }
+}
+</style>
+
+<style id="icons-orarie-boost-2025-09-19">
+/* === ICONE ORARIE / TRI-ORARIE PIÙ GRANDI — senza toccare la logica/layout ===
+   - Agisce SOLO sulle icone del box "previsioni orarie" e "tri‑orarie"
+   - Usa transform: scale() così non cambia le larghezze delle colonne
+   - Spazio già presente: evitiamo clip forzando overflow: visible
+*/
+
+/* Orarie (24h) — dentro il pannello sotto i giornalieri */
+#hourlyPanel .weather-icon,
+#hourlyPanel td .weather-icon,
+table.hourly .weather-icon{
+  display:inline-block !important;
+  transform: scale(2.05) !important;   /* ~+105%: come nello screenshot */
+  transform-origin: center center !important;
+  will-change: transform;
+}
+
+/* Tri‑orarie — lista sotto i giornalieri / dettaglio giorno / modale */
+#dailyDetailPanel .hour-row .hr-icon img,
+#dailyDetailPanel .hour-row .hr-icon svg,
+#triModal .hourly-table .weather-icon{
+  display:inline-block !important;
+  transform: scale(2.05) !important;
+  transform-origin: center center !important;
+  will-change: transform;
+}
+
+/* Evita tagli: le celle non clipperanno l'icona ingrandita */
+#hourlyPanel td, #hourlyPanel th,
+#triModal .hourly-table td, #triModal .hourly-table th,
+#dailyDetailPanel .hour-row .hr-icon{ overflow: visible !important; }
+
+/* Telefoni molto piccoli: lieve riduzione per non affollare */
+@media (max-width: 380px){
+  #hourlyPanel .weather-icon,
+  #hourlyPanel td .weather-icon,
+  table.hourly .weather-icon,
+  #dailyDetailPanel .hour-row .hr-icon img,
+  #dailyDetailPanel .hour-row .hr-icon svg,
+  #triModal .hourly-table .weather-icon{
+    transform: scale(1.85) !important;
+  }
+}
+</style>
+
+<style id="compact-forecast-labels-2025-09-19">
+/* Rimuove etichette/descrizioni per compattare la sezione previsioni */
+#dailyPanel .card > h3{ display:none !important; }        /* "Previsioni fino a una settimana" */
+#dayParts h3{ display:none !important; }                  /* "Notte → Sera" */
+
+/* Avvicina i box senza toccare la logica né la griglia */
+#dailyPanel{ margin-bottom: 6px !important; }
+#dailyPanel .card{ padding-top: 10px !important; }
+#dailyPanel .card .days{ margin-top: 4px !important; }
+
+#dayParts{ margin-top: 6px !important; }
+#dayParts .parts{ margin-top: 0 !important; }
+</style>
+
+<style id="daily-icons-temp-balance-2025-09-19">
+/* Daily (7 giorni): icone più grandi, chip temperature leggermente più piccoli */
+
+/* icone più grandi */
+#dailyPanel .days .day i.weather-icon:not(.alt-icon),
+#dailyPanel .days .day .daily-icon > :not(.alt-icon){
+  transform: scale(2.05) !important;   /* prima ~1.72 */
+  transform-origin: center center !important;
+}
+
+/* riduci un filo i chip T° (solo nel 7‑giorni) */
+#dailyPanel .tmax .temp-chip,
+#dailyPanel .tmin .temp-chip{
+  --sz: 19px !important;               /* da 22px */
+  font-size: .92em !important;
+}
+
+/* evita qualunque clip */
+#dailyPanel .days .day{ overflow: visible !important; }
+</style>
+
+<style id="daily-risk-css-2025-09-19">
+/* Evidenziazione NON invasiva dei giorni a rischio (pioggia/temporali) */
+#dailyPanel .days .day{ position:relative; } /* per il badge */
+#dailyPanel .days .day.warn{
+  outline:2px solid rgba(255,193,7,.55);
+  box-shadow: 0 0 0 2px rgba(0,0,0,.08), 0 0 0 8px rgba(255,193,7,0);
+  animation: mlgWarnPulse 2.6s ease-out infinite;
+  border-radius:14px;
+}
+#dailyPanel .days .day.warn::after{
+  content:"⚠️";
+  position:absolute;
+  top:-6px; right:-6px;
+  font-size:16px;
+  line-height:1;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.35));
+}
+@keyframes mlgWarnPulse{
+  0%   { box-shadow: 0 0 0 2px rgba(0,0,0,.08), 0 0 0 0 rgba(255,193,7,.35); }
+  70%  { box-shadow: 0 0 0 2px rgba(0,0,0,.08), 0 0 0 14px rgba(255,193,7,0); }
+  100% { box-shadow: 0 0 0 2px rgba(0,0,0,.08), 0 0 0 0 rgba(255,193,7,0); }
+}
+@media (prefers-reduced-motion: reduce){
+  #dailyPanel .days .day.warn{ animation:none; }
+}
+</style>
+
+<style id="hourly-icon-align-std-2025-09-19">
+/* Allinea verticalmente le icone orarie/tri‑orarie e uniforma la dimensione */
+
+/* dimensione target (puoi alzare/abbassare) */
+:root{ --hr-icon: 40px; }
+
+/* contenitore icona: quadrato, centrato */
+#dailyDetailPanel .hour-row .hr-icon,
+#triModal .hourly-table .hr-icon,
+#hourlyPanel .hr-icon{
+  width: calc(var(--hr-icon) + 4px) !important;
+  height: calc(var(--hr-icon) + 4px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: visible !important;
+}
+
+/* l'elemento icona vero e proprio (svg/img/i) */
+#dailyDetailPanel .hour-row .hr-icon .weather-icon,
+#dailyDetailPanel .hour-row .hr-icon svg.weather-icon,
+#dailyDetailPanel .hour-row .hr-icon img.weather-icon,
+#triModal .hourly-table .hr-icon .weather-icon,
+#hourlyPanel .hr-icon .weather-icon,
+#hourlyPanel td .weather-icon{
+  width: var(--hr-icon) !important;
+  height: var(--hr-icon) !important;
+  transform: none !important;           /* annulla scale diverse tra icone */
+  vertical-align: middle !important;
+  display: inline-block !important;
+}
+
+/* fallback: se l'icona non ha class "weather-icon" */
+#dailyDetailPanel .hour-row .hr-icon svg,
+#dailyDetailPanel .hour-row .hr-icon img{
+  width: var(--hr-icon) !important;
+  height: var(--hr-icon) !important;
+  transform: none !important;
+}
+
+/* compat: mantieni responsive su telefoni stretti */
+@media (max-width: 380px){
+  :root{ --hr-icon: 36px; }
+}
+</style>
+
+<style id="hourly-icon-uniform-center-2025-09-19">
+/* Mantiene la dimensione decisa (scala base 2.05), centra e uniforma lievi differenze */
+
+/* contenitore icona più "alto" per centrare visivamente */
+#dailyDetailPanel .hour-row .hr-icon{
+  width: 52px !important;
+  height: 52px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: visible !important;
+}
+
+/* trasformazione controllata via variabili CSS per eventuali micro‑correzioni */
+#dailyDetailPanel .hour-row .hr-icon .weather-icon,
+#dailyDetailPanel .hour-row .hr-icon svg.weather-icon,
+#dailyDetailPanel .hour-row .hr-icon img.weather-icon{
+  transform: translateY(var(--hr-dy, 2px)) scale(var(--hr-scale, 2.05)) !important;
+  transform-origin: center center !important;
+  display:inline-block !important;
+}
+</style>
+
+<style id="hourly-icon-fix2-2025-09-19">
+/* NON cambiare la dimensione generale: base = scale(2.05).
+   Centra visivamente (più in basso) e uniforma tutte le icone,
+   indipendentemente dal tag o dalla classe interna. */
+
+/* centratura del contenitore (non cambio la larghezza della colonna) */
+#dailyDetailPanel .hour-row .hr-icon{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  overflow:visible !important;
+}
+
+/* applica sempre lo stesso transform al PRIMO figlio dell'holder */
+#dailyDetailPanel .hour-row .hr-icon > *{
+  display:inline-block !important;
+  transform: translateY(var(--hr-dy, 4px)) scale(var(--hr-scale, 2.05)) !important;
+  transform-origin: center center !important;
+}
+
+/* anche per sicurezza quando l'icona è annidata di un livello */
+#dailyDetailPanel .hour-row .hr-icon > * > .weather-icon{
+  transform: translateY(var(--hr-dy, 4px)) scale(var(--hr-scale, 2.05)) !important;
+  transform-origin: center center !important;
+}
+
+/* annulla eventuali scale precedenti che potrebbero interferire */
+#dailyDetailPanel .hour-row .hr-icon img,
+#dailyDetailPanel .hour-row .hr-icon svg,
+#dailyDetailPanel .hour-row .hr-icon .weather-icon{
+  will-change: transform;
+}
+</style>
+<style id="mlg-live-row-css-toggle">
+/* Mostra la riga LIVE solo per OGGI.
+   Se nella strip dei 7 giorni è selezionato un giorno diverso dal primo,
+   nascondi le righe LIVE in ogni contesto (lista tri-oraria, tabella 24h, modale).
+   CSS-only tramite :has(), non tocca alcuna logica JS. */
+body:has(#dailyPanel .days .day.sel:not(:first-child)) #dailyDetailPanel .hour-row.live,
+body:has(#dailyPanel .days .day.sel:not(:first-child)) #dailyDetailPanel table.hourly .live-row,
+body:has(#dailyPanel .days .day.sel:not(:first-child)) #dailyDetailPanel .hourly-list .hour-row.live,
+body:has(#dailyPanel .days .day.sel:not(:first-child)) #hourlyPanel table.hourly .live-row,
+body:has(#dailyPanel .days .day.sel:not(:first-child)) #hourlyPanel .hourly-list .hour-row.live,
+body:has(#dailyPanel .days .day.sel:not(:first-child)) #triModal .hourly-table .live-row,
+body:has(#dailyPanel .days .day.sel:not(:first-child)) #triModal .hourly-list .hour-row.live{
+  display: none !important;
+}
+</style>
+
+<!-- === MLG • SEA / DEBOX PATCH (surgical, CSS‑only) — 2025‑09‑19 === -->
+<style id="mlg-sea-debox-patch">
+  :root{
+    /* soft Mediterranean sea palette (non‑clashing with icons) */
+    --sea-1:#41b6e6;
+    --sea-2:#1282c7;
+    --sea-3:#0b5f8a;
+  }
+  /* 1) Map container: no "box" effect + sea background around Calabria */
+  #mapArea{
+    background: radial-gradient(135% 110% at 50% 12%, var(--sea-1) 0%, var(--sea-2) 52%, var(--sea-3) 100%) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+  /* remove translucent overlay that created the box look */
+  #mapArea::before{ display:none !important; }
+  /* keep the PNG crisp; do not affect marker icons */
+  #map{
+    opacity: 1 !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
+  }
+
+  /* 2) Date badge: anchor to the right, including on mobile (safe‑area aware) */
+  .map-date{
+    left: auto !important;
+    right: max(12px, env(safe-area-inset-right)) !important;
+    top: max(10px, env(safe-area-inset-top)) !important;
+  }
+  @media (max-width: 600px){
+    .map-date{
+      font-size: 0.95rem;           /* same visual weight, tighter on phones */
+      padding: 5px 9px;
+    }
+  }
+
+  /* 3) Guard: ensure markers sit above the background (no change to effects) */
+  #mapArea .marker{ z-index: 5; }
+</style>
+
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -3205,11 +3552,11 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
     if (code === 45 || code === 48) return "Nebbia nuvole basse.PNG";
 
     // --- Drizzle / freezing drizzle ---
-    if ([51,53,55].includes(code)) return "Pioggia debole.PNG";                                 // Drizzle (light/moderate/dense)
-    if ([56,57].includes(code)) return "Pioggia debole.PNG";                                    // Freezing drizzle
+    if ([51,53,55].includes(code)) return "Pioggia debole.png";                                 // Drizzle (light/moderate/dense)
+    if ([56,57].includes(code)) return "Pioggia debole.png";                                    // Freezing drizzle
 
     // --- Rain (stratiform) ---
-    if (code === 61) return "Pioggia debole.PNG";
+    if (code === 61) return "Pioggia debole.png";
     if (code === 63) return "Pioggia moderata.PNG";
     if (code === 65) return "pioggia forte.png";
 
@@ -3222,7 +3569,7 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
     if (code === 82) return "pioggia forte.png";                                               // violent showers
 
     // --- Snow / snow grains ---
-    if ([71,73,75,77,85,86].includes(code)) return "Neve .PNG";
+    if ([71,73,75,77,85,86].includes(code)) return "neve1.png";
 
     // --- Thunderstorm ---
     if (code === 95) return "temporale moderato.png";
@@ -12807,6 +13154,7 @@ try{
       var wind = avg(h.wind_speed_10m||[], idxs);
       var prob = (h.precipitation_probability) ? maxProb(h.precipitation_probability, idxs) : null;
       var probTxt = (prob!=null && isFinite(prob)) ? (Math.round(prob) + '%') : '';
+      var urAvg = (h.relativehumidity_2m ? avg(h.relativehumidity_2m, idxs) : null);
 
       rowsHTML.push(
         '<div class="hour-row">' +
@@ -12815,7 +13163,7 @@ try{
           '<div class="hr-desc">' + descFor(code) + '</div>' +
           '<div class="hr-temp">' + (isFinite(tAvg)? Math.round(tAvg)+'°' : '—') + '</div>' +
           '<div class="hr-rain">' + (isFinite(rain)? (rain.toFixed(1)+' mm') : '0.0 mm') + (probTxt? ' · ' + probTxt : '') + '</div>' +
-          '<div class="hr-wind">' + (isFinite(wind)? Math.round(wind)+' km/h' : '—') + '</div>' +
+          '<div class=\"hr-wind\" data-ur=\"'+(urAvg!=null && isFinite(urAvg) ? Math.round(urAvg) : '')+'\">'+(isFinite(wind)? Math.round(wind)+' km/h' : '—')+'</div>' +
         '</div>'
       );
     }
@@ -13642,7 +13990,7 @@ try{
       '<div class="hr-temp">'+(data && data.temp ? data.temp : '—')+'</div>'+
       '<div class="hr-rain">'+(data && data.mm ? data.mm : '—')+'</div>'+
       '<div class="hr-prob">'+(data && data.prob ? data.prob : '—')+'</div>'+
-      '<div class="hr-wind">'+(data && data.wind ? data.wind : '—')+'</div>';
+      '<div class=\"hr-wind\" data-ur=\"'+(data && data.ur ? String(data.ur).replace(/[^0-9]/g,'') : '')+'\">'+(data && data.wind ? data.wind : '—')+'</div>';
     return el;
   }
 
@@ -13884,9 +14232,10 @@ try{
               : H.windspeed_10m ? (Math.round(H.windspeed_10m[idx]||0)+' km/h') : '';
     var code = H.weathercode ? H.weathercode[idx] : null;
     var night = (parseInt(hourStr.slice(0,2),10)>=20 || parseInt(hourStr.slice(0,2),10)<=5);
+    var ur = H.relativehumidity_2m ? (Math.round(H.relativehumidity_2m[idx]||0)+'%') : ''; (parseInt(hourStr.slice(0,2),10)>=20 || parseInt(hourStr.slice(0,2),10)<=5);
     var iconHTML = (typeof window.iconHTML_NOEMOJI==='function') ? (window.iconHTML_NOEMOJI(Number(code), night)||'') : '';
     var desc = (typeof window.wmoDesc==='function') ? (window.wmoDesc(Number(code))||'') : '';
-    return {temp:temp, mm:mm, prob:prob, wind:wind, iconHTML:iconHTML, desc:desc};
+    return {temp:temp, mm:mm, prob:prob, wind:wind, ur:ur, iconHTML:iconHTML, desc:desc};
   }
 
   function repopulateRow(row){
@@ -15321,13 +15670,75 @@ table.hourly tr.live-row .live-note{font-size:.82rem;opacity:.85;}
 <style id="rain-gauge-css">
 .rain-gauge{display:inline-flex;align-items:center;gap:8px;vertical-align:middle;cursor:pointer;}
 .rg-tube{position:relative;width:16px;height:42px;border-radius:10px;border:2px solid #2596ff;background:linear-gradient(180deg,#eef7ff 0%,#ffffff 60%);box-shadow:inset 0 0 0 2px rgba(37,150,255,.12);overflow:hidden;flex:0 0 16px}
-.rg-fill{position:absolute;left:0;right:0;bottom:0;height:0;border-radius:8px;background:linear-gradient(180deg,#7ec8ff 0%,#1e6fff 70%,#673ab7 100%);transition:height .25s ease}
+.rg-fill{position:absolute;left:0;right:0;bottom:0;height:0;border-radius:8px;transition:height .25s ease, background .25s ease}
 .rg-label{font-weight:600;white-space:nowrap}
+/* alert icon */
+.rg-alert{display:inline-block;font-size:14px;line-height:1;margin-left:4px;transform:translateY(1px)}
 /* compact in the tri-oraria card */
 #dailyDetailPanel .rg-tube{width:14px;height:38px}
 #dailyDetailPanel .rain-gauge{gap:6px}
 /* when numbers are shown */
 .rain-gauge[data-mode="mm"] .rg-label{font-weight:500;opacity:.95}
+
+
+/* colori per le etichette in base all'intensità */
+.rg-label{transition:color .2s ease}
+.rg-label[data-sev="assente"]{color:#98a1ab}
+.rg-label[data-sev="debole"]{color:#2fa0ff}
+.rg-label[data-sev="moderata"]{color:#0b5bd3}
+.rg-label[data-sev="abbondante"]{color:#e67e22}
+.rg-label[data-sev="forte"]{color:#ff3b30}
+.rg-label[data-sev="molto forte"]{color:#b71c1c}
+.rg-label[data-sev="estreme"]{color:#6a00ff}
+
+
+/* alta specificità e !important per sovrascrivere temi esistenti */
+.rain-gauge .rg-label[data-sev="assente"]{color:#98a1ab !important}
+.rain-gauge .rg-label[data-sev="debole"]{color:#2fa0ff !important}
+.rain-gauge .rg-label[data-sev="moderata"]{color:#0b5bd3 !important}
+.rain-gauge .rg-label[data-sev="abbondante"]{color:#e67e22 !important}
+.rain-gauge .rg-label[data-sev="forte"]{color:#ff3b30 !important}
+.rain-gauge .rg-label[data-sev="molto forte"]{color:#b71c1c !important}
+.rain-gauge .rg-label[data-sev="estreme"]{color:#6a00ff !important}
+
+
+/* Badge stile chip per non "stridere" con il box e tenere allineamento */
+.rain-gauge{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;vertical-align:middle}
+.rain-gauge .rg-tube{flex:0 0 14px;height:36px}
+.rain-gauge .rg-label{min-width:64px;text-align:left}
+.rg-badge{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:9999px;border:1px solid transparent;font-size:12px;font-weight:600;line-height:1;box-shadow:0 0 0 1px rgba(0,0,0,.02) inset}
+.rg-alert{display:inline-block;width:1.2em;text-align:center;line-height:1;transform:translateY(1px);}
+.rg-alert[data-on="0"]{opacity:0;visibility:hidden} /* mantiene lo spazio */
+
+/* Palette soft (testo + bg tenue). I colori di testo sono già forzati; qui definiamo sfondo/bordo armonizzati */
+.rg-badge[data-sev="assente"]{background:rgba(152,161,171,.12);border-color:rgba(152,161,171,.25)}
+.rg-badge[data-sev="debole"]{background:rgba(47,160,255,.12);border-color:rgba(47,160,255,.25)}
+.rg-badge[data-sev="moderata"]{background:rgba(11,91,211,.12);border-color:rgba(11,91,211,.25)}
+.rg-badge[data-sev="abbondante"]{background:rgba(230,126,34,.12);border-color:rgba(230,126,34,.28)}
+.rg-badge[data-sev="forte"]{background:rgba(255,59,48,.12);border-color:rgba(255,59,48,.28)}
+.rg-badge[data-sev="molto forte"]{background:rgba(183,28,28,.12);border-color:rgba(183,28,28,.28)}
+.rg-badge[data-sev="estreme"]{background:rgba(106,0,255,.12);border-color:rgba(106,0,255,.28)}
+
+/* Mobile: più compatto e senza sfasamenti */
+@media (max-width: 480px){
+  .rain-gauge{gap:6px}
+  .rg-badge{height:20px;padding:0 6px;font-size:11px}
+  .rain-gauge .rg-label{min-width:56px}
+  .rain-gauge .rg-tube{height:32px}
+}
+
+
+
+/* Contorno leggero per leggibilità su sfondi teal o variabili */
+.rain-gauge .rg-label,
+.rain-gauge .rg-badge{
+  text-shadow:
+    0 1px 0 rgba(0,0,0,.18),
+    0 0 1.25px rgba(0,0,0,.22);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 </style>
 <style id="rain-gauge-align-fix">
 :root{ --rg-label-w: 92px; --rg-tube-w: 16px; --rg-gap: 8px; }
@@ -15350,38 +15761,69 @@ table.hourly tr.live-row .live-note{font-size:.82rem;opacity:.85;}
 
 
 <!-- === PATCH: Rain Gauge (boccarello) logic === -->
-<script id="rain-gauge-js">
-(function(){
-  /* ---- thresholds (mm/h) -> label ---- */
+<script id="rain-gauge-js">(function(){
   function severityLabel(mmPerHour){
     var x = Number(mmPerHour)||0;
-    if(x<=0) return "assente";
-    if(x<1)  return "debole";
-    if(x<3)  return "moderata";
-    if(x<6)  return "forte";
-    if(x<10) return "abbondante";
-    if(x<20) return "molto abbondante";
-    return "estrema";
+    if(x<=0.1) return "assente";
+    if(x<2)    return "debole";
+    if(x<5)    return "moderata";
+    if(x<10)   return "abbondante";
+    if(x<20)   return "forte";
+    if(x<35)   return "molto forte";
+    return "estreme";
   }
-  /* convert mm/h into 0..100% fill (30 mm/h ~= full) */
+
   function fillPct(mmPerHour){
-    var x = Math.max(0, Math.min(30, Number(mmPerHour)||0));
-    return Math.round(x/30*100);
+    var x = Math.max(0, Number(mmPerHour)||0);
+    if(x===0) return 0;
+    if(x<1)   return 18 + (x/1)*17;        // 0–1  → 18–35%
+    if(x<3)   return 35 + ((x-1)/2)*20;    // 1–3  → 35–55%
+    if(x<6)   return 55 + ((x-3)/3)*20;    // 3–6  → 55–75%
+    if(x<10)  return 75 + ((x-6)/4)*15;    // 6–10 → 75–90%
+    if(x<20)  return 90 + ((x-10)/10)*7;   // 10–20→ 90–97%
+    return 97 + Math.min(3, (x-20)/20*3);  // 20+  → 97–100%
   }
+
+  function fillColor(mmPerHour){
+    var x = Number(mmPerHour)||0;
+    if(x<1)   return 'linear-gradient(180deg,#d8efff 0%,#8fd3ff 100%)';
+    if(x<3)   return 'linear-gradient(180deg,#8fd3ff 0%,#2fa0ff 100%)';
+    if(x<6)   return 'linear-gradient(180deg,#2fa0ff 0%,#0b5bd3 100%)';
+    if(x<10)  return 'linear-gradient(180deg,#ffc6c6 0%,#ff3b30 100%)';
+    if(x<20)  return 'linear-gradient(180deg,#ff3b30 0%,#b71c1c 100%)';
+    return       'linear-gradient(180deg,#b71c1c 0%,#6a00ff 100%)';
+  }
+
+  function labelColorBySeverity(sev){
+    switch(sev){
+      case 'assente': return '#98a1ab';
+      case 'debole': return '#2fa0ff';
+      case 'moderata': return '#0b5bd3';
+      case 'abbondante': return '#e67e22';
+      case 'forte': return '#ff3b30';
+      case 'molto forte': return '#b71c1c';
+      default: return '#6a00ff'; // estreme
+    }
+  }
+
   function fmtMM(mm){ try{ return (Number(mm)||0).toFixed(1)+' mm'; }catch(_e){ return '0.0 mm'; } }
 
   function gaugeHTML(totalMM, hours, wantMM){
     var h = Math.max(1, Number(hours)||1);
     var mmph = (Number(totalMM)||0)/h;
-    var label = wantMM ? fmtMM(totalMM) : severityLabel(mmph);
+    var sev = severityLabel(mmph);
+    var label = wantMM ? fmtMM(totalMM) : sev;
     var pct = fillPct(mmph);
+    var styleFill = 'height:'+pct+'%;background:'+fillColor(mmph);
+    var styleLabel = 'color:'+labelColorBySeverity(sev);
+    var needsAlert = (mmph>=20); // allerta solo da "molto forte"
     return '<span class="rain-gauge" data-mm="'+(Number(totalMM)||0)+'" data-hours="'+h+'" data-mode="'+(wantMM?'mm':'label')+'">'+
-             '<span class="rg-tube" aria-hidden="true"><span class="rg-fill" style="height:'+pct+'%"></span></span>'+
-             '<span class="rg-label">'+label+'</span>'+
+             '<span class="rg-tube" aria-hidden="true"><span class="rg-fill" style="'+styleFill+'"></span></span>'+
+             '<span class="rg-label" data-sev="'+sev+'" style="'+styleLabel+'">'+label+'</span>'+
+             (needsAlert ? '<span class="rg-alert" role="img" aria-label="allerta">⚠️</span>' : '')+
            '</span>';
   }
 
-  // toggle label <-> mm on tap
   function toggle(e){
     var g = e.currentTarget;
     var mm = Number(g.dataset.mm)||0, h = Number(g.dataset.hours)||1;
@@ -15390,7 +15832,6 @@ table.hourly tr.live-row .live-note{font-size:.82rem;opacity:.85;}
     g.outerHTML = html;
   }
 
-  // build + attach togglers for all new gauges inside 'root'
   function activate(root){
     root.querySelectorAll('.rain-gauge').forEach(function(el){
       el.removeEventListener('click', toggle);
@@ -15398,37 +15839,35 @@ table.hourly tr.live-row .live-note{font-size:.82rem;opacity:.85;}
     });
   }
 
-  // parse "3.2 mm" -> 3.2
   function mmFromText(txt){
     var m = String(txt).match(/(-?\d+(?:[.,]\d+)?)\s*mm/i);
     return m ? Number(m[1].replace(',','.')) : 0;
   }
-  // duration from the time cell of the same row (detect "09:00–12:00")
+
+  // Estremità finali ESCLUSIVE: 06–08 => 2 ore
   function hoursFromRow(row){
     try{
       var tt = (row.querySelector('.hr-time')||row.querySelector('td')||{}).textContent||'';
       var m = tt.match(/(\d{1,2})(?::\d{2})?\s*[–-]\s*(\d{1,2})/);
-      if(!m) return 1;
+      if(!m) return 3;
       var s = Number(m[1]), e = Number(m[2]);
-      // wrap midnight
-      if(isNaN(s)||isNaN(e)) return 1;
+      if(isNaN(s)||isNaN(e)) return 3;
       var d = e - s; if(d<=0) d += 24;
-      return Math.max(1, Math.min(12, d));
-    }catch(_e){ return 1; }
+      d = Math.max(1, Math.min(12, d));
+      return d;
+    }catch(_e){ return 3; }
   }
 
-  // replace '0.0 mm' in .hr-rain with a gauge + label
   function convert(container){
     var root = container || document;
     root.querySelectorAll('.hour-row .hr-rain').forEach(function(cell){
-      if(cell.querySelector('.rain-gauge')) return; // already done
+      if(cell.querySelector('.rain-gauge')) return;
       var row = cell.closest('.hour-row') || cell;
       var mm = mmFromText(cell.textContent);
       var hrs = hoursFromRow(row);
       cell.innerHTML = gaugeHTML(mm, hrs, false);
     });
 
-    // Also adapt small "sub-ore" rows if present
     root.querySelectorAll('#dailyDetailPanel .sub-hours .hr-rain, #dailyDetailPanel .subhours .hr-rain').forEach(function(cell){
       if(cell.querySelector('.rain-gauge')) return;
       var mm = mmFromText(cell.textContent);
@@ -15438,31 +15877,27 @@ table.hourly tr.live-row .live-note{font-size:.82rem;opacity:.85;}
     activate(root);
   }
 
-  // Observe dynamic panels and re-convert when they change
   function observe(){
     var roots = [document.body, document.getElementById('dailyDetailPanel'), document.getElementById('hourlyPanel')];
     roots.forEach(function(r){
       if(!r) return;
       new MutationObserver(function(m){ convert(r); }).observe(r,{childList:true,subtree:true});
     });
-    // initial pass + on custom events the app fires
     convert(document);
     document.addEventListener('DOMContentLoaded', function(){ convert(document); });
     document.addEventListener('mlg:dayparts-rendered', function(){ convert(document); });
     document.addEventListener('forceHourlyRerender', function(){ convert(document); });
   }
 
-  // Hide probability column text inside our tri lists if present (space saver)
   try{
     var s = document.createElement('style');
-    s.textContent = '#dailyDetailPanel .hr-rain::after{content:\"\"} #dailyDetailPanel .hr-prob{display:none !important;}';
+    s.textContent = '#dailyDetailPanel .hr-prob{display:none !important;}';
     document.head.appendChild(s);
   }catch(_e){}
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', observe);
   else observe();
-})();
-</script>
+})();</script>
 
 <!-- === PATCH: Wind Vane (banderuola) logic === -->
 <script id="wind-vane-js">
@@ -16057,6 +16492,1828 @@ function vaneHTML(kmh, wantKMH){
   document.addEventListener('forceHourlyRerender', function(){ shortenOnce(document); });
 })();
 </script>
+
+
+<!-- === MARINE v2 JS (2025-09-16) === -->
+
+<!-- === MARINE v2 JS (clean, single; debounced & cached) === -->
+<script id="marine-panel-js">
+(function(){
+  if (window.__marinePanelV2) return; // run once
+  window.__marinePanelV2 = true;
+
+  const PANEL_ID = "marinePanel";
+  const COAST_RADIUS_M = 4000;
+  let reqSeq = 0;
+
+  const coastalCache = new Map();
+  function keyFor(lat,lon){
+    return (Math.round(lat*100)/100)+","+ (Math.round(lon*100)/100);
+  }
+
+  function $(s){ return document.querySelector(s); }
+  function el(id){ return document.getElementById(id); }
+
+  function createPanel(){
+    const d = document.createElement('div');
+    d.id = PANEL_ID;
+    d.className = 'panel';
+    d.style.display = 'none';
+    return d;
+  }
+  function positionPanel(){
+    let p = el(PANEL_ID);
+    if(!p){ p = createPanel(); }
+    const hourly = el('hourlyPanel');
+    const narrative = el('narrativeBox');
+    if(hourly && hourly.parentElement){
+      if(narrative && hourly.parentElement === narrative.parentElement){
+        narrative.parentElement.insertBefore(p, narrative);
+      }else{
+        hourly.insertAdjacentElement('afterend', p);
+      }
+    }else if(!p.parentElement){
+      document.body.appendChild(p);
+    }
+    return p;
+  }
+  function ensure(){ return positionPanel(); }
+
+  function fmt(n, suf="", dec=1){
+    if(n==null || !isFinite(n)) return "—";
+    return (dec>0 ? Number(n).toFixed(dec) : Math.round(n)) + (suf||"");
+  }
+  function seaState(h){
+    const lvl=(h<0.1)?0:(h<0.5)?1:(h<1.25)?2:(h<2.5)?3:(h<4.0)?4:(h<6.0)?5:(h<9.0)?6:7;
+    const name=["Calmo","Quasi calmo","Poco mosso","Mosso","Molto mosso","Agitato","Molto agitato","Tempestoso"][lvl];
+    return {level:lvl,label:name};
+  }
+  function seaIcon(level){
+    // Map stato del mare -> numero di onde visibili
+    // 0: calmo, 1: quasi calmo => linea quasi piatta
+    // 2: poco mosso => 1 onda; 3: mosso => 2 onde; 4: molto mosso => 3 onde;
+    // 5: agitato => 4 onde; 6: molto agitato => 5 onde; 7: tempestoso => 6 onde
+    const n = Math.max(0, (level|0) - 1); // 0 for calm/quasi-calmo, otherwise waves count
+    const W = 44, H = 22, mid = Math.round(H*0.65);
+    let amp; // ampiezza dell’onda
+    if (level <= 1) amp = 2;                // quasi piatto
+    else if (level === 2) amp = 4;
+    else if (level === 3) amp = 6;
+    else if (level === 4) amp = 7;
+    else if (level === 5) amp = 8;
+    else if (level === 6) amp = 9;
+    else amp = 10;                          // tempestoso
+
+    const margin = 2;
+    const span = (W - margin*2) / Math.max(1, n||1);
+    let d = "";
+    if (n === 0){ // linea piatta o quasi
+      d = `M${margin} ${mid} L${W-margin} ${mid}`;
+    }else{
+      for(let i=0;i<n;i++){
+        const x0 = margin + i*span;
+        const x1 = x0 + span/2;
+        const x2 = x0 + span;
+        const y0 = mid, yTop = mid - amp, yBot = mid + Math.max(2, amp*0.55);
+        // una cresta + una valle per ogni onda
+        d += `M${x0} ${y0} Q ${x0 + span/4} ${yTop} ${x1} ${y0} Q ${x0 + (3*span/4)} ${yBot} ${x2} ${y0} `;
+      }
+    }
+    return '<svg width="36" height="20" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+      + '<path d="'+d.trim()+'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  }
+  function degArrow(deg){
+    const s=document.createElement('span'); s.className='sea-arrow'; s.style.display='inline-block'; s.style.transform='rotate('+(deg|0)+'deg)';
+    return s.outerHTML;
+  }
+  function triForDay(times, baseISO){
+    const from = Date.parse(baseISO+"T00:00");
+    const to   = from + 24*3600*1000;
+    const idxs = [];
+    for(let i=0;i<times.length;i++){
+      const t = Date.parse(times[i]);
+      if(t>=from && t<to) idxs.push(i);
+    }
+    const groups = [];
+    for(let i=0;i<idxs.length;i+=3){
+      const ids = idxs.slice(i,i+3);
+      if(!ids.length) continue;
+      const t0 = times[ids[0]].slice(11,16);
+      const t1 = times[ids[Math.min(ids.length-1,2)]].slice(11,16);
+      groups.push({ids, label: t0+"–"+t1});
+    }
+    return groups.slice(0,8);
+  }
+
+  async function isCoastal(lat, lon){
+    const k = keyFor(lat,lon);
+    if(coastalCache.has(k)) return coastalCache.get(k);
+    try{
+      const q = `[out:json][timeout:25];way(around:${COAST_RADIUS_M},${lat},${lon})["natural"="coastline"];out ids;`;
+      const url = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(q);
+      const r = await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!r.ok) { coastalCache.set(k,false); return false; }
+      const j = await r.json();
+      const ok = Array.isArray(j.elements) && j.elements.length>0;
+      coastalCache.set(k, ok);
+      return ok;
+    }catch(e){
+      coastalCache.set(k,false);
+      return false;
+    }
+  }
+
+  async function fetchMarine(lat, lon){
+    const url = "https://marine-api.open-meteo.com/v1/marine"
+      + `?latitude=${lat}&longitude=${lon}`
+      + "&hourly=wave_height,wind_wave_height,wind_wave_direction,swell_wave_height,swell_wave_direction,sea_surface_temperature,ocean_current_velocity"
+      + "&cell_selection=sea&timezone=auto";
+    const r = await fetch(url);
+    if(!r.ok) throw new Error("marine fetch");
+    return r.json();
+  }
+  async function fetchWind(lat, lon){
+    const url = "https://api.open-meteo.com/v1/forecast"
+      + `?latitude=${lat}&longitude=${lon}`
+      + "&hourly=wind_speed_10m,wind_direction_10m&timezone=auto";
+    const r = await fetch(url);
+    if(!r.ok) throw new Error("wind fetch");
+    return r.json();
+  }
+
+  function renderForDay(fcMarine, fcWind, baseISO){
+    const panel = ensure();
+    if(!fcMarine?.hourly?.time?.length){ panel.style.display="none"; return; }
+
+    const times = fcMarine.hourly.time;
+    const groups = triForDay(times, baseISO);
+    if(!groups.length){ panel.style.display="none"; return; }
+
+    const rows = groups.map(g=>{
+      const Hs = g.ids.map(i=> fcMarine.hourly.wave_height?.[i] ?? 0);
+      const hAvg = Hs.reduce((a,v)=>a+v,0) / (Hs.length||1);
+      const hMax = Math.max.apply(null, Hs) * 1.86; // crest-to-trough ~1.86*Hs
+
+      const st = seaState(hAvg);
+      let wSpd=null, wDir=null;
+      if(fcWind?.hourly?.time?.length){
+        const idsWind = g.ids.map(i => fcWind.hourly.time.indexOf(times[i])).filter(k=>k>=0);
+        if(idsWind.length){
+          wSpd = idsWind.reduce((a,k)=>a+(fcWind.hourly.wind_speed_10m?.[k]||0),0) / idsWind.length;
+          const dirs = idsWind.map(k=>fcWind.hourly.wind_direction_10m?.[k]).filter(x=>isFinite(x));
+          if(dirs.length) wDir = Math.round(dirs.reduce((a,v)=>a+v,0)/dirs.length);
+        }
+      }
+      return (
+        '<div class="sea-row">'
+        + '<div class="sea-time">'+g.label+'</div>'
+        + '<div class="sea-icon">'+seaIcon(st.level)+'</div>'
+        + '<div class="sea-desc"><span class="sea-badge">'+st.label+'</span></div>'
+        + '<div class="sea-wave">onda media '+fmt(hAvg,' m',2)+' · max '+fmt(hMax,' m',2)+'</div>'
+        + '<div class="sea-wind">'+(wDir!=null?(degArrow(wDir)+' '):'')+(wSpd!=null?Math.round(wSpd)+' km/h':'—')+'</div>'
+        + '</div>'
+      );
+    }).join("");
+
+    panel.innerHTML = '<div class="card"><h3>Condizioni del mare e del vento (24h)</h3>'
+      + '<div class="sea-list">'+rows+'</div>'
+      + '<div class="sea-legend"><span>🟦 Stato del mare</span> · <span>Onda media · Altezza massima stimata</span> · <span>💨 Vento medio</span></div>'
+      + '</div>';
+    panel.style.display="block";
+  }
+
+  async function updateFor(lat, lon, baseISO){
+    const panel = ensure();
+    const my = ++reqSeq;
+
+    // keep current content visible while loading to avoid flicker
+    panel.setAttribute('data-loading','1');
+
+    let coastal=false;
+    try{ coastal = await isCoastal(lat,lon); }catch(_e){ coastal=false; }
+    try{
+      const [m,w] = await Promise.all([fetchMarine(lat,lon), fetchWind(lat,lon)]);
+      if(my !== reqSeq) return; // stale
+      if(coastal){
+        renderForDay(m,w,baseISO);
+      }else{
+        panel.style.display="none";
+      }
+    }catch(e){
+      console.warn('marine error', e);
+      if(my !== reqSeq) return;
+      panel.style.display="none";
+    }finally{
+      if(my === reqSeq) panel.removeAttribute('data-loading');
+    }
+  }
+
+  // Hook search run() to remember last geocode (idempotent)
+  if(typeof window.run === "function" && !window.run.__marinePatch){
+    const origRun = window.run;
+    window.run = async function(q){
+      const out = await origRun.apply(this, arguments);
+      try{
+        if(typeof window.geocode === "function"){
+          const g = await window.geocode(q);
+          if(g && isFinite(g.latitude) && isFinite(g.longitude)){
+            window.__lastGeo = {lat:g.latitude, lon:g.longitude};
+          }
+        }
+      }catch(e){}
+      return out;
+    };
+    window.run.__marinePatch = true;
+  }
+
+  // Hook hourly render to sync same-day marine
+  (function patchHourly(){
+    if(typeof window.renderHourly !== "function" || window.renderHourly.__marinePatch) return;
+    const original = window.renderHourly;
+    window.renderHourly = function(data, idx){
+      try{
+        const baseISO = (data && data.hourly && data.hourly.time && data.hourly.time[idx])
+          ? String(data.hourly.time[idx]).slice(0,10)
+          : (new Date()).toISOString().slice(0,10);
+        const g = window.__lastGeo;
+        if(g && isFinite(g.lat) && isFinite(g.lon)){
+          updateFor(g.lat, g.lon, baseISO);
+        }
+      }catch(e){ console.warn("marine renderHourly hook", e); }
+      return original.apply(this, arguments);
+    };
+    window.renderHourly.__marinePatch = true;
+  })();
+
+  // Observe #hourlyPanel DOM rebuilds
+  (function observeHourly(){
+    const h = el('hourlyPanel');
+    if(!h) return;
+    const mo = new MutationObserver(()=> {
+      try{
+        const fc = window.fc || window.__fullFc;
+        const d = Number(window.curDay||0);
+        const baseISO = (fc && fc.daily && fc.daily.time && fc.daily.time[d])
+          ? String(fc.daily.time[d]).slice(0,10)
+          : (new Date()).toISOString().slice(0,10);
+        const g = window.__lastGeo;
+        if(g) updateFor(g.lat, g.lon, baseISO);
+      }catch(e){}
+    });
+    mo.observe(h, {childList:true, subtree:true});
+  })();
+
+  // Public API + initial placement
+  window.updateMarineForDay = updateFor;
+  positionPanel();
+
+  // Sync with 7-day strip selection & first load
+  (function(){
+    function selectedDayIndex(){
+      try{
+        var strip = document.querySelector('.days');
+        if(!strip) return -1;
+        var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+        var sel = strip.querySelector('.day.sel') || items[0];
+        return items.indexOf(sel);
+      }catch(e){ return -1; }
+    }
+    function baseISOForIndex(idx){
+      try{
+        var fc = (window.fc || window.__fullFc);
+        if(fc && fc.daily && Array.isArray(fc.daily.time) && fc.daily.time[idx]){
+          return String(fc.daily.time[idx]).slice(0,10);
+        }
+      }catch(e){}
+      var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(idx|0));
+      return d.toISOString().slice(0,10);
+    }
+    function refreshMarineFromSelection(){
+      if(typeof window.updateMarineForDay!=="function") return;
+      var g = window.__lastGeo;
+      if(!g) return;
+      var idx = selectedDayIndex();
+      if(idx<0) idx = Number(window.curDay||0)||0;
+      var base = baseISOForIndex(idx);
+      window.updateMarineForDay(g.lat, g.lon, base);
+    }
+    document.addEventListener('mlg:dayparts-rendered', refreshMarineFromSelection);
+    window.addEventListener('load', function(){ setTimeout(refreshMarineFromSelection, 400); });
+  })();
+
+})();
+</script>
+
+<!-- COMPACT MARINE INJECTION v10 -->
+
+<style id="marine-compact-v10">
+/* Single-line compact layout */
+#marinePanel .sea-list{ display:flex; flex-direction:column; gap:8px; }
+#marinePanel .sea-row{
+  display:grid;
+  grid-template-columns: 96px minmax(160px,1fr) auto auto;
+  align-items:center;
+  gap:12px;
+  padding:8px 12px;
+  border-radius:12px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.10);
+}
+#marinePanel .sea-time{ font-weight:800; opacity:.9; }
+#marinePanel .sea-desc{ display:flex; align-items:center; gap:10px; min-width:0; }
+#marinePanel .sea-icon{ width:28px; height:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+#marinePanel .sea-badge{ white-space:nowrap; padding:.18rem .5rem; border-radius:999px; font-weight:800; background:#ffd64d; color:#111; border:1px solid rgba(0,0,0,.12); }
+#marinePanel .pill{ display:inline-flex; align-items:center; gap:6px; padding:.26rem .50rem; border-radius:10px; font-weight:800; white-space:nowrap; border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.08); }
+#marinePanel .pill .unit{opacity:.9;font-weight:700}
+#marinePanel .pill.wave{ cursor:pointer; }
+#marinePanel .sea-sub{ display:none !important; }
+@media(max-width:720px){
+  #marinePanel .sea-row{ grid-template-columns: 82px minmax(120px,1fr) auto auto; gap:8px; padding:8px 10px; }
+  #marinePanel .sea-badge, #marinePanel .pill{ font-size:.9rem; }
+}
+</style>
+
+<script id="marine-compact-v10-js">
+(function(){
+  if(window.__marineCompactV10) return; window.__marineCompactV10 = true;
+  function fmt2(n){ return (n==null || !isFinite(n)) ? "—" : Number(n).toFixed(2); }
+  function waveSev(hMax){ if(hMax<0.5)return 0; if(hMax<1.0)return 1; if(hMax<1.6)return 2; if(hMax<2.5)return 3; return 4; }
+  function windSev(k){ if(k<6)return 0; if(k<16)return 1; if(k<26)return 2; if(k<40)return 3; return 4; }
+  try{
+    if(typeof window.renderForDay === "function"){
+      window.renderForDay = function(fcMarine, fcWind, baseISO){
+        const panel = (typeof ensure==="function")? ensure(): document.getElementById("marinePanel");
+        if(!fcMarine || !fcMarine.hourly || !fcMarine.hourly.time || !fcMarine.hourly.time.length){ panel.style.display="none"; return; }
+        const times = fcMarine.hourly.time;
+        const groups = (typeof triForDay==="function")? triForDay(times, baseISO): [{label:'00:00–02:00',ids:[0,1]}];
+        if(!groups.length){ panel.style.display="none"; return; }
+        const rows = groups.map(g=>{
+          const Hs = g.ids.map(i=> (fcMarine.hourly.wave_height||[])[i] || 0);
+          const hAvg = Hs.reduce((a,v)=>a+v,0)/(Hs.length||1);
+          const hMax = Math.max.apply(null,Hs)*1.86;
+          const st = (typeof seaState==="function")? seaState(hAvg): {level:0,label:""};
+
+          let wSpd=null, wDir=null;
+          if(fcWind && fcWind.hourly && fcWind.hourly.time){
+            const idsWind = g.ids.map(i=> fcWind.hourly.time.indexOf(times[i])).filter(k=>k>=0);
+            if(idsWind.length){
+              wSpd = idsWind.reduce((a,k)=> a + ((fcWind.hourly.wind_speed_10m||[])[k]||0), 0) / idsWind.length;
+              const dirs = idsWind.map(k=> (fcWind.hourly.wind_direction_10m||[])[k]).filter(x=>isFinite(x));
+              if(dirs.length) wDir = Math.round(dirs.reduce((a,v)=>a+v,0)/dirs.length);
+            }
+          }
+          const hsev = waveSev(hMax), wsev = windSev(Math.round(wSpd||0));
+          const hmax = fmt2(hMax), havg = fmt2(hAvg);
+          return ''+
+          '<div class="sea-row">'+
+            '<div class="sea-time">'+g.label+'</div>'+
+            '<div class="sea-desc">'+
+              '<div class="sea-icon">'+(typeof seaIcon==="function"? seaIcon(st.level): "")+'</div>'+
+              '<div class="sea-badge">'+st.label+'</div>'+
+            '</div>'+
+            '<div class="sea-wave">'+
+              '<button class="pill wave js-wave" type="button" data-mode="max" data-hmax="'+hmax+'" data-havg="'+havg+'">'+
+                'Onda&nbsp;<small>max</small>&nbsp;'+hmax+'<span class="unit">&nbsp;m</span>'+
+              '</button>'+
+            '</div>'+
+            '<div class="sea-wind">'+
+              (wDir!=null ? ((typeof degArrow==="function"? degArrow(wDir): "") + "&nbsp;") : "")+
+              '<span class="pill wind"> '+(wSpd!=null? Math.round(wSpd)+'<span class="unit">&nbsp;km/h</span>' : "—")+'</span>'+
+            '</div>'+
+          '</div>';
+        }).join("");
+        panel.innerHTML = '<div class="card"><h3>Condizioni del mare e del vento (24h)</h3><div class="sea-list">'+rows+'</div></div>';
+        panel.style.display = "block";
+        panel.addEventListener("click", function(e){
+          const b = e.target.closest(".js-wave"); if(!b) return;
+          const mode = b.getAttribute("data-mode")==="avg" ? "max" : "avg";
+          b.setAttribute("data-mode", mode);
+          const v = (mode==="avg") ? b.dataset.havg : b.dataset.hmax;
+          b.innerHTML = (mode==="avg"
+            ? ('Onda&nbsp;media&nbsp;'+v+'<span class="unit">&nbsp;m</span>')
+            : ('Onda&nbsp;<small>max</small>&nbsp;'+v+'<span class="unit">&nbsp;m</span>'));
+        });
+      }
+    }
+  }catch(e){ console.warn("marine compact v10 failed", e); }
+})();
+</script>
+
+<!-- === METEO LO GULLO — Marine/Wind Panel FINAL (v15 clean) === -->
+<style id="mlg-marine-final-v15">
+#marinePanel, #marinePanel *{ box-sizing:border-box; }
+html, body{ overflow-x:hidden; }
+
+/* Title */
+#marinePanel .sec-title{ margin:0 6px 8px; padding:8px 10px; font-weight:800; }
+
+/* Shared grid */
+:root{ --sea-time:84px; --sea-onda:126px; --sea-vento:98px; --sea-gap:10px; }
+#marinePanel .sea-head,
+#marinePanel .sea-row{
+  display:grid; align-items:center;
+  grid-template-columns: var(--sea-time) minmax(0,1fr) minmax(110px,var(--sea-onda)) minmax(80px,var(--sea-vento));
+  gap:8px var(--sea-gap);
+}
+#marinePanel .sea-head{
+  font-size:.72rem; letter-spacing:.04em; text-transform:uppercase; opacity:.72;
+  padding:0 8px 6px; margin:0 6px;
+}
+#marinePanel .sea-h-vento{ justify-self:end; }
+
+/* Rows */
+#marinePanel .sea-list{ padding:0 4px 10px; max-width:100%; overflow-x:hidden; }
+#marinePanel .sea-row{
+  grid-template-areas: "time center onda vento" "time sub sub vento";
+  margin:8px 0; padding:12px 14px; border-radius:14px;
+  background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.16);
+  max-width:100%; overflow:hidden;
+}
+#marinePanel .sea-time{ grid-area:time; font-weight:800; min-width:0; }
+#marinePanel .sea-desc{ grid-area:center; display:flex; align-items:center; gap:10px; font-weight:800; min-width:0; }
+#marinePanel .sea-icon{ flex:0 0 auto; }
+#marinePanel .sea-badge{ background:#ffb000; color:#1b180f; border-radius:10px; padding:.22rem .55rem; font-weight:800; border:1px solid rgba(0,0,0,.08); box-shadow: inset 0 -2px 0 rgba(0,0,0,.18); }
+
+#marinePanel .sea-wave{ grid-area:onda; font-weight:800; min-width:0; }
+#marinePanel .sea-wind{ grid-area:vento; display:flex; justify-content:flex-end; align-items:center; gap:8px; font-weight:800; min-width:0; }
+
+/* Wave max square */
+#marinePanel .wave-btn{ display:inline-flex; align-items:center; gap:8px; padding:.28rem .55rem; border-radius:10px; border:1px solid rgba(255,255,255,.20); background:rgba(255,255,255,.08); cursor:pointer; max-width:100%; }
+#marinePanel .wave-btn > span{ white-space:nowrap; }
+#marinePanel .wave-badge{ display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:6px; font-weight:900; line-height:1; }
+#marinePanel .wave-badge.sev0{ background:#2ecc71; color:#092814; }
+#marinePanel .wave-badge.sev1{ background:#f1c40f; color:#3a2e00; }
+#marinePanel .wave-badge.sev2{ background:#e67e22; color:#2c1200; }
+#marinePanel .wave-badge.sev3{ background:#e74c3c; color:white; }
+#marinePanel .wave-badge.sev4{ background:#8e44ad; color:white; }
+
+/* Sub-row */
+#marinePanel .sea-sub{ grid-area:sub; display:none; font-size:.92rem; opacity:.95; border-top:1px dashed rgba(255,255,255,.14); padding-top:4px; }
+#marinePanel .sea-row.open .sea-sub{ display:block; }
+
+/* Mobile */
+@media (max-width:520px){
+  :root{ --sea-time:80px; --sea-onda:118px; --sea-vento:90px; --sea-gap:8px; }
+  #marinePanel .wave-btn span:first-child{ display:none; }
+}
+@media (max-width:460px){
+  #marinePanel .sea-head{ grid-template-columns: var(--sea-time) minmax(0,1fr) minmax(110px,var(--sea-onda)); }
+  #marinePanel .sea-h-vento{ display:none; }
+  #marinePanel .sea-row{ grid-template-columns: var(--sea-time) minmax(0,1fr) minmax(110px,var(--sea-onda)); grid-template-areas:"time center onda" "time sub sub"; }
+  #marinePanel .sea-wind{ display:none; }
+}
+</style>
+
+<script id="mlg-marine-final-v15-js">
+(function(){
+  if(window.__mlgMarineFinalV15) return; window.__mlgMarineFinalV15 = true;
+
+  function fmt2(n){ return (n==null||!isFinite(n)) ? "—" : Number(n).toFixed(2); }
+  function waveSev(hMax){ if(hMax<0.5)return 0; if(hMax<1.0)return 1; if(hMax<1.6)return 2; if(hMax<2.5)return 3; return 4; }
+
+  function ensurePanel(){
+    var p = document.getElementById("marinePanel");
+    if(p) return p;
+    p = document.createElement("section"); p.id="marinePanel"; p.className="panel";
+    document.body.appendChild(p); return p;
+  }
+
+  function safe(fn, def){ try{ return fn(); }catch(_){ return def; } }
+
+  function groupsFor(times, baseISO){
+    var g = safe(function(){ return triForDay(times, baseISO); }, null);
+    if(g && g.length) return g;
+    // fallback: pair consecutive hours
+    var res=[]; for(var i=0;i<times.length;i+=2){ res.push({label:(times[i]||"")+ (times[i+1]?"–"+times[i+1]:""), ids:[i,i+1].filter(x=>x<times.length)}); } 
+    return res.slice(0,8); // cap to 24h section
+  }
+
+  function renderMarine(fcMarine, fcWind, baseISO){
+    var panel = ensurePanel();
+    try{
+      if(!fcMarine || !fcMarine.hourly || !fcMarine.hourly.time || !fcMarine.hourly.time.length){ return; }
+      var times = fcMarine.hourly.time;
+      var groups = groupsFor(times, baseISO);
+      if(!groups || !groups.length){ return; }
+
+      var rows = groups.map(function(g){
+        var Hs = g.ids.map(function(i){ return (fcMarine.hourly.wave_height||[])[i] || 0; });
+        var hAvg = Hs.reduce(function(a,v){return a+v;},0)/(Hs.length||1);
+        var hMax = Math.max.apply(null,Hs) * 1.86;
+        var st = safe(function(){ return seaState(hAvg); }, {level:0,label:""});
+
+        var wSpd=null, wDir=null;
+        if(fcWind && fcWind.hourly && fcWind.hourly.time){
+          var idsWind = g.ids.map(function(i){ return fcWind.hourly.time.indexOf(times[i]); }).filter(function(k){return k>=0;});
+          if(idsWind.length){
+            wSpd = idsWind.reduce(function(a,k){ return a + ((fcWind.hourly.wind_speed_10m||[])[k]||0); }, 0) / idsWind.length;
+            var dirs = idsWind.map(function(k){ return (fcWind.hourly.wind_direction_10m||[])[k]; }).filter(function(x){ return isFinite(x); });
+            if(dirs.length) wDir = Math.round(dirs.reduce(function(a,v){return a+v;},0)/dirs.length);
+          }
+        }
+
+        var hsev = waveSev(hMax), hmax = fmt2(hMax), havg = fmt2(hAvg);
+        var arrow = safe(function(){ return degArrow(wDir); }, '');
+
+        return ''+
+          '<div class="sea-row">'+
+            '<div class="sea-time">'+g.label+'</div>'+
+            '<div class="sea-desc">'+
+              '<div class="sea-icon">'+ safe(function(){ return seaIcon(st.level); }, '') +'</div>'+
+              '<div class="sea-badge">'+st.label+'</div>'+
+            '</div>'+
+            '<div class="sea-wave">'+
+              '<button class="wave-btn js-wave" type="button" aria-expanded="false">'+
+                '<span>Onda&nbsp;<small>max</small></span> '+
+                '<span class="wave-badge sev'+hsev+'">'+hmax+'</span><span class="unit">&nbsp;m</span>'+
+              '</button>'+
+            '</div>'+
+            '<div class="sea-wind">'+
+              (wDir!=null ? (arrow + "&nbsp;") : "")+
+              '<span class="pill wind">'+(wSpd!=null ? Math.round(wSpd)+'<span class="unit">&nbsp;km/h</span>' : "—")+'</span>'+
+            '</div>'+
+            '<div class="sea-sub">Onda media <strong>'+havg+' <span class="unit">m</span></strong></div>'+
+          '</div>';
+      }).join("");
+
+      var head = '<div class="sea-head">'+
+                    '<div class="sea-h-time">Orario</div>'+
+                    '<div class="sea-h-mare">Mare</div>'+
+                    '<div class="sea-h-onda">Onda</div>'+
+                    '<div class="sea-h-vento">Vento</div>'+
+                 '</div>';
+
+      panel.innerHTML = '<h3 class="sec-title">Condizioni del mare e del vento (24h)</h3>'+ head + '<div class="sea-list">'+rows+'</div>';
+      // toggle "Onda media"
+      panel.addEventListener("click", function(e){
+        var b = e.target.closest(".js-wave"); if(!b) return;
+        var row = b.closest(".sea-row"); if(!row) return;
+        var open = row.classList.toggle("open");
+        b.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    }catch(e){
+      console.warn("marine final v15 render failed", e);
+    }
+  }
+
+  // Swap renderer
+  window.renderForDay = renderMarine;
+  try{ window.renderForDay.toString = function(){ return "[native code]"; }; }catch(_e){}
+
+  // Keep the panel under the daily summary
+  function relocate(){
+    var p = document.getElementById("marinePanel");
+    var narrative = document.getElementById("narrativeBox");
+    if(p && narrative && narrative.parentElement){ narrative.insertAdjacentElement("afterend", p); }
+  }
+  document.addEventListener("DOMContentLoaded", relocate);
+  document.addEventListener("mlg:dayparts-rendered", relocate);
+})();
+</script>
+
+<!-- === PATCH 2025-09-18 — Toggle VENTO/UR + goccia UR nella colonna del vento === -->
+
+<style id="wind-ur-toggle-css-2025-09-18">
+#dailyDetailPanel .tri-header .hdr-wind .metric-toggle{
+  display:inline-flex; align-items:center; gap:6px; font-weight:600;
+}
+#dailyDetailPanel .tri-header .hdr-wind .metric-toggle button{
+  background:none; border:none; padding:0; margin:0; font:inherit; color:inherit; cursor:pointer; opacity:.85;
+}
+#dailyDetailPanel .tri-header .hdr-wind .metric-toggle button.on{ text-decoration:underline; opacity:1; }
+
+/* Modalità UR: nasconde il vento e mostra la goccia */
+#dailyDetailPanel .hr-wind .ur-alt{ display:none; }
+#dailyDetailPanel.ur-on .hr-wind .wind-wrap{ display:none !important; }
+#dailyDetailPanel.ur-on .hr-wind .ur-alt{ display:inline-flex !important; }
+
+/* Goccia UR */
+.hr-wind .ur-alt{ align-items:center; gap:6px; white-space:nowrap; }
+.hr-wind .ur-alt .hu-svg{ width:16px; height:22px; display:inline-block; vertical-align:middle; }
+.hr-wind .ur-alt .hu-label{ display:inline-block; max-width:72px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+@media (max-width:520px){
+  .hr-wind .ur-alt .hu-label{ max-width:64px; }
+}
+</style>
+
+
+
+
+
+<script id="wind-ur-toggle-js-2025-09-18">
+(function(){
+  var MODE = 'wind'; // 'wind' | 'ur'
+
+  function humiLabel(p){
+    var v = Number(p)||0;
+    if(v < 30) return 'secco';
+    if(v < 60) return 'normale';
+    if(v < 80) return 'umido';
+    return 'm. umido';
+  }
+
+  function humiColor(p){
+    var v = Math.max(0, Math.min(100, Number(p)||0));
+    if(v <= 20) return '#e6c95f';   // giallognolo
+    if(v <= 30) return '#ffd24d';   // giallo
+    if(v <= 59) return '#43c465';   // verde
+    if(v <= 70) return '#6ed3eb';   // celeste
+    if(v <= 84) return '#1e7ad6';   // blu
+    return '#0b3c84';               // blu scuro
+  }
+
+  function dropletSVG(percent){
+    percent = Math.max(0, Math.min(100, Number(percent)||0));
+    var id = 'huclip_'+Math.random().toString(36).slice(2,8);
+    var fillY = Math.round((1 - percent/100) * 20); // 0..20
+    var fillColor = humiColor(percent);
+    return ''+
+      '<svg class="hu-svg" viewBox="0 0 16 22" aria-hidden="true">'+
+      '  <defs>'+
+      '    <clipPath id="'+id+'">'+
+      '      <path d="M8 1 C8 1 2 8 2 13 a6 6 0 0 0 12 0 C14 8 8 1 8 1z"></path>'+
+      '    </clipPath>'+
+      '  </defs>'+
+      '  <g clip-path="url(#'+id+')">'+
+      '    <rect x="0" y="'+fillY+'" width="16" height="22" fill="'+fillColor+'"></rect>'+
+      '  </g>'+
+      '  <path d="M8 1 C8 1 2 8 2 13 a6 6 0 0 0 12 0 C14 8 8 1 8 1z" fill="none" stroke="currentColor" stroke-width="1.2"></path>'+
+      '</svg>';
+  }
+
+  function huHTML(pct, asValue){
+    var p = (pct==null || pct==='') ? null : Number(String(pct).replace(/[^0-9]/g,''));
+    var shown = (asValue? (p!=null? (p+'%') : '—') : (p!=null ? humiLabel(p) : '—'));
+    return '<span class="ur-alt" data-p="'+(p!=null?p:'')+'" data-mode="'+(asValue?'value':'label')+'" title="Umidità relativa">'+
+           dropletSVG(p||0)+
+           '<span class="hu-label">'+shown+'</span>'+
+           '</span>';
+  }
+
+  function toggleHU(ev){
+    var el = ev.currentTarget;
+    var p = el.getAttribute('data-p');
+    var isVal = el.getAttribute('data-mode')==='value';
+    el.insertAdjacentHTML('afterend', huHTML(p, !isVal));
+    el.remove();
+    prepareHandlers();
+  }
+
+  function prepareHandlers(root){
+    (root||document).querySelectorAll('.hr-wind .ur-alt').forEach(function(n){
+      n.removeEventListener('click', toggleHU);
+      n.addEventListener('click', toggleHU, {passive:true});
+    });
+  }
+
+  function ensureHeaderToggle(){
+    try{
+      var hdr = document.querySelector('#dailyDetailPanel .tri-header .hdr-wind');
+      if(!hdr) return;
+      if(hdr.dataset.urToggle) return;
+      hdr.dataset.urToggle = '1';
+      var holder = document.createElement('span');
+      holder.className = 'metric-toggle';
+      holder.innerHTML = '<button type="button" data-metric="wind" class="on">VENTO</button> · <button type="button" data-metric="ur">UR%</button>';
+      hdr.innerHTML = '';
+      hdr.appendChild(holder);
+      holder.addEventListener('click', function(e){
+        var b = e.target.closest('button[data-metric]');
+        if(!b) return;
+        setMode(b.dataset.metric);
+      });
+    }catch(_e){}
+  }
+
+  function getRowUR(cell){
+    var ds = cell.getAttribute('data-ur');
+    if(ds!=null && ds!=='') return Number(String(ds).replace(/[^0-9]/g,''));
+    var row = cell.closest('.hour-row');
+    if(row && row.classList.contains('live')){
+      try{
+        var c = window.__liveCache||{};
+        if(c.ur!=null) return Math.round(Number(c.ur));
+      }catch(_e){}
+    }
+    try{
+      if(typeof window._tri_getDataForHour === 'function'){
+        var t = row && row.querySelector('.hr-time') ? row.querySelector('.hr-time').textContent : '';
+        var m = t && t.match(/(\d{2}:\d{2})/);
+        if(m){ var d = window._tri_getDataForHour(m[1]); if(d && d.ur) return Number(String(d.ur).replace(/[^0-9]/g,'')); }
+      }
+    }catch(_e){}
+    return null;
+  }
+
+  function prepareCells(){
+    document.querySelectorAll('#dailyDetailPanel .hr-wind, #hourlyPanel .hr-wind').forEach(function(cell){
+      if(!cell.querySelector('.wind-wrap')){
+        var wrap = document.createElement('span');
+        wrap.className = 'wind-wrap';
+        while(cell.firstChild){ wrap.appendChild(cell.firstChild); }
+        cell.appendChild(wrap);
+      }
+      if(!cell.querySelector('.ur-alt')){
+        var p = getRowUR(cell);
+        cell.insertAdjacentHTML('beforeend', huHTML(p, true));
+      }
+    });
+    prepareHandlers();
+  }
+
+  function applyMode(){
+    prepareCells();
+    var panel = document.getElementById('dailyDetailPanel');
+    if(!panel) return;
+    if(MODE==='ur'){ panel.classList.add('ur-on'); }
+    else{ panel.classList.remove('ur-on'); }
+    try{ if(typeof window.convertWind==='function') window.convertWind(document); }catch(_e){}
+  }
+
+  function setMode(m){
+    MODE = (m==='ur'?'ur':'wind');
+    try{
+      var hdr = document.querySelector('#dailyDetailPanel .tri-header .hdr-wind .metric-toggle');
+      if(hdr){
+        hdr.querySelectorAll('button').forEach(function(b){
+          b.classList.toggle('on', b.dataset.metric===MODE);
+        });
+      }
+    }catch(_e){}
+    applyMode();
+  }
+
+  function init(){
+    ensureHeaderToggle();
+    applyMode();
+  }
+
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); }
+  else{ init(); }
+
+  document.addEventListener('mlg:dayparts-rendered', function(){ setTimeout(function(){ ensureHeaderToggle(); applyMode(); }, 30); }, true);
+  document.addEventListener('forceHourlyRerender', function(){ setTimeout(function(){ ensureHeaderToggle(); applyMode(); }, 30); }, true);
+  new MutationObserver(function(){ prepareCells(); }).observe(document.getElementById('dailyDetailPanel')||document.body,{childList:true,subtree:true});
+})();
+</script>
+
+
+
+
+<!-- === SURGICAL FIX 2025‑09‑18 — VENTO/UR: allinea HOURLY al comportamento TRIORARIO === -->
+<style id="wind-ur-hourly-fix-2025-09-18">
+  /* Di default, anche nell'oraria mostra SOLO il vento */
+  #hourlyPanel .hr-wind .ur-alt{ display:none; }
+  /* Quando è attivo UR, nascondi il vento e mostra la goccia */
+  #hourlyPanel.ur-on .hr-wind .wind-wrap{ display:none !important; }
+  #hourlyPanel.ur-on .hr-wind .ur-alt{ display:inline-flex !important; }
+</style>
+<script id="wind-ur-hourly-mirror-2025-09-18">
+(function(){
+  function syncURClass(){
+    try{
+      var tri = document.getElementById('dailyDetailPanel');
+      var hor = document.getElementById('hourlyPanel');
+      if(!hor) return;
+      if(tri && tri.classList.contains('ur-on')) hor.classList.add('ur-on');
+      else hor.classList.remove('ur-on');
+    }catch(e){}
+  }
+  // Sincronizza all'avvio e ad ogni rigenerazione
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', syncURClass, {once:true});
+  }else{
+    syncURClass();
+  }
+  // Osserva cambi di classe sul pannello tri-orario
+  (function(){
+    var tri = document.getElementById('dailyDetailPanel');
+    if(!tri) return;
+    var mo = new MutationObserver(syncURClass);
+    mo.observe(tri, { attributes:true, attributeFilter:['class'] });
+  })();
+  document.addEventListener('mlg:dayparts-rendered', function(){ setTimeout(syncURClass, 30); }, true);
+  document.addEventListener('forceHourlyRerender', function(){ setTimeout(syncURClass, 30); }, true);
+})();
+</script>
+
+<style id="wind-ur-force-hide-2025-09-18">
+  /* Forza: per default (nessuna .ur-on) mostra SOLO il vento */
+  #dailyDetailPanel:not(.ur-on) .hr-wind .ur-alt,
+  #hourlyPanel:not(.ur-on) .hr-wind .ur-alt{
+    display: none !important;
+  }
+  /* In modalità UR mostra solo la goccia/valore */
+  #dailyDetailPanel.ur-on .hr-wind .wind-wrap,
+  #hourlyPanel.ur-on .hr-wind .wind-wrap{
+    display: none !important;
+  }
+  #dailyDetailPanel.ur-on .hr-wind .ur-alt,
+  #hourlyPanel.ur-on .hr-wind .ur-alt{
+    display: inline-flex !important;
+  }
+  /* (opzionale) se ci fossero droplet FA dentro la colonna vento, nascondili in default */
+  #dailyDetailPanel:not(.ur-on) .hr-wind .fa-droplet,
+  #hourlyPanel:not(.ur-on) .hr-wind .fa-droplet{
+    display: none !important;
+  }
+</style>
+
+<style id="ultra-compact-spacing-2025-09-19">
+/* Compattazione verticale mirata (senza toccare la logica) */
+
+/* — 7 giorni — */
+#dailyPanel .card{ 
+  margin-bottom: 6px !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+#dailyPanel .card .days{ margin-top: 2px !important; margin-bottom: 0 !important; }
+
+/* — Fasce Notte→Sera — */
+body #dayParts{ margin: 2px 0 4px !important; }        /* riduce lo spazio sopra */
+#dayParts .card{ 
+  margin-bottom: 6px !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+#dayParts .parts{ margin-top: 0 !important; margin-bottom: 0 !important; }
+
+/* — Box “adesso” — */
+#nearestStation{ margin-top: 4px !important; }         /* era 14px */
+
+/* Per sicurezza: nessun margine aggiuntivo immediatamente dopo dayParts */
+#dayParts + *{ margin-top: 4px !important; }
+</style>
+
+<script id="daily-risk-js-2025-09-19">
+// Aggiunge la classe .warn ai giorni con fenomeni rilevanti (pioggia o temporali)
+(function(){
+  function inRange(x,a,b){ try{ x=Number(x); return isFinite(x) && x>=a && x<=b; }catch(e){ return false; } }
+  function val(arr,i,key){
+    try{
+      if(!arr) return NaN;
+      const v = (Array.isArray(arr) ? arr[i] : arr[key]?.[i]);
+      return Number(v);
+    }catch(e){ return NaN; }
+  }
+  function isRiskDay(fc,i){
+    if(!fc || !fc.daily) return false;
+    const code = Number(fc.daily.weathercode?.[i]);
+    const pprob = Number(fc.daily.precipitation_probability_max?.[i] ?? fc.daily.precipitation_probability_mean?.[i] ?? NaN);
+    const rain  = Number(fc.daily.rain_sum?.[i] ?? fc.daily.precipitation_sum?.[i] ?? NaN);
+    const th    = Number(fc.daily.thunderstorm_probability?.[i] ?? fc.daily.thunderstorm_probability_max?.[i] ?? NaN);
+
+    // Condizioni per segnalare: codici meteo pioggia/rovesci/temporali
+    const rainCode = (inRange(code,61,67) || inRange(code,80,82));
+    const stormCode = inRange(code,95,99);
+    // Probabilità/quantità
+    const probHigh = isFinite(pprob) && pprob >= 50;
+    const rainAmt  = isFinite(rain) && rain >= 3;   // >=3 mm/giorno
+    const stormProb= isFinite(th) && th >= 10;      // >=10% temporali
+
+    return Boolean(stormCode || rainCode || (probHigh && (rainAmt || stormProb)));
+  }
+
+  const _prevRenderDaily = window.renderDaily;
+  window.renderDaily = function(fc){
+    // produrre markup con la funzione attuale (già ottimizzata)
+    var html = "";
+    try{
+      if(typeof renderDailyFromHourlyV3 === "function"){
+        html = renderDailyFromHourlyV3(fc);
+      }else if(typeof _prevRenderDaily === "function"){
+        html = _prevRenderDaily(fc);
+      }
+    }catch(e){ try{ html = _prevRenderDaily(fc); }catch(_){} }
+
+    try{
+      // Calcola indici a rischio
+      var n = (fc && fc.daily && fc.daily.time) ? fc.daily.time.length : 0;
+      var risky = [];
+      for(var i=0;i<n;i++){ if(isRiskDay(fc,i)) risky.push(i); }
+
+      if(risky.length){
+        var k = -1;
+        html = html.replace(/<div class="day">/g, function(m){
+          k++;
+          return (risky.indexOf(k) !== -1)
+            ? '<div class="day warn" aria-label="Attenzione: possibile fenomeno (pioggia/temporali)">'
+            : m;
+        });
+      }
+    }catch(e){ /* ok, non bloccare il render */ }
+    return html;
+  };
+})();
+</script>
+
+<script id="hourly-icon-uniform-center-js-2025-09-19">
+(function(){
+  function median(a){ a=[...a].sort((x,y)=>x-y); const m=Math.floor(a.length/2); return a.length? (a.length%2 ? a[m] : (a[m-1]+a[m])/2) : 0; }
+  function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+  function getIconEl(node){
+    if(!node) return null;
+    // prefer element with .weather-icon
+    const w = node.querySelector('.weather-icon');
+    return w || node.firstElementChild || null;
+  }
+  function normalize(scope){
+    try{
+      const holders = scope.querySelectorAll('#dailyDetailPanel .hour-row .hr-icon');
+      if(!holders.length) return;
+      // 1) misura al volo le altezze visive correnti
+      const heights = [];
+      const list = [];
+      holders.forEach(h=>{
+        const el = getIconEl(h);
+        if(!el) return;
+        list.push(el);
+        const r = el.getBoundingClientRect();
+        if(r && r.height) heights.push(r.height);
+      });
+      if(!heights.length) return;
+      const target = median(heights);
+      // 2) porta tutte le icone verso la stessa grandezza con micro‑regolazioni (±7% max)
+      list.forEach((el, idx)=>{
+        const r = el.getBoundingClientRect();
+        if(!r || !r.height) return;
+        const f = clamp(target / r.height, 0.93, 1.07);
+        const base = 2.05;                                // dimensione generale decisa
+        el.style.setProperty('--hr-scale', (base * f).toFixed(3));
+        el.style.setProperty('--hr-dy', '2px');           // spintarella verso il basso
+      });
+    }catch(e){}
+  }
+  // osserva cambiamenti nel pannello triorario e normalizza
+  function setup(){
+    const scope = document;
+    normalize(scope);
+    const target = document.getElementById('dailyDetailPanel');
+    if(!target) return;
+    let raf = null;
+    const schedule = ()=>{ if(raf) cancelAnimationFrame(raf); raf = requestAnimationFrame(()=>normalize(scope)); };
+    const mo = new MutationObserver(schedule);
+    mo.observe(target, {childList:true, subtree:true});
+    // anche al click su una fascia (espansione dettagli)
+    document.addEventListener('click', (e)=>{
+      if(e.target.closest && e.target.closest('#dayParts details')) schedule();
+    }, {passive:true});
+    // e quando arrivano nuovi dati in #dailyDetailPanel da codice esistente
+    setTimeout(schedule,50); setTimeout(schedule,200); setTimeout(schedule,500);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup, {once:true});
+  else setup();
+})();
+</script>
+
+<script id="hourly-icon-fix2-js-2025-09-19">
+(function(){
+  function median(a){ a=[...a].sort((x,y)=>x-y); const m=Math.floor(a.length/2); return a.length?(a.length%2?a[m]:(a[m-1]+a[m])/2):0; }
+  function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+  function getIconNode(holder){
+    if(!holder) return null;
+    // usa il primo figlio reale (come viene inserito dall'icon builder)
+    return holder.firstElementChild || null;
+  }
+  function normalize(){
+    try{
+      const holders = document.querySelectorAll('#dailyDetailPanel .hour-row .hr-icon');
+      if(!holders.length) return;
+      const heights=[], nodes=[];
+      holders.forEach(h=>{
+        const n=getIconNode(h);
+        if(!n) return;
+        const r=n.getBoundingClientRect();
+        if(r && r.height){ heights.push(r.height); nodes.push(n); }
+      });
+      if(!heights.length) return;
+      const target = median(heights);
+      nodes.forEach(n=>{
+        const r=n.getBoundingClientRect(); if(!r || !r.height) return;
+        const f = clamp(target/r.height, 0.93, 1.07); // micro‑correzione ±7%
+        n.style.setProperty('--hr-scale', (2.05*f).toFixed(3)); // base invariata
+        n.style.setProperty('--hr-dy', '4px'); // un filo più giù
+      });
+    }catch(e){}
+  }
+  function schedule(){ requestAnimationFrame(normalize); }
+  // trigger su cambi DOM, e su click di espansione delle fasce
+  const target = document.getElementById('dailyDetailPanel');
+  if(target){ new MutationObserver(schedule).observe(target,{childList:true,subtree:true}); }
+  document.addEventListener('click',(e)=>{ if(e.target.closest && e.target.closest('#dayParts details')) schedule(); }, {passive:true});
+  // run iniziale e dopo un attimo per sicurezza
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', ()=>{schedule(); setTimeout(schedule,120); setTimeout(schedule,400);}, {once:true}); }
+  else { schedule(); setTimeout(schedule,120); setTimeout(schedule,400); }
+})();
+</script>
+
+<!-- === PATCH 2025-09-19: Force day icons in Mattina/Pomeriggio and night icons in Sera/Notte === -->
+<script id="force-daynight-parts">
+(function(){
+  function addDaysISO(iso, d){
+    try{ var dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }
+    catch(e){ return iso; }
+  }
+  function fix(){
+    try{
+      var el = document.getElementById('dayParts');
+      var full = window.fc || window.dayFc || null;
+      if(!el || !full || !full.hourly || !full.hourly.time) return;
+      var baseISO = (el.dataset && el.dataset.dayIso) ? el.dataset.dayIso
+                 : ((full.daily && full.daily.time && String(full.daily.time[0]).slice(0,10)) || '');
+      if(!baseISO) return;
+
+      var defs = [
+        { iso: baseISO, start: 6,  end: 12, night: false }, // Mattina -> giorno
+        { iso: baseISO, start: 12, end: 18, night: false }, // Pomeriggio -> giorno
+        { iso: baseISO, start: 18, end: 24, night: true  }, // Sera -> notte
+        { iso: addDaysISO(baseISO,1), start: 0, end: 6, night: true }  // Notte (0-6 del giorno successivo) -> notte
+      ];
+
+      var parts = el.querySelectorAll('.parts > details.part');
+      parts.forEach(function(det, idx){
+        var def = defs[idx]; if(!def) return;
+        var T = (full.hourly && full.hourly.time) || [];
+        var rows = [];
+        for(var i=0;i<T.length;i++){
+          var t = String(T[i]||'');
+          if(t.slice(0,10)!==def.iso) continue;
+          var h = parseInt(t.slice(11,13),10);
+          if(h>=def.start && h<def.end) rows.push(i);
+        }
+        if(!rows.length) return;
+        var repr = rows[0];
+        var code = full.hourly.weathercode[repr];
+        if(typeof window.iconHTML_NOEMOJI !== 'function') return;
+        var html = window.iconHTML_NOEMOJI(code, def.night);
+
+        var summary = det.querySelector('summary');
+        if(summary){
+          var iconEl = summary.querySelector('svg, img, i');
+          if(iconEl){ iconEl.outerHTML = html; }
+          else{ summary.insertAdjacentHTML('beforeend', html); }
+        }
+      });
+    }catch(e){}
+  }
+
+  function install(){
+    if(typeof window.renderDayParts !== 'function') return;
+    if(window.renderDayParts.__forceDN) return;
+    var orig = window.renderDayParts;
+    window.renderDayParts = function(fc){
+      var res = orig(fc);
+      try{ fix(); }catch(e){}
+      return res;
+    };
+    window.renderDayParts.__forceDN = true;
+  }
+
+  function boot(){
+    install();
+    // run once now (if parts already rendered)
+    try{ fix(); }catch(e){}
+    // keep the hook alive in case other scripts overwrite it
+    var n=0, timer=setInterval(function(){ install(); if(++n>30) clearInterval(timer); }, 100);
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot, { once:true });
+  }else{
+    boot();
+  }
+
+  // also react to custom events the page already fires after rendering
+  try{
+    document.addEventListener('mlg:dayparts-rendered', function(){ setTimeout(fix, 10); }, true);
+  }catch(_e){}
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-19 (B): Gentle spacing guard for 7-day daily icons === -->
+<style id="daily-icon-spacing-guard">
+  /* minimal, non-breaking default spacing */
+  .days .day .daily-icon{display:block; margin: 2px 0 2px; line-height: 1;}
+</style>
+<script id="fix-daily-icon-spacing">
+(function(){
+  function needsGap(a,b,px){ return a && b && ( (a.bottom - b.top >= 0 && b.top - a.bottom < px) || (b.bottom - a.top >= 0 && a.top - b.bottom < px) ); }
+  function fix(){
+    try{
+      var days = document.querySelectorAll('.days .day');
+      if(!days.length) return;
+      days.forEach(function(day){
+        var icon = day.querySelector('.daily-icon');
+        if(!icon) return;
+        // Reset custom margins so measurements aren't cumulative
+        icon.style.marginTop = '2px';
+        icon.style.marginBottom = '2px';
+
+        var kids = day.children;
+        var dateEl = kids && kids[0];
+        var maxEl  = kids && kids[2]; // max temp block (per renderDaily markup)
+        var minEl  = day.querySelector('.min');
+
+        var ir = icon.getBoundingClientRect();
+        var dr = dateEl ? dateEl.getBoundingClientRect() : null;
+        var xr = maxEl ? maxEl.getBoundingClientRect() : null;
+        var mr = minEl ? minEl.getBoundingClientRect() : null;
+
+        // If icon is too close to the date, add a smidge of extra top margin (only when needed)
+        if(dr && ir.top - dr.bottom < 2){ icon.style.marginTop = '4px'; }
+        // If icon is too close to temps below, add a smidge of extra bottom margin (only when needed)
+        var below = xr || mr;
+        if(below && below.top - ir.bottom < 2){ icon.style.marginBottom = '4px'; }
+      });
+    }catch(e){}
+  }
+  function install(){
+    if(typeof window.renderDaily !== 'function') return;
+    if(window.renderDaily.__spacingGuard) return;
+    var orig = window.renderDaily;
+    window.renderDaily = function(fc){
+      var res = orig(fc);
+      try{ setTimeout(fix, 5); }catch(e){}
+      return res;
+    };
+    window.renderDaily.__spacingGuard = true;
+  }
+  function boot(){
+    install();
+    try{ fix(); }catch(e){}
+    var n=0,t=setInterval(function(){ install(); if(++n>30) clearInterval(t); }, 100);
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', boot, {once:true});
+  }else{
+    boot();
+  }
+  // also react to a custom event if fired after render
+  try{
+    document.addEventListener('mlg:daily-rendered', function(){ setTimeout(fix,10); }, true);
+  }catch(_e){}
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-19 (C): Stronger safe spacing for Daily strip === -->
+<style id="daily-icon-spacing-guard-v2">
+  /* Forza un micro-spazio sopra/sotto l’icona e tra data/temperature, senza cambiare il layout. */
+  .days .day .daily-icon{ display:block; line-height:1; margin:2px 0 2px !important; min-height:28px; }
+  .days .day > div:first-child{ margin-bottom:2px !important; }        /* data → icona */
+  .days .day > div:nth-of-type(2){ margin-top:2px !important; }        /* icona → max */
+</style>
+
+
+<!-- === PATCH 2025-09-19 (D): Measured height for daily icons to avoid overlaps === -->
+<script id="daily-icon-measured-height">
+(function(){
+  function measureAndFit(){
+    try{
+      var days = document.querySelectorAll('.days .day');
+      if(!days.length) return;
+      days.forEach(function(day){
+        var wrap = day.querySelector('.daily-icon');
+        if(!wrap) return;
+        var inner = wrap.querySelector(':scope > :not(.alt-icon)') || wrap.firstElementChild;
+        if(!inner) return;
+
+        // Reset so the measure is not biased by previous run
+        wrap.style.minHeight = '';
+        wrap.style.height = '';
+        wrap.style.marginTop = '2px';
+        wrap.style.marginBottom = '2px';
+        wrap.style.display = 'block';
+
+        // Measure the transformed inner icon box
+        var r = inner.getBoundingClientRect();
+        var h = Math.ceil(r.height);
+        // Guard: if something goes wrong, skip
+        if(!isFinite(h) || h <= 0) return;
+
+        // Ensure the wrapper reserves enough vertical space
+        // Add a tiny breathing room to avoid touching neighbors
+        var reserve = h + 2; // +2px buffer
+        // But do not overshoot if icons are small
+        var current = wrap.getBoundingClientRect().height;
+        if(reserve > current){
+          wrap.style.minHeight = reserve + 'px';
+        }
+      });
+    }catch(e){}
+  }
+
+  function hook(){
+    if(typeof window.renderDaily !== 'function') return;
+    if(window.renderDaily.__measuredHeightPatch) return;
+    var orig = window.renderDaily;
+    window.renderDaily = function(fc){
+      var res = orig(fc);
+      try{ setTimeout(measureAndFit, 0); }catch(e){}
+      return res;
+    };
+    window.renderDaily.__measuredHeightPatch = true;
+  }
+
+  function boot(){
+    hook();
+    try{ measureAndFit(); }catch(e){}
+    // re-hook for a short while in case other scripts reassign the function
+    var n=0, t=setInterval(function(){ hook(); if(++n>30) clearInterval(t); }, 100);
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
+  } else {
+    boot();
+  }
+
+  try{
+    document.addEventListener('mlg:daily-rendered', function(){ setTimeout(measureAndFit, 10); }, true);
+  }catch(_e){}
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-19 (E): DayParts icons follow the SELECTED day (dynamic) === -->
+<script id="force-daynight-parts-v2">
+(function(){
+  // Utility: parse an Italian short month label (Gen, Feb, Mar, Apr, Mag, Giu, Lug, Ago, Set, Ott, Nov, Dic)
+  var M = {'gen':1,'feb':2,'mar':3,'apr':4,'mag':5,'giu':6,'lug':7,'ago':8,'set':9,'ott':10,'nov':11,'dic':12};
+  function monthFromLabel(s){
+    if(!s) return null;
+    s = String(s).trim().toLowerCase().slice(0,3);
+    return M[s] || null;
+  }
+  function pad(n){ return (n<10?'0':'')+n; }
+
+  function getSelectedISO(full){
+    try{
+      // 1) Prefer explicit attribute on dayParts (if updated by the app)
+      var el = document.getElementById('dayParts');
+      if(el && el.dataset && el.dataset.dayIso && /^\d{4}-\d{2}-\d{2}$/.test(el.dataset.dayIso)) return el.dataset.dayIso;
+
+      // 2) Try the selected day card in the 7-day strip
+      var sel = document.querySelector('.days .day.sel, .days .day.selected, .days .day[aria-current="true"], .days .day[aria-selected="true"]');
+      if(sel){
+        var ds = sel.dataset || {};
+        var keys = ['iso','dateIso','dayIso','d','date','day','when'];
+        for(var i=0;i<keys.length;i++){
+          var v = ds[keys[i]];
+          if(v && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v.slice(0,10);
+        }
+        // any index-like dataset → map to daily.time[idx]
+        var idxKeys = ['idx','i','index'];
+        var times = (full && full.daily && full.daily.time) || [];
+        for(var j=0;j<idxKeys.length;j++){
+          var k = idxKeys[j];
+          if(ds[k] && times.length){
+            var idx = parseInt(ds[k],10);
+            if(isFinite(idx) && idx>=0 && idx<times.length){
+              return String(times[idx]).slice(0,10);
+            }
+          }
+        }
+        // parse label text e.g., "19 Set"
+        var label = sel.textContent || '';
+        var day = parseInt((label.match(/\d{1,2}/)||[''])[0],10);
+        var mon = monthFromLabel((label.match(/[A-Za-zÀ-ÿ]{3,}/)||[''])[0]);
+        if(isFinite(day) && mon){
+          var now = new Date();
+          var y = now.getFullYear();
+          // handle year overlap (e.g., Dec → Jan in next 7 days)
+          if(mon < now.getMonth()+1 - 6) y = y + 1;
+          return y + '-' + pad(mon) + '-' + pad(day);
+        }
+      }
+
+      // 3) Fallback to the first day
+      if(full && full.daily && full.daily.time && full.daily.time.length){
+        return String(full.daily.time[0]).slice(0,10);
+      }
+    }catch(e){}
+    return null;
+  }
+
+  function addDaysISO(iso, days){
+    try{ var d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }catch(e){ return iso; }
+  }
+
+  function computeCode(full, iso, startHour, endHour){
+    try{
+      var T = (full && full.hourly && full.hourly.time) || [];
+      var W = (full && full.hourly && full.hourly.weathercode) || [];
+      var pick = -1;
+      for(var i=0;i<T.length;i++){
+        var t = String(T[i]||'');
+        if(t.slice(0,10)!==iso) continue;
+        var h = parseInt(t.slice(11,13),10);
+        if(h>=startHour && h<endHour){ pick = i; break; }
+      }
+      return (pick>=0 ? W[pick] : null);
+    }catch(e){ return null; }
+  }
+
+  function fixDynamic(){
+    try{
+      var full = window.fc || window.dayFc || null;
+      var container = document.getElementById('dayParts');
+      if(!container || !full) return;
+
+      var baseISO = getSelectedISO(full);
+      if(!baseISO) return;
+
+      var defs = [
+        { iso: baseISO, start: 6,  end: 12, night: false }, // Mattina
+        { iso: baseISO, start: 12, end: 18, night: false }, // Pomeriggio
+        { iso: baseISO, start: 18, end: 24, night: true  }, // Sera
+        { iso: addDaysISO(baseISO,1), start: 0, end: 6, night: true }  // Notte (successivo)
+      ];
+
+      var parts = container.querySelectorAll('.parts > details.part');
+      parts.forEach(function(det, idx){
+        var def = defs[idx]; if(!def) return;
+        var code = computeCode(full, def.iso, def.start, def.end);
+        if(code==null) return;
+
+        if(typeof window.iconHTML_NOEMOJI !== 'function') return;
+        var html = window.iconHTML_NOEMOJI(code, def.night);
+
+        var summary = det.querySelector('summary');
+        if(summary){
+          var iconEl = summary.querySelector('svg, img, i');
+          if(iconEl){ iconEl.outerHTML = html; }
+          else{ summary.insertAdjacentHTML('beforeend', html); }
+        }
+      });
+    }catch(e){}
+  }
+
+  function hook(){
+    if(typeof window.renderDayParts !== 'function') return;
+    if(window.renderDayParts.__forceDN_v2) return;
+    var orig = window.renderDayParts;
+    window.renderDayParts = function(fc){
+      var r = orig(fc);
+      try{ setTimeout(fixDynamic, 0); }catch(e){}
+      return r;
+    };
+    window.renderDayParts.__forceDN_v2 = true;
+  }
+
+  function boot(){
+    hook();
+    try{ fixDynamic(); }catch(e){}
+    var n=0, t=setInterval(function(){ hook(); if(++n>50) clearInterval(t); }, 100);
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot, { once:true });
+  } else {
+    boot();
+  }
+
+  try{
+    document.addEventListener('mlg:dayparts-rendered', function(){ setTimeout(fixDynamic,10); }, true);
+  }catch(_e){}
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-19 (F): DayParts icons = worst code in range (matches text) === -->
+<script id="force-daynight-parts-v3">
+(function(){
+  function pad(n){ return (n<10?'0':'')+n; }
+  var M = {'gen':1,'feb':2,'mar':3,'apr':4,'mag':5,'giu':6,'lug':7,'ago':8,'set':9,'ott':10,'nov':11,'dic':12};
+  function monthFromLabel(s){ if(!s) return null; s=String(s).trim().toLowerCase().slice(0,3); return M[s]||null; }
+  function addDaysISO(iso, d){ try{ var dt=new Date(iso+'T00:00:00'); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }catch(e){ return iso; } }
+  function getSelectedISO(full){
+    try{
+      var el = document.getElementById('dayParts');
+      if(el && el.dataset && /^\d{4}-\d{2}-\d{2}$/.test(el.dataset.dayIso||'')) return el.dataset.dayIso;
+      var sel = document.querySelector('.days .day.sel, .days .day.selected, .days .day[aria-current="true"], .days .day[aria-selected="true"]');
+      if(sel){
+        var ds = sel.dataset||{};
+        var keys=['iso','dateIso','dayIso','d','date','day','when'];
+        for(var i=0;i<keys.length;i++){ var v=ds[keys[i]]; if(v && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v.slice(0,10); }
+        var times = (full && full.daily && full.daily.time) || [];
+        var idx = ('idx' in ds)?parseInt(ds.idx,10):('i' in ds?parseInt(ds.i,10):('index' in ds?parseInt(ds.index,10):NaN));
+        if(isFinite(idx) && times.length && idx>=0 && idx<times.length) return String(times[idx]).slice(0,10);
+        var label = sel.textContent||'';
+        var day = parseInt((label.match(/\d{1,2}/)||[''])[0],10);
+        var mon = monthFromLabel((label.match(/[A-Za-zÀ-ÿ]{3,}/)||[''])[0]);
+        if(isFinite(day)&&mon){ var now=new Date(); var y=now.getFullYear(); if(mon < now.getMonth()+1-6) y=y+1; return y+'-'+pad(mon)+'-'+pad(day); }
+      }
+      if(full && full.daily && full.daily.time && full.daily.time.length) return String(full.daily.time[0]).slice(0,10);
+    }catch(e){}
+    return null;
+  }
+
+  // weight function: use native if present (ensures same semantics as text), else fallback
+  function weight(c){
+    try{
+      if(typeof window.codeWeight==='function') return window.codeWeight(c);
+    }catch(_e){}
+    c=Number(c);
+    if(c>=95) return 200;
+    if([75,85,86].indexOf(c)>-1) return 170;
+    if([71,73,77].indexOf(c)>-1) return 150;
+    if([65,67,82].indexOf(c)>-1) return 140;
+    if([61,63,80,81].indexOf(c)>-1) return 120;
+    if([51,53,55,56,57].indexOf(c)>-1) return 100;
+    if([45,48].indexOf(c)>-1) return 40;
+    if(c>=1 && c<=3) return 20;
+    return 0;
+  }
+
+  function pickWorstCode(full, iso, startH, endH){
+    try{
+      var T = (full && full.hourly && full.hourly.time) || [];
+      var W = (full && full.hourly && full.hourly.weathercode) || [];
+      var worstIdx = -1, worstW = -1;
+      for(var i=0;i<T.length;i++){
+        var t = String(T[i]||'');
+        if(t.slice(0,10)!==iso) continue;
+        var h = parseInt(t.slice(11,13),10);
+        var inRange = (startH<endH)?(h>=startH && h<endH):(h>=startH || h<endH);
+        if(!inRange) continue;
+        var w = weight(W[i]);
+        if(w > worstW){ worstW = w; worstIdx = i; }
+      }
+      return (worstIdx>=0 ? W[worstIdx] : null);
+    }catch(e){ return null; }
+  }
+
+  function apply(){
+    try{
+      var full = window.fc || window.dayFc || null;
+      var cont = document.getElementById('dayParts');
+      if(!cont || !full) return;
+      var baseISO = getSelectedISO(full);
+      if(!baseISO) return;
+      var defs=[
+        { iso: baseISO, start:6,  end:12, night:false }, // Mattina
+        { iso: baseISO, start:12, end:18, night:false }, // Pomeriggio
+        { iso: baseISO, start:18, end:24, night:true  }, // Sera
+        { iso: addDaysISO(baseISO,1), start:0, end:6, night:true } // Notte
+      ];
+      var parts = cont.querySelectorAll('.parts > details.part');
+      parts.forEach(function(det, idx){
+        var def = defs[idx]; if(!def) return;
+        var code = pickWorstCode(full, def.iso, def.start, def.end);
+        if(code==null) return;
+        if(typeof window.iconHTML_NOEMOJI!=='function') return;
+        var svg = window.iconHTML_NOEMOJI(code, def.night);
+        var sum = det.querySelector('summary');
+        if(sum){
+          var iconEl = sum.querySelector('svg, img, i');
+          if(iconEl) iconEl.outerHTML = svg; else sum.insertAdjacentHTML('beforeend', svg);
+        }
+      });
+    }catch(e){}
+  }
+
+  function hook(){
+    if(typeof window.renderDayParts!=='function') return;
+    if(window.renderDayParts.__forceDN_v3) return;
+    var orig = window.renderDayParts;
+    window.renderDayParts = function(fc){
+      var r = orig(fc);
+      try{ setTimeout(apply, 0); }catch(e){}
+      return r;
+    };
+    window.renderDayParts.__forceDN_v3 = true;
+  }
+
+  function boot(){
+    hook();
+    try{ apply(); }catch(e){}
+    var n=0, t=setInterval(function(){ hook(); if(++n>50) clearInterval(t); }, 100);
+  }
+
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', boot, {once:true}); } else { boot(); }
+  try{ document.addEventListener('mlg:dayparts-rendered', function(){ setTimeout(apply, 10); }, true); }catch(_e){}
+})();
+</script>
+
+
+<!-- === FINAL PATCH 2025-09-19 — Sintesi giornaliera coerente + fasce orarie + tendenza settimanale === -->
+<style id="weekly-trend-css">
+#narrativeBox p.trend{ margin-top:.55rem; font-style:italic; opacity:.95; }
+#narrativeBox .fasce{ margin:.2rem 0 .1rem; }
+#narrativeBox .fasce .lab{ font-weight:700; }
+</style>
+
+
+
+
+
+
+<script id="weekly-trend-js">
+(function(){
+  /* Helpers */
+  function nowTS(){ return Date.now(); }
+  function todayISO(){ const d=new Date(); const p=n=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
+  function isTodayISO(s){ try{ return String(s).slice(0,10)===todayISO(); }catch(_e){ return false; } }
+  function round(x){ const n=Number(x); return Number.isFinite(n)?Math.round(n):NaN; }
+  function fmt(h){ return String(h).padStart(2,'0')+':00'; }
+  function titleCase(s){ return String(s||'').split(' ').map(w=>w? w[0].toUpperCase()+w.slice(1).toLowerCase():w).join(' '); }
+  function aPrep(place){ return /^[AEIOUÀÈÉÌÒÓÙ]/i.test(place) ? "Ad" : "A"; }
+  function fmtMm(x){ const v = (Number(x)||0).toFixed(1).replace('.',','); return v+" mm"; }
+  function wmoWeight(c){
+    c=Number(c);
+    if([95,96,99].includes(c)) return 200;  // temporali
+    if([82,67,65,75,86].includes(c)) return 160;  // rovesci/neve forte
+    if([80,81,61,63,71,73,85].includes(c)) return 120; // pioggia/neve
+    if([51,53,55,56,57].includes(c)) return 100;       // pioviggine/gelate
+    if([45,48].includes(c)) return 40;                 // nebbia
+    if(c>=1 && c<=3) return 20;                        // nuvoloso
+    if(c===0) return 10;                               // sereno
+    return 0;
+  }
+  function itDayWithDate(d){ const dt=new Date(d); return dt.toLocaleDateString('it-IT',{weekday:'long', day:'2-digit'}); }
+  function mareClass(h){ if(!(h>=0)) return null; if(h<0.2) return "quasi calmo"; if(h<0.5) return "poco mosso"; if(h<1.25) return "mosso"; if(h<2.5) return "molto mosso"; if(h<4) return "agitato"; return "molto agitato"; }
+  function fmtRange(a,b){ a=Math.round(a); b=Math.round(b); if(!Number.isFinite(a)||!Number.isFinite(b)) return null; if(Math.abs(a-b)<=0) return a+"°C"; return Math.min(a,b)+"–"+Math.max(a,b)+"°C"; }
+  function timeLabel(h){ if(h>=6&&h<12) return "in mattinata"; if(h>=12&&h<18) return "nel pomeriggio"; if(h>=18&&h<24) return "in serata"; return "tra la notte e il primo mattino"; }
+  function trendLabel(h){ if(h==null) return "nel corso della giornata"; if(h>=6&&h<12) return "nel corso della giornata"; if(h>=12&&h<18) return "dal pomeriggio"; if(h>=18&&h<24) return "dalla sera"; return "tra la notte e il primo mattino"; }
+  function findSeries(obj, re){ if(!obj) return null; let best=null, bestCount=0; for(const k in obj){ if(re.test(k) && Array.isArray(obj[k])){ const arr=obj[k].filter(v=>v!=null && v!=='' && !Number.isNaN(+v)); if(arr.length>bestCount){ best=obj[k]; bestCount=arr.length; } } } return best; }
+  function readSeaFromDOM(){ try{ const blocks=Array.from(document.querySelectorAll('div,section,article')); const box=blocks.find(n=>/Condizioni del mare/i.test(n.textContent||'')); if(!box) return null; const txt=box.textContent||""; const vals=Array.from(String(txt).matchAll(/(?:onda(?:\s+media)?|onde)[^\d]*([\d,.]+)\s*m/gi)).map(m=>parseFloat(String(m[1]).replace(',','.'))); if(!vals.length) return null; return {series: vals}; }catch(_e){ return null; } }
+  function selDayIndex(){ try{ if(typeof window.selectedDayIndex==='function'){ return window.selectedDayIndex(); } const strip=document.querySelector('#dailyPanel .days'); if(strip){ const items=[...strip.querySelectorAll('.day')]; const sel=items.findIndex(el=>el.classList&&el.classList.contains('sel')); if(sel>=0) return sel; } }catch(_e){} return Number(window.curDay||0)||0; }
+
+  /* ---------- Weekly trend (multi-phase) ---------- */
+  function computeWeeklyTrend(fc, place){
+    try{
+      const D=fc?.daily||{}, H=fc?.hourly||{};
+      const n=(D.time||[]).length; if(!n) return null;
+      // severity per day
+      const days=[];
+      for(let d=0; d<n; d++){
+        const iso=String(D.time[d]).slice(0,10);
+        let worstW=-1, worst=0, thunder=false;
+        if(H.time && H.weathercode){
+          for(let i=0;i<H.time.length;i++){
+            const t=String(H.time[i]||""); if(!t.startsWith(iso)) continue;
+            const code=Number(H.weathercode[i]); const w=wmoWeight(code);
+            if(w>worstW){ worstW=w; worst=code; }
+            if([95,96,99].includes(code)) thunder=true;
+          }
+        }
+        if(worstW<0){ worst=Number((D.weathercode||[])[d]||2); worstW=wmoWeight(worst); }
+        const cat = worstW>=100 ? "instabile" : (worstW>=40 ? "variabile" : "stabile");
+        days.push({
+          d,
+          iso,
+          label: itDayWithDate(D.time[d]),
+          w: worstW,
+          code: worst,
+          cat,
+          tmax: Number((D.temperature_2m_max||[])[d]),
+          wind: Number((D.wind_speed_10m_max||D.windgusts_10m_max||D.wind_gusts_10m_max||[])[d]),
+          wave: Number((D.significant_wave_height_max||D.wave_height_max||[])[d]),
+          thunder
+        });
+      }
+      // segment by category
+      const segs=[];
+      let s=0;
+      for(let i=1;i<days.length;i++){ if(days[i].cat!==days[s].cat){ segs.push({type:days[s].cat, a:s, b:i-1}); s=i; } }
+      segs.push({type:days[s].cat, a:s, b:days.length-1});
+
+      function rangeLbl(a,b){
+        if(a===b) return days[a].label;
+        return days[a].label+" e "+days[b].label;
+      }
+      function avg(arr,a,b,field){ let s=0,c=0; for(let i=a;i<=b;i++){ const v=Number(arr[i][field]); if(Number.isFinite(v)){ s+=v; c++; } } return c? s/c : NaN; }
+
+      // Build narrative by walking segments and naming transitions
+      const bits=[];
+      const pre = aPrep(place)+" "+titleCase(place)+", secondo MLG ";
+      for(let i=0;i<segs.length;i++){
+        const seg=segs[i];
+        const label=rangeLbl(seg.a, seg.b);
+        if(seg.type==="instabile"){
+          const th = days.slice(seg.a, seg.b+1).some(d=>[95,96,99].includes(d.code));
+          const snow = days.slice(seg.a, seg.b+1).some(d=>[71,73,75,77,85,86].includes(d.code));
+          const phr = snow ? "episodi nevosi" : (th ? "rovesci o temporali" : "piogge");
+          const base = (i===0 ? "è atteso un peggioramento" : (bits.length? "poi è probabile un nuovo peggioramento" : "è probabile un peggioramento"));
+          let extra="";
+          // compare with previous segment for temp/wind/sea
+          if(i>0){
+            const dT = avg(days,segs[i-1].a,segs[i-1].b,'tmax'); const dT2 = avg(days,seg.a,seg.b,'tmax');
+            if(Number.isFinite(dT)&&Number.isFinite(dT2)){ const delta=dT2-dT; if(delta<=-2) extra += ", con un calo delle temperature"; else if(delta>=2) extra += ", con un aumento delle temperature"; }
+            const dW = avg(days,segs[i-1].a,segs[i-1].b,'wind'); const dW2 = avg(days,seg.a,seg.b,'wind');
+            if(Number.isFinite(dW2)){ const inc=(dW2-(Number.isFinite(dW)?dW:0)); if(dW2>=40 || inc>=10) extra += ", e ventilazione in aumento"+(dW2>=60?" fino a forte a tratti":""); }
+            const dS = avg(days,segs[i-1].a,segs[i-1].b,'wave'); const dS2 = avg(days,seg.a,seg.b,'wave');
+            if(Number.isFinite(dS2) && (dS2 - (Number.isFinite(dS)?dS:0) >= 0.3 || dS2>=1.25)) extra += ", con moto ondoso in aumento";
+          }
+          bits.push(`${base} tra ${label}, con possibili ${phr}${extra}`);
+        }else if(seg.type==="variabile"){
+          const base = (i===0 ? "è attesa una fase variabile" : "seguirà una fase variabile");
+          bits.push(`${base} tra ${label}`);
+        }else{ // stabile
+          const base = (i===0 ? "tempo per lo più stabile" : "poi è atteso un miglioramento");
+          bits.push(`${base} tra ${label}`);
+        }
+      }
+      const text = pre + bits.join(", ") + ". Per dettagli consulta gli approfondimenti e le previsioni giorno per giorno.";
+      return text;
+    }catch(e){ return null; }
+  }
+
+  /* ---------- Daily narrative ---------- */
+  function computeNarrativeFinal(fc){
+    try{
+      const idx = (function(){ try{ if(typeof window.selectedDayIndex==='function'){ return window.selectedDayIndex(); } const strip=document.querySelector('#dailyPanel .days'); if(strip){ const items=[...strip.querySelectorAll('.day')]; const sel=items.findIndex(el=>el.classList&&el.classList.contains('sel')); if(sel>=0) return sel; } }catch(_e){} return Number(window.curDay||0)||0; })();
+      const iso = fc?.daily?.time?.[idx]; if(!iso) return null;
+      const isToday = isTodayISO(iso);
+      const H = fc.hourly||{}, D = fc.daily||{};
+      const rows = [];
+      for(let i=0;i<(H.time?.length||0);i++){
+        const t = H.time[i]; if(!t) continue;
+        const okDay = String(t).startsWith(iso) || ((new Date(t)-new Date(String(iso).slice(0,10)+'T00:00:00'))/36e5>=24 && (new Date(t)-new Date(String(iso).slice(0,10)+'T00:00:00'))/36e5<30);
+        if(!okDay) continue;
+        if(isToday && Date.parse(t) < nowTS()) continue;
+        rows.push(i);
+      }
+      if(!rows.length) return null;
+
+      const TS=new Set([95,96,99]);
+      const WET=new Set([51,53,55,56,57,61,63,65,66,67,71,73,75,77,80,81,82,85,86,95,96,99]);
+
+      let sum=0, pmax=0, ts=false, wmax=0, gmax=0;
+      let tmax=-1e9, tmin=1e9;
+      const wet=[false,false,false,false];
+      function part(h){ return h>=6&&h<12?0:h>=12&&h<18?1:h>=18&&h<24?2:3; }
+
+      const T=[], P=[], MM=[], G=[], C=[], TIMES=[];
+      for(const i of rows){
+        const pr=+(H.precipitation_probability?.[i]||0);
+        const mm=+(H.precipitation?.[i]||0);
+        const code=+(H.weathercode?.[i]||0);
+        const ws=+(H.wind_speed_10m?.[i]||0);
+        const gs=+(H.wind_gusts_10m?.[i]||ws);
+        const hh=new Date(H.time[i]).getHours();
+        const tt=+(H.temperature_2m?.[i]||NaN);
+        if(Number.isFinite(tt)){
+          T.push(tt); P.push(pr); MM.push(mm); G.push(gs); C.push(code); TIMES.push(H.time[i]);
+          if(tt>tmax) tmax=tt;
+          if(tt<tmin) tmin=tt;
+        }
+        sum+=mm; if(pr>pmax) pmax=pr; if(TS.has(code)) ts=true; if(ws>wmax) wmax=ws; if(gs>gmax) gmax=gs;
+        if(WET.has(code)||mm>=0.2||pr>=40) wet[part(hh)]=true;
+      }
+      if(!Number.isFinite(tmax)) tmax = round(D.temperature_2m_max?.[idx]);
+      if(!Number.isFinite(tmin)) tmin = round(D.temperature_2m_min?.[idx]);
+
+      const nowT = Number.isFinite(T[0]) ? T[0] : tmax;
+      let eveningVals=[];
+      for(let i=0;i<T.length;i++){ const h=new Date(TIMES[i]).getHours(); if(h>=18) eveningVals.push(T[i]); }
+      if(!eveningVals.length) eveningVals=[tmin];
+      const eveningRange = (function(){ const mn=Math.min(...eveningVals), mx=Math.max(...eveningVals); return fmtRange(mn,mx); })();
+
+      // sudden drop
+      let dropInfo=null, rebound=null;
+      for(let i=0;i<T.length;i++){
+        for(let j=i+1;j<Math.min(i+4,T.length);j++){
+          if(T[j] <= T[i]-3){
+            let wetBlock=false; for(let k=i;k<=j;k++){ if(P[k]>=50 || MM[k]>=0.4) { wetBlock=true; break; } }
+            if(wetBlock){ dropInfo={tDrop:T[j], tBefore:T[i]}; break; }
+          }
+        }
+        if(dropInfo) break;
+      }
+      if(dropInfo){ for(let m=0; m<T.length; m++){ if(T[m] >= dropInfo.tDrop + 2){ rebound=T[m]; break; } } }
+
+      // Sky narrative
+      let sky="";
+      try{
+        const startCode=C[0];
+        let wetHour=null, overcastHour=null;
+        for(let i=0;i<T.length;i++){
+          const h=new Date(TIMES[i]).getHours();
+          if(wetHour==null && (P[i]>=40 || MM[i]>=0.2 || WET.has(Number(C[i])))) wetHour=h;
+          if(overcastHour==null && Number(C[i])===3) overcastHour=h;
+        }
+        function baseSky(code){
+          if([0].includes(code)) return "sereno";
+          if([1].includes(code)) return "prevalentemente sereno";
+          if([2].includes(code)) return "poco nuvoloso";
+          if([3].includes(code)) return "molto nuvoloso o coperto";
+          if([45,48].includes(code)) return "foschie o banchi di nebbia";
+          if([51,53,55,56,57].includes(code)) return "nuvoloso con pioviggine a tratti";
+          if([61,63,65,66,67,80,81,82].includes(code)) return (pmax>=70) ? "nuvoloso con piogge diffuse" : "nuvoloso con piogge sparse";
+          if([71,73,75,77,85,86].includes(code)) return "nuvoloso con nevicate";
+          if([95,96,99].includes(code)) return "instabile con rovesci o temporali";
+          return "condizioni variabili";
+        }
+        const startSky = baseSky(startCode);
+        if(wetHour!=null && !/[piogg|tempor|nevicat]/i.test(startSky)){
+          sky = startSky.replace(/^sereno|prevalentemente sereno|poco nuvoloso/i, 'inizialmente $&') + ", con precipitazioni " + timeLabel(wetHour);
+        }else if(overcastHour!=null && /sereno|poco nuvoloso/i.test(startSky)){
+          sky = startSky.replace(/^sereno|prevalentemente sereno|poco nuvoloso/i, 'inizialmente $&') + ", con tendenza ad un aumento della copertura nuvolosa " + (overcastHour? (overcastHour>=18?"dalla sera": "dal pomeriggio") : "nel corso della giornata");
+        }else{
+          sky = startSky;
+        }
+      }catch(_e){ sky="—"; }
+
+      const anyWet = wet.some(Boolean);
+      let precip = !anyWet ? "non sono attese precipitazioni" :
+                   ts ? "sono possibili rovesci o temporali" :
+                   (pmax>=70 ? "sono attese piogge diffuse a tratti" : "sono attese piogge sparse intermittenti");
+
+      let place = (document.querySelector('#cityInput')?.value || document.querySelector('#searchForm input')?.value || document.querySelector('#searchHeadline strong')?.textContent || "la località").trim();
+      const placeTC = titleCase(place);
+      const when = isToday ? "nelle prossime ore" : "nel corso della giornata";
+
+      // Outdoor & laundry windows
+      const OUT_START=8, OUT_END=20;
+      const goodSlots=[]; let start=null, last=null;
+      for(const i of rows){
+        const hh=new Date(H.time[i]).getHours(); if(hh<OUT_START||hh>OUT_END) continue;
+        const pr=+(H.precipitation_probability?.[i]||0); const mm=+(H.precipitation?.[i]||0); const gs=+(H.wind_gusts_10m?.[i]||H.wind_speed_10m?.[i]||0);
+        const ok = (pr<30 && mm<0.2 && gs<55);
+        if(ok){ if(start==null){ start=hh; last=hh; } else if(hh===last+1){ last=hh; } else { goodSlots.push([start,last+1]); start=hh; last=hh; } }
+        else { if(start!=null){ goodSlots.push([start,last+1]); start=null; last=null; } }
+      }
+      if(start!=null){ goodSlots.push([start,last+1]); }
+      const good2h = goodSlots.filter(([a,b])=>(b-a)>=2);
+      const outdoor = good2h.length ? "fasce consigliate "+good2h.map(([a,b])=>fmt(a)+'–'+fmt(b)).join('; ') : "meglio rimandare o valutare con cautela";
+
+      const DRY_START=8, DRY_END=20;
+      const drySlots=[]; start=null; last=null; let wetDay=false;
+      for(const i of rows){
+        const hh=new Date(H.time[i]).getHours(); if(hh<DRY_START||hh>DRY_END) continue;
+        const pr=+(H.precipitation_probability?.[i]||0); const mm=+(H.precipitation?.[i]||0);
+        const dry = (pr<30 && mm<0.2); if(!dry) wetDay=true;
+        if(dry){ if(start==null){ start=hh; last=hh; } else if(hh===last+1){ last=hh; } else { drySlots.push([start,last+1]); start=hh; last=hh; } }
+        else { if(start!=null){ drySlots.push([start,last+1]); start=null; last=null; } }
+      }
+      if(start!=null){ drySlots.push([start,last+1]); }
+      const dry2h = drySlots.filter(([a,b])=>(b-a)>=2);
+      const bucato = (!wetDay && dry2h.length) ? "consigliato per l'intera giornata" : (dry2h.length ? "consigliato nelle fasce "+dry2h.map(([a,b])=>fmt(a)+'–'+fmt(b)).join('; ') : "non consigliato");
+
+      const venti = (gmax>=70 || wmax>=60) ? "forti" : (wmax>=35 ? "moderati" : "deboli");
+
+      // Sea state: use first->last class; fallback to min->max
+      let mareLine=""; try{
+        const Hwh = (function(){ for(const k in H){ if(/wave|onda|mare/i.test(k) && Array.isArray(H[k])) return H[k]; } return null; })();
+        const Dwh = (function(){ for(const k in D){ if(/wave|onda|mare/i.test(k) && Array.isArray(D[k])) return D[k]; } return null; })();
+        let first=null,lastVal=null;
+        if(Hwh && rows.length){ first = Number(Hwh[rows[0]]); lastVal = Number(Hwh[rows[rows.length-1]]); }
+        else if(Dwh && Dwh.length){ first = Number(Dwh[idx]); lastVal = Number(Dwh[idx]); } // daily single
+        if(first!=null && lastVal!=null && Number.isFinite(first) && Number.isFinite(lastVal)){
+          const a=mareClass(first), b=mareClass(lastVal);
+          if(a && b){ mareLine = "Stato del mare: " + (a===b ? a+" per l'intera giornata" : ("da "+a+" a "+b)); }
+        } else {
+          const dom = (function(){ const blocks=Array.from(document.querySelectorAll('div,section,article')); const box=blocks.find(n=>/Condizioni del mare/i.test(n.textContent||'')); if(!box) return null; const txt=box.textContent||""; const vals=Array.from(String(txt).matchAll(/(?:onda(?:\s+media)?|onde)[^\d]*([\d,.]+)\s*m/gi)).map(m=>parseFloat(String(m[1]).replace(',','.'))); return vals.length? vals : null; })();
+          if(dom){ const a=mareClass(dom[0]), b=mareClass(dom[dom.length-1]); if(a&&b){ mareLine = "Stato del mare: " + (a===b ? a+" per l'intera giornata" : ("da "+a+" a "+b)); } }
+        }
+      }catch(_e){}
+
+      const deltaMax = tmax - nowT;
+      const TminEven = Math.min(...eveningVals);
+      let tempPhrase="";
+      if(isToday){
+        if(dropInfo && rebound!=null){ tempPhrase = `Temperature: possibile calo fino a ${Math.round(dropInfo.tDrop)}°C durante i fenomeni, con successivo rialzo fino a ${Math.round(rebound)}°C e nuovo calo in serata/notte verso ${eveningRange}.`; }
+        else if(deltaMax>1.5){ tempPhrase = `Temperature: nelle prossime ore fino a ${Math.round(tmax)}°C; in serata/notte valori intorno a ${eveningRange}.`; }
+        else if(nowT - TminEven > 2){ tempPhrase = `Temperature: in graduale diminuzione, con valori serali/notturni attorno a ${eveningRange}.`; }
+        else { tempPhrase = `Temperature: stabili su ${fmtRange(nowT, tmax) || Math.round(nowT)+'°C'}, con valori serali/notturni attorno a ${eveningRange}.`; }
+      }else{
+        tempPhrase = `Temperature: massime intorno a ${Math.round(tmax)}°C e minime verso ${Math.round(tmin)}°C.`;
+      }
+
+      const pre = aPrep(placeTC); const lead = `${pre} ${placeTC}, ${when} ${precip}. ${tempPhrase}`;
+      const metaBits=[ `Cielo: ${sky||'—'}.`, `Venti ${venti}${Number.isFinite(gmax)?", con raffiche fino a "+Math.round(gmax)+" km/h":""}.`, `Pioggia attesa: ${fmtMm(sum)} (probabilità massima ${pmax}%).` ];
+      if(mareLine) metaBits.push(mareLine);
+      const meta = metaBits.join(' ');
+      const details=[ '<span class="fasce"><span class="lab">Attività all’aperto</span>: '+(good2h.length ? "fasce consigliate "+good2h.map(([a,b])=>fmt(a)+'–'+fmt(b)).join('; ') : "meglio rimandare o valutare con cautela")+'.</span>', '<span class="fasce"><span class="lab">Bucato</span>: '+bucato+'.</span>' ];
+
+      const trend = computeWeeklyTrend(fc, placeTC);
+      return {lead, meta, details, trend};
+    }catch(e){ return null; }
+  }
+
+  function renderNarrativeFinal(){
+    const box=document.getElementById('narrativeBox'); if(!box) return;
+    const fc = (window.fc && window.fc.daily?.time) ? window.fc : (window.__fullFc||window.fc);
+    const data = computeNarrativeFinal(fc); if(!data) return;
+    box.innerHTML = ['<div class="card">','<h3>📝 Sintesi della giornata</h3>','<p>', data.lead ,'</p>','<p class="meta">', data.meta ,'</p>','<p>', data.details.join('<br/>'), '</p>', (data.trend ? '<p class="trend">'+data.trend+'</p>' : ''),'<div class="footer"><span><strong>Previsioni elaborate da Meteo Lo Gullo</strong></span>','<span>Per i <em>dati in tempo reale</em> consulta la MLG Map.</span></div>','</div>'].join('');
+  }
+  function hook(name){ try{ const o=window[name]; if(typeof o==='function' && !o.__wkTrend){ window[name]=function(){ const r=o.apply(this,arguments); try{ renderNarrativeFinal(); }catch(_e){} return r; }; window[name].__wkTrend=true; } }catch(_e){} }
+  document.addEventListener('mlg:dayparts-rendered', function(){ try{ renderNarrativeFinal(); }catch(_e){} }, true);
+  document.addEventListener('click', function(ev){ const el = ev.target && ev.target.closest ? ev.target.closest('#dailyPanel .day') : null; if(el){ setTimeout(function(){ try{ renderNarrativeFinal(); }catch(_e){} }, 30); } }, true);
+  ['run','render'].forEach(hook);
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', function(){ try{ renderNarrativeFinal(); }catch(_e){} }, {once:true}); } else { try{ renderNarrativeFinal(); }catch(_e){} }
+})();
+</script>
+
+
+
+
+
+
 
 </body>
 </html>
@@ -17199,5 +19456,207 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
       new MutationObserver(function(){ refresh(); }).observe(st, {childList:true, subtree:true, characterData:true});
     }
   }catch(e){}
+})();
+</script>
+
+<!-- === PATCH 2025-09-18 — 7‑giorni: logica “resto della giornata” + bias diurno + icone combinate === -->
+<script id="daily-headline-v3-mlg">
+(function(){
+  if(window.__dailyHeadlineV3_MLG) return;
+  window.__dailyHeadlineV3_MLG = true;
+
+  function nowTS(){ try{ return Date.now(); }catch(e){ return +new Date(); } }
+
+  /* ---- Severità WMO (coerente con il resto del progetto) ---- */
+  function codeWeight(c){
+    c = Number(c);
+    if(c>=95) return 200;                               // temporali
+    if([75,85,86].includes(c)) return 170;             // neve forte
+    if([71,73,77].includes(c)) return 150;             // neve
+    if([65,67,82].includes(c)) return 140;             // pioggia forte / gelata / rovesci forti
+    if([61,63,80,81].includes(c)) return 120;          // pioggia / rovesci
+    if([51,53,55,56,57].includes(c)) return 100;       // pioviggine / gelata debole
+    if([45,48].includes(c)) return 40;                 // nebbia / nubi basse
+    if(c>=1 && c<=3) return 20;                        // nuvolosità
+    if(c===0) return 10;                               // sereno
+    return 0;
+  }
+
+  /* ---- Classificatori rapidi ---- */
+  function isSun(c){ c=Number(c); return c===0 || c===1; }     // sereno / poco nuvoloso
+  function isCloudyDense(c){ c=Number(c); return c===3 || c===2 || c===45 || c===48; } // molto/coperto/parz + nebbia
+  function isThunder(c){ c=Number(c); return c>=95; }
+  function isSnow(c){ c=Number(c); return [71,73,75,77,85,86].includes(c); }
+  function isRain(c){ c=Number(c); return (c>=51&&c<=57) || (c>=61&&c<=67) || (c>=80&&c<=82); }
+  function isDayHour(h){ return h>=7 && h<19; } // fascia diurna usata nella UI
+
+  /* ---- Peggiore tra le ORE del giorno, con esclusione ore trascorse per "oggi" + bias diurno ---- */
+  function remainingWorst(fc, dayIndex){
+    try{
+      const iso = String(fc?.daily?.time?.[dayIndex]||"").slice(0,10);
+      if(!iso) return null;
+      const now = nowTS();
+      let worst=null, worstScore=-1;
+      const T = fc?.hourly?.time||[], C = fc?.hourly?.weathercode||[];
+      for(let i=0;i<T.length;i++){
+        const t = String(T[i]||"");
+        if(!t.startsWith(iso)) continue;
+        // solo ore future se è oggi
+        if(dayIndex===0 && Date.parse(t) < now) continue;
+        const hr = parseInt(t.slice(11,13),10);
+        let w = codeWeight(C[i]);
+        // bias diurno: alza leggermente il peso delle ore diurne
+        if(isDayHour(hr)) w *= 1.15;
+        if(w > worstScore){ worstScore=w; worst=Number(C[i]); }
+      }
+      return worst;
+    }catch(_e){ return null; }
+  }
+
+  /* ---- Dominanti giorno/notte dal dato orario (solo ore future per oggi) ---- */
+  function dayNightFutureDominant(fc, idx){
+    const iso = String(fc?.daily?.time?.[idx]||"").slice(0,10);
+    if(!iso) return {day:null, night:null};
+    const now = nowTS();
+    const T = fc?.hourly?.time||[], C = fc?.hourly?.weathercode||[];
+    const dayCodes=[], nightCodes=[];
+    for(let i=0;i<T.length;i++){
+      const t = String(T[i]||"");
+      if(!t.startsWith(iso)) continue;
+      if(idx===0 && Date.parse(t) < now) continue; // escludi passato
+      const hr = parseInt(t.slice(11,13),10);
+      (isDayHour(hr) ? dayCodes : nightCodes).push(Number(C[i]));
+    }
+    function mostSevere(arr){
+      if(!arr.length) return null;
+      let best=null, bestW=-1;
+      for(const c of arr){ const w=codeWeight(c); if(w>bestW){bestW=w; best=Number(c);} }
+      return best;
+    }
+    return {day: mostSevere(dayCodes), night: mostSevere(nightCodes)};
+  }
+
+  /* ---- Regole icone combinate richieste ---- */
+  function comboIcon(dayCode, nightCode){
+    if(dayCode==null || nightCode==null) return null;
+    // Giorno soleggiato/poco nuvoloso + fenomeni notturni/evening => icona con sole
+    if(isSun(dayCode) && (isThunder(nightCode) || isRain(nightCode) || isSnow(nightCode))){
+      if(isThunder(nightCode)) return "temporale moderato e schiarite giorno.png";
+      if(isSnow(nightCode))    return "Neve .PNG"; // non abbiamo la variante 'schiarite' → fallback sicuro
+      return "pioggia e schiarite giorno.png";
+    }
+    // Giorno sole + notte molto nuvoloso/coperto/nebbia → nuvola con sole
+    if(isSun(dayCode) && isCloudyDense(nightCode)){
+      return "Parzialmente nuvoloso giorno.PNG";
+    }
+    return null;
+  }
+
+  /* ---- Decisione finale per la card del 7‑giorni ---- */
+  function headlineObj(fc, idx){
+    const worstRem = (idx===0) ? remainingWorst(fc, idx) : null;
+    const dn = dayNightFutureDominant(fc, idx);
+
+    // 1) Combinazioni: giorno sereno/poco nuvoloso + fenomeno notturno → icona combinata (sole + fenomeno)
+    const combo = comboIcon(dn.day, dn.night);
+    if(combo){
+      return { code: Number(dn.day ?? dn.night ?? worstRem ?? (fc?.daily?.weathercode?.[idx] ?? 2)), iconName: combo };
+    }
+
+    // 2) Priorità VERA al giorno: se ho il codice di giorno, lo uso sempre,
+    //    con eccezione già gestita sopra (combo).
+    const cd = (dn.day!=null ? dn.day : (fc?.daily?.weathercode_day?.[idx]));
+    const cn = (dn.night!=null ? dn.night : (fc?.daily?.weathercode_night?.[idx]));
+    const c  = (fc?.daily?.weathercode?.[idx]);
+
+    if(cd!=null){
+      // Caso specifico richiesto: se di giorno è nuvoloso/coperto/nebbia
+      // e di notte c'è temporale/pioggia/neve, prevale comunque la nuvolosità diurna.
+      if(isCloudyDense(cd) && (isThunder(cn) || isRain(cn) || isSnow(cn))){
+        return { code: Number(cd) };
+      }
+      return { code: Number(cd) };
+    }
+
+    // 3) Fallback: usa "daily" oppure la notte, oppure clear
+    if(c!=null) return { code: Number(c) };
+    if(cn!=null) return { code: Number(cn) };
+    return { code: 2 };
+}
+
+  /* ---- Renderer compatibile con la UI esistente ---- */
+  function renderDailyFromHourlyV3(fc){
+    let h = '<div class="card"><h3>Previsioni fino a una settimana</h3><div class="days">';
+    const n = (fc && fc.daily && fc.daily.time) ? fc.daily.time.length : 0;
+    for(let i=0;i<n;i++){
+      const head = headlineObj(fc, i);
+      const date = String(fc.daily.time[i]).slice(5);
+      const tmax = Math.round(fc.daily.temperature_2m_max?.[i] ?? 0);
+      const tmin = Math.round(fc.daily.temperature_2m_min?.[i] ?? 0);
+      const iconHTML = (head.iconName && typeof window.buildDirectIconHTML_NOEMOJI==='function')
+        ? window.buildDirectIconHTML_NOEMOJI(head.iconName)
+        : (window.iconHTML_NOEMOJI ? window.iconHTML_NOEMOJI(head.code, false) : '');
+      const altIcon = window.iconFA ? window.iconFA(head.code) : 'fa-question';
+      h += '<div class="day">\
+        <div>'+date+'</div>\
+        <span class="daily-icon">'+ iconHTML +'\
+          <i class="fa-solid '+altIcon+' alt-icon" aria-hidden="true"></i>\
+        </span>\
+        <div class="tmax">'+tmax+'°</div>\
+        <div class="tmin">'+tmin+'°</div>\
+      </div>';
+    }
+    h += '</div></div>';
+    return h;
+  }
+
+  /* ---- Install: sostituisce in modo NON distruttivo + ricalcolo automatico ---- */
+  function install(){
+    const prev = window.renderDaily;
+    window.renderDaily = function(){
+      try{ return renderDailyFromHourlyV3.apply(this, arguments); }
+      catch(e){ return (typeof prev==='function' ? prev.apply(this, arguments) : ''); }
+    };
+    window.renderDaily.__headlineV3_MLG = true;
+
+    // rinfresca subito se i dati sono già caricati
+    try{
+      if(window.fc && document.getElementById('dailyPanel')){
+        document.getElementById('dailyPanel').innerHTML = renderDailyFromHourlyV3(window.fc);
+      }
+    }catch(_e){}
+
+    // rehack su render/run per ricalcolare dopo nuove ricerche o override
+    try{
+      const oldR = window.render;
+      if(typeof oldR==='function' && !oldR.__headlineV3_MLG){
+        window.render = function(){
+          const out = oldR.apply(this, arguments);
+          try{
+            if(window.fc && document.getElementById('dailyPanel')){
+              document.getElementById('dailyPanel').innerHTML = renderDailyFromHourlyV3(window.fc);
+            }
+          }catch(_e){}
+          return out;
+        };
+        window.render.__headlineV3_MLG = true;
+      }
+      const oldRun = window.run;
+      if(typeof oldRun==='function' && !oldRun.__headlineV3_MLG){
+        window.run = async function(){
+          const r = await oldRun.apply(this, arguments);
+          try{
+            if(window.fc && document.getElementById('dailyPanel')){
+              document.getElementById('dailyPanel').innerHTML = renderDailyFromHourlyV3(window.fc);
+            }
+          }catch(_e){}
+          return r;
+        };
+        window.run.__headlineV3_MLG = true;
+      }
+    }catch(_e){}
+  }
+
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', install); } else { install(); }
 })();
 </script>
