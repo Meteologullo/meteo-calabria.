@@ -3307,6 +3307,45 @@ body:has(#dailyPanel .days .day.sel:not(:first-child)) #triModal .hourly-list .h
   #mapArea .marker{ z-index: 5; }
 </style>
 
+
+<style id="surgical-mobile-fix-2025-09-22">
+/* === Fix mobile: full blue map box + date badge position/size (non-invasive) === */
+
+/* 1) Riquadro mappa completamente blu e senza effetto “cornice” */
+@media (max-width: 700px){
+  /* ripristina il blu del mare sul contenitore principale */
+  #widget{
+    background: radial-gradient(circle at 50% 15%, var(--clr-sky) 0%, var(--clr-sky-2) 100%) !important;
+  }
+  body.night #widget{
+    background: radial-gradient(circle at 50% 15%, var(--clr-night) 0%, var(--clr-night-2) 100%) !important;
+  }
+  /* colora il box della mappa come il mare e rimuove la patina chiara che crea il bordo */
+  #mapArea{
+    background: radial-gradient(circle at 50% 15%, var(--clr-sky) 0%, var(--clr-sky-2) 100%) !important;
+  }
+  body.night #mapArea{
+    background: radial-gradient(circle at 50% 15%, var(--clr-night) 0%, var(--clr-night-2) 100%) !important;
+  }
+  #mapArea::before{ display:none !important; } /* elimina l’effetto riquadro */
+}
+
+/* 2) Data sulla mappa: più piccola e spostata a destra su mobile */
+@media (max-width: 700px){
+  .map-date{
+    left: auto !important;
+    right: 10px !important;
+    top: 10px !important;
+    font-size: 0.85rem !important;
+    padding: 4px 8px !important;
+    max-width: 62vw;           /* evita che diventi troppo lunga */
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+}
+</style>
+
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -3430,6 +3469,8 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 <div class="toolbar">
 <label><input id="chkPin" type="checkbox"/> 📌 Fissa pannello</label>
 <button id="btnPeek" title="Riduci pannello">👁️</button>
+
+<label><input id="chkLockMove" type="checkbox"/> 🔒 Blocca movimento</label>
 </div>
 <h3>Modifica Giorno</h3>
 <label>Giorno
@@ -5196,6 +5237,10 @@ btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist
 
   /* ——— Drag marker ——— */
   function dragStart(ev){
+    try{
+      if(window.MARKERS_LOCKED && !(this && this.classList && this.classList.contains('new-marker'))){ return; }
+    }catch(e){}
+
     const mk=this; const idx=+this.dataset.idx;
     const rect=mk.parentElement.getBoundingClientRect();
     mk.setPointerCapture(ev.pointerId);
@@ -16544,7 +16589,7 @@ function vaneHTML(kmh, wantKMH){
     return (dec>0 ? Number(n).toFixed(dec) : Math.round(n)) + (suf||"");
   }
   function seaState(h){
-    const lvl=(h<0.1)?0:(h<0.5)?1:(h<1.25)?2:(h<2.5)?3:(h<4.0)?4:(h<6.0)?5:(h<9.0)?6:7;
+    const lvl=(h<0.05)?0:(h<0.1)?1:(h<0.5)?2:(h<1.25)?3:(h<2.5)?4:(h<4.0)?5:(h<9.0)?6:7;
     const name=["Calmo","Quasi calmo","Poco mosso","Mosso","Molto mosso","Agitato","Molto agitato","Tempestoso"][lvl];
     return {level:lvl,label:name};
   }
@@ -18034,7 +18079,7 @@ body #dayParts{ margin: 2px 0 4px !important; }        /* riduce lo spazio sopra
     return 0;
   }
   function itDayWithDate(d){ const dt=new Date(d); return dt.toLocaleDateString('it-IT',{weekday:'long', day:'2-digit'}); }
-  function mareClass(h){ if(!(h>=0)) return null; if(h<0.2) return "quasi calmo"; if(h<0.5) return "poco mosso"; if(h<1.25) return "mosso"; if(h<2.5) return "molto mosso"; if(h<4) return "agitato"; return "molto agitato"; }
+  function mareClass(h){ if(!(h>=0)) return null; if(h<0.05) return "calmo"; if(h<0.1) return "quasi calmo"; if(h<0.5) return "poco mosso"; if(h<1.25) return "mosso"; if(h<2.5) return "molto mosso"; if(h<4) return "agitato"; if(h<6) return \"molto agitato\"; if(h<9) return \"molto agitato\"; return \"tempestoso\"; }
   function fmtRange(a,b){ a=Math.round(a); b=Math.round(b); if(!Number.isFinite(a)||!Number.isFinite(b)) return null; if(Math.abs(a-b)<=0) return a+"°C"; return Math.min(a,b)+"–"+Math.max(a,b)+"°C"; }
   function timeLabel(h){ if(h>=6&&h<12) return "in mattinata"; if(h>=12&&h<18) return "nel pomeriggio"; if(h>=18&&h<24) return "in serata"; return "tra la notte e il primo mattino"; }
   function trendLabel(h){ if(h==null) return "nel corso della giornata"; if(h>=6&&h<12) return "nel corso della giornata"; if(h>=12&&h<18) return "dal pomeriggio"; if(h>=18&&h<24) return "dalla sera"; return "tra la notte e il primo mattino"; }
@@ -18638,6 +18683,69 @@ body #dayParts{ margin: 2px 0 4px !important; }        /* riduce lo spazio sopra
     setInterval(function(){ wrap('render'); wrap('run'); }, 800);
   })();
 
+})();
+</script>
+
+
+<!-- === Marker Lock Control (2025-09-22) — non-distruttivo === -->
+<script id="marker-lock-2025-09-22">
+(function(){
+  const KEY = 'mlgMarkersLocked';
+  // default: locked unless explicitly disabled
+  const stored = (function(){ try{ return localStorage.getItem(KEY); }catch(e){ return null; } })();
+  window.MARKERS_LOCKED = (stored === null) ? true : (stored === 'true');
+
+  function save(){ try{ localStorage.setItem(KEY, String(window.MARKERS_LOCKED)); }catch(e){} }
+
+  // Wire up the checkbox in the panel, if present (create if missing)
+  function wireCheckbox(){
+    const panel = document.getElementById('panel');
+    if(!panel) return;
+    let chk = document.getElementById('chkLockMove');
+    if(!chk){
+      // create fallback in toolbar
+      const tb = panel.querySelector('.toolbar') || panel;
+      const lbl = document.createElement('label');
+      lbl.innerHTML = '<input id="chkLockMove" type="checkbox"/> 🔒 Blocca movimento';
+      tb.appendChild(lbl);
+      chk = lbl.querySelector('input');
+    }
+    chk.checked = !!window.MARKERS_LOCKED;
+    chk.addEventListener('change', function(){
+      window.MARKERS_LOCKED = this.checked;
+      save();
+      try{ if(typeof render==='function') render(); }catch(e){}
+      try{ if(typeof toast==='function') toast(this.checked ? 'Movimento bloccato' : 'Movimento sbloccato'); }catch(e){}
+    }, {passive:true});
+  }
+
+  // Patch render to (re)set cursors and (dis)allow dragging without touching other logic
+  (function patchRender(){
+    const prev = window.render;
+    window.render = function(){
+      if(typeof prev === 'function') prev();
+      // Only adjust when in admin mode; outside admin nothing changes
+      try{
+        if(typeof adminMode !== 'undefined' && !adminMode) return;
+      }catch(e){}
+
+      const mapArea = document.querySelector('#mapArea');
+      if(!mapArea) return;
+      mapArea.querySelectorAll('.marker').forEach(function(mk){
+        const isNew = mk.classList && mk.classList.contains('new-marker');
+        const locked = !!window.MARKERS_LOCKED && !isNew;
+        // cursors only; actual dragStart already has a guard
+        mk.style.cursor = locked ? 'default' : 'grab';
+      });
+    };
+  })();
+
+  // Boot
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', wireCheckbox);
+  }else{
+    wireCheckbox();
+  }
 })();
 </script>
 
@@ -19984,5 +20092,62 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
   }
 
   if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', install); } else { install(); }
+})();
+</script>
+
+
+<!-- === PATCH 2025-09-22 — DayParts: show ONLY min (Notte/Mattina/Sera) and ONLY max (Pomeriggio) + uniform chip size === -->
+<style id="dayparts-temp-visibility-css-2025-09-22">
+  /* Class-based visibility control */
+  #dayParts .part.is-afternoon summary .min{ display:none !important; } /* Pomeriggio: solo massima */
+  #dayParts .part.is-morning  summary .temp,
+  #dayParts .part.is-evening  summary .temp,
+  #dayParts .part.is-night    summary .temp{ display:none !important; } /* Mattina/Sera/Notte: solo minima */
+
+  /* Uniform chip sizing across all four tiles */
+  #dayParts .part summary .temp .temp-chip,
+  #dayParts .part summary .min  .temp-chip{
+    --sz:22px !important;            /* stessa altezza/larghezza minima */
+    border-radius:6px !important;
+    font-weight:600 !important;
+  }
+</style>
+
+<script id="dayparts-temp-visibility-js-2025-09-22">
+(function(){
+  function markParts(root){
+    try{
+      var parts = (root||document).querySelectorAll('#dayParts .part');
+      parts.forEach(function(el){
+        var title = (el.querySelector('h4') && el.querySelector('h4').textContent || '').toLowerCase();
+        el.classList.remove('is-morning','is-afternoon','is-evening','is-night');
+        if(title.indexOf('pomeriggio') !== -1){ el.classList.add('is-afternoon'); }
+        else if(title.indexOf('mattina') !== -1){ el.classList.add('is-morning'); }
+        else if(title.indexOf('sera') !== -1){ el.classList.add('is-evening'); }
+        else if(title.indexOf('notte') !== -1){ el.classList.add('is-night'); }
+      });
+    }catch(e){}
+  }
+  function init(){ markParts(); }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init, {once:true});
+  }else{
+    init();
+  }
+  /* Re-apply whenever the strip is re-rendered */
+  try{ document.addEventListener('mlg:dayparts-rendered', function(){ markParts(); }, true); }catch(e){}
+  /* Also guard against generic DOM changes around the forecast area */
+  try{
+    var root = document.getElementById('widget') || document.body;
+    var mo = new MutationObserver(function(muts){
+      for(const m of muts){
+        if(m.type === 'childList' && (m.addedNodes.length || m.removedNodes.length)){
+          markParts();
+          break;
+        }
+      }
+    });
+    mo.observe(root, {subtree:true, childList:true});
+  }catch(e){}
 })();
 </script>
