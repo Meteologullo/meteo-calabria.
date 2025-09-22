@@ -20151,3 +20151,212 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
   }catch(e){}
 })();
 </script>
+
+<!-- === SAFE HOTFIX — non invasivo (solo lettura/scrittura DOM locale) === -->
+<script id="safe-live-into-firstblock">
+(function(){
+  function num(s){
+    if(s==null) return NaN;
+    var m = String(s).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+    return m ? parseFloat(m[0]) : NaN;
+  }
+  function readLiveFromDOM(){
+    // live row inside dailyDetailPanel
+    var live = document.querySelector('#dailyDetailPanel .hourly-list .hour-row.live');
+    if(live){
+      var tEl = live.querySelector('.hr-temp .temp-chip, .hr-temp');
+      var t = num(tEl && (tEl.getAttribute('aria-label') || tEl.textContent));
+      var ur = NaN;
+      var wEl = live.querySelector('.hr-wind');
+      if(wEl){
+        ur = num(wEl.getAttribute('data-ur'));
+        if(isNaN(ur)){
+          var l = wEl.querySelector('.ur-alt .hu-label');
+          ur = num(l && l.textContent);
+        }
+      }
+      if(!isNaN(t) || !isNaN(ur)) return {t, ur};
+    }
+    // fallback from sidebar
+    var side = document.querySelector('#nearestStation .metric-row');
+    if(side){
+      var t = num(side.querySelector('.main-temp')?.textContent);
+      var txt = side.textContent || '';
+      var m = txt.match(/(\d{1,3})\s*%/);
+      var ur = m ? num(m[1]) : NaN;
+      if(!isNaN(t) || !isNaN(ur)) return {t, ur};
+    }
+    return null;
+  }
+  function patchFirstBlocks(){
+    var L = readLiveFromDOM();
+    if(!L) return;
+
+    // hourly list — only first non-live row
+    var list = document.querySelector('#dailyDetailPanel .hourly-list');
+    if(list){
+      var target = list.querySelector('.hour-row.live + .hour-row') || list.querySelector('.hour-row:not(.live)');
+      if(target){
+        if(!isNaN(L.t)){
+          var tEl = target.querySelector('.hr-temp');
+          if(tEl){
+            var chip = tEl.querySelector('.temp-chip');
+            var val = Math.round(L.t) + '°';
+            if(chip){
+              chip.textContent = val;
+              chip.setAttribute('aria-label', val);
+            }else{
+              tEl.textContent = val;
+              tEl.setAttribute('data-temp-chip','1');
+            }
+          }
+        }
+        if(!isNaN(L.ur)){
+          var wEl = target.querySelector('.hr-wind');
+          if(wEl){
+            wEl.setAttribute('data-ur', String(Math.round(L.ur)));
+            var alt = wEl.querySelector('.ur-alt .hu-label');
+            if(alt) alt.textContent = Math.round(L.ur) + '%';
+            var altWrap = wEl.querySelector('.ur-alt');
+            if(altWrap) altWrap.setAttribute('data-p', String(Math.round(L.ur)));
+          }
+        }
+      }
+    }
+
+    // tri-hour table (alternative layout)
+    var tb = document.querySelector('#hourlyPanel table.hourly-table tbody');
+    if(tb){
+      var first = tb.querySelector('tr');
+      if(first){
+        var tds = first.querySelectorAll('td');
+        if(!isNaN(L.t) && tds[3]) tds[3].textContent = Math.round(L.t) + '°';
+        if(!isNaN(L.ur) && tds[4]) tds[4].textContent = Math.round(L.ur) + '%';
+      }
+    }
+  }
+
+  // Run once on load and when the dayparts panel fires its render event
+  function run(){ setTimeout(patchFirstBlocks, 0); }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', run, {once:true});
+  }else{ run(); }
+  document.addEventListener('mlg:dayparts-rendered', run, true);
+  // expose manual trigger (debug)
+  window.__safeLiveIntoFirstBlock = patchFirstBlocks;
+})();
+</script>
+
+<!-- === STABILIZER — mantieni LIVE nel primo blocco anche se altri script riscr ivono === -->
+<script id="safe-live-stabilizer">
+(function(){
+  function num(s){
+    if(s==null) return NaN;
+    var m = String(s).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+    return m ? parseFloat(m[0]) : NaN;
+  }
+  function readLive(){
+    var live = document.querySelector('#dailyDetailPanel .hourly-list .hour-row.live');
+    if(!live) return null;
+    var tEl = live.querySelector('.hr-temp .temp-chip, .hr-temp');
+    var t = num(tEl && (tEl.getAttribute('aria-label') || tEl.textContent));
+    var ur = NaN;
+    var wEl = live.querySelector('.hr-wind');
+    if(wEl){
+      ur = num(wEl.getAttribute('data-ur'));
+      if(isNaN(ur)){
+        var l = wEl.querySelector('.ur-alt .hu-label');
+        ur = num(l && l.textContent);
+      }
+    }
+    if(isNaN(t) && isNaN(ur)) return null;
+    return {t: isNaN(t)?null:t, ur: isNaN(ur)?null:ur};
+  }
+  function setFirstBlock(L){
+    // hourly list
+    var list = document.querySelector('#dailyDetailPanel .hourly-list');
+    if(list){
+      var row = list.querySelector('.hour-row.live + .hour-row') || list.querySelector('.hour-row:not(.live)');
+      if(row){
+        if(L.t!=null){
+          var tEl = row.querySelector('.hr-temp');
+          if(tEl){
+            var chip = tEl.querySelector('.temp-chip');
+            var val = Math.round(L.t) + '°';
+            var cur = chip ? (chip.getAttribute('aria-label')||chip.textContent||'').trim() : (tEl.textContent||'').trim();
+            if(cur !== val){
+              if(chip){
+                chip.textContent = val;
+                chip.setAttribute('aria-label', val);
+              }else{
+                tEl.textContent = val;
+                tEl.setAttribute('data-temp-chip','1');
+              }
+            }
+          }
+        }
+        if(L.ur!=null){
+          var wEl = row.querySelector('.hr-wind');
+          if(wEl){
+            var curAttr = wEl.getAttribute('data-ur');
+            var valAttr = String(Math.round(L.ur));
+            if(curAttr !== valAttr) wEl.setAttribute('data-ur', valAttr);
+            var alt = wEl.querySelector('.ur-alt .hu-label');
+            if(alt){
+              var curLab = (alt.textContent||'').trim();
+              var valLab = Math.round(L.ur) + '%';
+              if(curLab !== valLab) alt.textContent = valLab;
+            }
+            var altWrap = wEl.querySelector('.ur-alt');
+            if(altWrap){
+              var curP = altWrap.getAttribute('data-p');
+              if(curP !== valAttr) altWrap.setAttribute('data-p', valAttr);
+            }
+          }
+        }
+      }
+    }
+    // hourly table
+    var tb = document.querySelector('#hourlyPanel table.hourly-table tbody');
+    if(tb){
+      var tr = tb.querySelector('tr');
+      if(tr){
+        var tds = tr.querySelectorAll('td');
+        if(L.t!=null && tds[3] && (tds[3].textContent||'').trim() !== (Math.round(L.t)+'°')){
+          tds[3].textContent = Math.round(L.t) + '°';
+        }
+        if(L.ur!=null && tds[4] && (tds[4].textContent||'').trim() !== (Math.round(L.ur)+'%')){
+          tds[4].textContent = Math.round(L.ur) + '%';
+        }
+      }
+    }
+  }
+  function stabilize(){
+    var L = readLive();
+    if(!L) return;
+    setFirstBlock(L);
+    // Observe those specific nodes for changes and re-apply
+    var targets = [];
+    var list = document.querySelector('#dailyDetailPanel .hourly-list');
+    if(list){
+      var row = list.querySelector('.hour-row.live + .hour-row') || list.querySelector('.hour-row:not(.live)');
+      if(row) targets.push(row);
+    }
+    var tb = document.querySelector('#hourlyPanel table.hourly-table tbody tr');
+    if(tb) targets.push(tb);
+    targets.forEach(function(t){
+      try{
+        if(t.__liveStableObs) return;
+        var obs = new MutationObserver(function(){ setFirstBlock(L); });
+        obs.observe(t, {subtree:true, childList:true, characterData:true, attributes:true});
+        t.__liveStableObs = obs;
+      }catch(e){}
+    });
+    // Also run a short raf loop (covers late transforms like temp-chip painting)
+    var n=0; (function tick(){ setFirstBlock(L); if(n++<20) requestAnimationFrame(tick); })();
+  }
+  function run(){ setTimeout(stabilize, 0); }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', run, {once:true}); } else { run(); }
+  document.addEventListener('mlg:dayparts-rendered', run, true);
+})();
+</script>
