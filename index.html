@@ -400,7 +400,41 @@ html, body { overscroll-behavior: contain; }
   }
 }
 
+
+/* ——— Bollettino (narrative-pro) ——— */
+#narrativeBox .narrative-pro .hdr{display:flex;gap:.5rem;align-items:center;margin-bottom:.25rem;font-size:1.05rem}
+#narrativeBox .narrative-pro .lead{margin:.25rem 0 .5rem;line-height:1.5}
+#narrativeBox .narrative-pro .meta{opacity:.9;margin-bottom:.35rem}
+#narrativeBox .narrative-pro .det .row{margin:.1rem 0}
+#narrativeBox .narrative-pro .trend{margin:.5rem 0 .35rem;line-height:1.45}
+#narrativeBox .narrative-pro .disclaimer{font-size:.85rem;opacity:.75;margin:.25rem 0 .5rem}
+
+
+/* === Fix dimensioni: allinea alle misure originali (max 820px) === */
+#narrativeBox{max-width:820px;width:100%;margin:12px 0;}
+#narrativeBox .bollettino-pro{max-width:100%;width:100%;}
+#narrativeBox .bollettino-pro ul{padding-left:1rem;margin-left:.2rem;}
+#narrativeBox .bollettino-pro .footer{gap:.5rem}
+@media (max-width:860px){
+  #narrativeBox{max-width:100%;}
+}
+
 </style>
+
+<style id="bollettino-pro-css">
+/* === Bollettino PRO — box unico, no conflitti === */
+#narrativeBox .bollettino-pro{background:var(--glass);backdrop-filter:blur(var(--blur));border-radius:var(--radius);padding:1.1rem 1.3rem;margin-bottom:1.1rem;color:var(--text)}
+#narrativeBox .bollettino-pro .hdr{display:flex;align-items:center;gap:.55rem;margin-bottom:.25rem}
+#narrativeBox .bollettino-pro .hdr .icon{font-size:1.1rem}
+#narrativeBox .bollettino-pro .title{font-weight:800}
+#narrativeBox .bollettino-pro .lead{margin:.25rem 0 .45rem;line-height:1.55}
+#narrativeBox .bollettino-pro .meta{opacity:.9;margin-bottom:.4rem}
+#narrativeBox .bollettino-pro ul{margin:.15rem 0 .35rem;padding-left:1.1rem}
+#narrativeBox .bollettino-pro .trend{margin:.55rem 0 .35rem;line-height:1.45}
+#narrativeBox .bollettino-pro .disclaimer{font-size:.85rem;opacity:.78;margin:.2rem 0 .55rem}
+#narrativeBox .bollettino-pro .footer{display:flex;justify-content:space-between;gap:.75rem;flex-wrap:wrap;font-size:.92rem;opacity:.95}
+</style>
+
 <style>
 /* === Mobile & Map Visual Tweaks (added) === */
 #widget{
@@ -12459,15 +12493,21 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
     const data = computeFutureNarrative(fc);
     if(!data) return; // keep existing if we can't compute
     box.innerHTML = [
-      '<div class="card">',
-      '<h3>📝 Sintesi della giornata</h3>',
-      '<p>',data.lead,'</p>',
-      '<p class="meta">',data.meta,'</p>',
-      '<p>• ',data.details[0],'<br/>• ',(data.details[1]||''),'</p>',
-      '<div class="footer"><span><strong>Previsioni elaborate da Meteo Lo Gullo</strong></span>',
-      '<span>Per i <em>dati in tempo reale</em> consulta la MLG Map.</span></div>',
-      '</div>'
-    ].join('');
+  '<div class="card narrative-pro">',
+  '<div class="hdr"><span class="icon">📋</span><strong>Bollettino</strong></div>',
+  '<p class="lead">',data.lead,'</p>',
+  '<p class="meta">',data.meta,'</p>',
+  '<div class="det">',
+     '<div class="row">• ',(data.details && data.details[0]||''),'</div>',
+     '<div class="row">• ',(data.details && data.details[1]||''),'</div>',
+     '<div class="row">• ',(data.details && data.details[2]||''),'</div>',
+  '</div>',
+  (data.trend ? '<div class="trend"><strong>Tendenza 7 giorni:</strong> '+data.trend+'</div>' : ''),
+  '<p class="disclaimer">Oltre le 48 ore le previsioni richiedono conferme e possono cambiare: consultate spesso gli aggiornamenti.</p>',
+  '<div class="footer"><span><strong>Previsioni elaborate da Meteo Lo Gullo</strong></span>',
+  '<span>Per i <em>dati in tempo reale</em> consulta la MLG Map.</span></div>',
+  '</div>'
+].join('');
   }
 
   /* Install overrides */
@@ -15658,17 +15698,19 @@ table.hourly tr.live-row .live-note{font-size:.82rem;opacity:.85;}
     ].join(',');
     const nodes = (root||document).querySelectorAll(sel);
     nodes.forEach(el=>{
-      if(el.dataset && el.dataset.tempChip==='1') return;
-      // se dentro è già presente un chip, salta
-      if(el.querySelector && el.querySelector('.temp-chip')){ el.dataset.tempChip='1'; return; }
-      const m = (el.textContent||'').match(/-?\d+/);
+      const txt = (el.textContent||'').trim();
+      const m = txt.match(/-?\d+/);
       if(!m) return;
       const n = parseInt(m[0],10);
       if(!isFinite(n)) return;
+      const label = n + '°';
+      const chip = (el.querySelector && el.querySelector('.temp-chip')) ? el.querySelector('.temp-chip') : null;
+      // Se c'è già un chip con lo stesso valore, non toccare nulla (evita loop/lampeggio)
+      if(chip && chip.textContent === label) return;
+      // Altrimenti crea/aggiorna il chip
       el.innerHTML = makeChipHTML(n);
-      el.dataset.tempChip = '1';
     });
-  }
+      }
 
   // Rilancia dopo i render noti
   function schedule(){
@@ -18344,7 +18386,7 @@ body #dayParts{ margin: 2px 0 4px !important; }        /* riduce lo spazio sopra
     const box=document.getElementById('narrativeBox'); if(!box) return;
     const fc = (window.fc && window.fc.daily?.time) ? window.fc : (window.__fullFc||window.fc);
     const data = computeNarrativeFinal(fc); if(!data) return;
-    box.innerHTML = ['<div class="card">','<h3>📝 Sintesi della giornata</h3>','<p>', data.lead ,'</p>','<p class="meta">', data.meta ,'</p>','<p>', data.details.join('<br/>'), '</p>', (data.trend ? '<p class="trend">'+data.trend+'</p>' : ''),'<div class="footer"><span><strong>Previsioni elaborate da Meteo Lo Gullo</strong></span>','<span>Per i <em>dati in tempo reale</em> consulta la MLG Map.</span></div>','</div>'].join('');
+    box.innerHTML = ['<div class="card narrative-pro">','<div class="hdr"><span class="icon">📋</span><strong>Bollettino</strong></div>','<p class="lead">',data.lead,'</p>','<p class="meta">',data.meta,'</p>','<p>', data.details.join('<br/>'), '</p>', (data.trend ? '<div class="trend"><strong>Tendenza 7 giorni:</strong> '+data.trend+'</div>' : ''),'<p class="disclaimer">Oltre le 48 ore le previsioni richiedono conferme e possono cambiare.</p>','<div class="footer"><span><strong>Previsioni elaborate da Meteo Lo Gullo</strong></span><span>Per i <em>dati in tempo reale</em> consulta la MLG Map.</span></div>','</div>'].join('');
   }
   function hook(name){ try{ const o=window[name]; if(typeof o==='function' && !o.__wkTrend){ window[name]=function(){ const r=o.apply(this,arguments); try{ renderNarrativeFinal(); }catch(_e){} return r; }; window[name].__wkTrend=true; } }catch(_e){} }
   document.addEventListener('mlg:dayparts-rendered', function(){ try{ renderNarrativeFinal(); }catch(_e){} }, true);
@@ -18746,6 +18788,262 @@ body #dayParts{ margin: 2px 0 4px !important; }        /* riduce lo spazio sopra
   }else{
     wireCheckbox();
   }
+})();
+</script>
+
+
+<script id="bollettino-pro-js">
+(function(){
+  if(window.__bollettinoPro) return; window.__bollettinoPro = true;
+
+  // Helpers
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function fmt(h){ return pad(h)+":00"; }
+  function titleCase(s){ return String(s||'').split(' ').map(w=>w? w[0].toUpperCase()+w.slice(1).toLowerCase():w).join(' '); }
+  function isTodayISO(iso){
+    try{
+      const now = new Date(), t=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate());
+      return String(iso).slice(0,10)===t;
+    }catch(e){ return false; }
+  }
+  function selectedDayIndex(){
+    try{
+      if(typeof window.selectedDayIndex==='function') return window.selectedDayIndex();
+      const strip=document.querySelector('#dailyPanel .days');
+      if(strip){
+        const items=[...strip.querySelectorAll('.day')];
+        const sel=items.findIndex(el=>el.classList && el.classList.contains('sel'));
+        if(sel>=0) return sel;
+      }
+    }catch(e){}
+    return Number(window.curDay||0)||0;
+  }
+
+  function weeklyTrend(fc, place){
+    try{
+      const D=fc.daily||{}; const t=D.time||[]; if(!t.length) return '';
+      const codes=D.weathercode||D.weather_code||[];
+      const tmax=D.temperature_2m_max||[]; const wind=D.wind_gusts_10m_max||D.wind_speed_10m_max||[];
+      const wave = D.wave_height_max||D.wave_height||[];
+
+      const days=t.map((iso,i)=>{
+        const code=+((codes[i]||0));
+        const instabile=[51,53,55,56,57,61,63,65,66,67,71,73,75,77,80,81,82,85,86,95,96,99].includes(code);
+        const temporale=[95,96,99].includes(code);
+        return {iso, label:new Date(iso+"T12:00:00").toLocaleDateString('it-IT',{weekday:'long'}), code, instabile, temporale, tmax:+(tmax[i]||NaN), wind:+(wind[i]||NaN), wave:+(wave[i]||NaN)};
+      });
+      // segmenta
+      const segs=[]; let s=0;
+      const cat = d=> d.instabile ? "instabile" : "stabile";
+      for(let i=1;i<days.length;i++){ if(cat(days[i])!==cat(days[i-1])){ segs.push({a:s,b:i-1,type:cat(days[i-1])}); s=i; } }
+      segs.push({a:s,b:days.length-1,type:cat(days[s])});
+      function rangeLbl(a,b){ if(a===b) return days[a].label; return days[a].label+" e "+days[b].label; }
+      function avg(arr,a,b,field){ let s=0,c=0; for(let i=a;i<=b;i++){ const v=days[i][field]; if(Number.isFinite(v)){ s+=v; c++; } } return c? s/c : NaN; }
+
+      const bits=[];
+      for(let i=0;i<segs.length;i++){
+        const seg=segs[i]; const label=rangeLbl(seg.a,seg.b);
+        if(seg.type==="instabile"){
+          const th = days.slice(seg.a, seg.b+1).some(d=>d.temporale);
+          const phr = th ? "rovesci o temporali" : "piogge";
+          let extra="";
+          if(i>0){
+            const dT = avg(days,segs[i-1].a,segs[i-1].b,'tmax'); const dT2 = avg(days,seg.a,seg.b,'tmax');
+            if(Number.isFinite(dT)&&Number.isFinite(dT2)){ const delta=dT2-dT; if(delta<=-2) extra+=", con calo termico"; else if(delta>=2) extra+=", con temperature in aumento"; }
+            const dW = avg(days,segs[i-1].a,segs[i-1].b,'wind'); const dW2 = avg(days,seg.a,seg.b,'wind');
+            if(Number.isFinite(dW2) && Number.isFinite(dW)){ const inc=dW2-dW; if(inc>=8) extra+=", ventilazione in rinforzo"; }
+            const dS = avg(days,segs[i-1].a,segs[i-1].b,'wave'); const dS2 = avg(days,seg.a,seg.b,'wave');
+            if(Number.isFinite(dS2) && Number.isFinite(dS) && (dS2-dS)>=0.3) extra+=", moto ondoso in aumento";
+          }
+          bits.push(`tra ${label} è attesa una fase instabile con ${phr}${extra}`);
+        }else{
+          bits.push(`fase più stabile tra ${label}`);
+        }
+      }
+      return bits.length ? (titleCase(place)+": " + bits.join("; ") + ".") : "";
+    }catch(e){ return ""; }
+  }
+
+  function computeBollettino(fc){
+    try{
+      const idx=selectedDayIndex();
+      const iso = fc?.daily?.time?.[idx]; if(!iso) return null;
+      const isToday=isTodayISO(iso);
+      const H=fc.hourly||{}, D=fc.daily||{};
+      const rows=[];
+      for(let i=0;i<(H.time?.length||0);i++){
+        const t=H.time[i]; if(!t) continue;
+        const ok = String(t).startsWith(iso) || ((new Date(t)-new Date(String(iso).slice(0,10)+'T00:00:00'))/36e5>=24 && (new Date(t)-new Date(String(iso).slice(0,10)+'T00:00:00'))/36e5<30);
+        if(!ok) continue;
+        if(isToday && Date.parse(t) < Date.now()) continue;
+        rows.push(i);
+      }
+      if(!rows.length) return null;
+
+      const WET = new Set([51,53,55,56,57,61,63,65,66,67,71,73,75,77,80,81,82,85,86,95,96,99]);
+      const TS  = new Set([95,96,99]);
+
+      let sum=0, pmax=0, ts=false, wmax=0, gmax=0, tmax=-1e9, tmin=1e9;
+      const wet=[false,false,false,false];
+      function part(h){ return h>=6&&h<12?0:h>=12&&h<18?1:h>=18&&h<24?2:3; }
+
+      for(const i of rows){
+        const pr=+(H.precipitation_probability?.[i]||0);
+        const mm=+(H.precipitation?.[i]||0);
+        const code=+(H.weathercode?.[i]||H.weather_code?.[i]||0);
+        const ws =+(H.wind_speed_10m?.[i]||0);
+        const gs =+(H.wind_gusts_10m?.[i]||ws);
+        const tt =+(H.temperature_2m?.[i]||0);
+        const hh = new Date(H.time[i]).getHours();
+
+        sum+= (isFinite(mm)?mm:0);
+        if(pr>pmax) pmax=pr;
+        if(TS.has(code)) ts=true;
+        if(ws>wmax) wmax=ws;
+        if(gs>gmax) gmax=gs;
+        if(tt>tmax) tmax=tt; if(tt<tmin) tmin=tt;
+        if(WET.has(code) || (pr>=50) || (mm>=0.2)) wet[part(hh)]=true;
+      }
+
+      // Place name
+      let place = (document.querySelector('#cityInput')?.value || document.querySelector('#searchHeadline strong')?.textContent || "la località").trim();
+
+      const when = isToday ? "nelle prossime ore" : "nel corso della giornata";
+      // Lead
+      const anyWet = wet.some(Boolean);
+      const precip = !anyWet ? "non sono previste precipitazioni significative" :
+                     ts ? "sono possibili rovesci o temporali" :
+                     (pmax>=70 ? "sono attese piogge diffuse a tratti" : "sono attese piogge sparse intermittenti");
+
+      const lead = `Secondo Meteo Lo Gullo a ${titleCase(place)}, ${when} ${precip}. La temperatura si porterà attorno a ${Math.round(tmax)}°C nelle ore più calde e verso ${Math.round(tmin)}°C nelle ore più fresche.`;
+
+      // Meta
+      const meta = `Pioggia residua: ${sum.toFixed(1)} mm (probabilità massima ${Math.round(pmax)}%).`;
+
+      // Venti
+      const venti = (gmax>=70 || wmax>=60) ? "forti" : (wmax>=35 ? "moderati" : "deboli");
+      let mareLine=""; try{
+        const Hwh = (function(){ for(const k in H){ if(/wave|onda|mare/i.test(k) && Array.isArray(H[k])) return H[k]; } return null; })();
+        const Dwh = (function(){ for(const k in D){ if(/wave|onda|mare/i.test(k) && Array.isArray(D[k])) return D[k]; } return null; })();
+        let first=null,lastVal=null;
+        if(Hwh && rows.length){ first = Number(Hwh[rows[0]]); lastVal = Number(Hwh[rows[rows.length-1]]); }
+        else if(Dwh && Dwh.length){ first = Number(Dwh[idx]); lastVal = Number(Dwh[idx]); }
+        if(Number.isFinite(first) && Number.isFinite(lastVal)){
+          const mean = (first+lastVal)/2;
+          let cls = mean<0.3 ? "quasi calmo" : mean<1.25 ? "poco mosso" : mean<2.5 ? "mosso" : mean<4 ? "molto mosso" : "agitato";
+          mareLine = `; mare ${cls}`;
+        }
+      }catch(e){}
+
+      // Attività all'aperto
+      const OUT_START=8, OUT_END=20;
+      const goodSlots=[]; let start=null, last=null;
+      for(const i of rows){
+        const hh=new Date(H.time[i]).getHours(); if(hh<OUT_START||hh>OUT_END) continue;
+        const pr=+(H.precipitation_probability?.[i]||0);
+        const mm=+(H.precipitation?.[i]||0);
+        const gs=+(H.wind_gusts_10m?.[i]||H.wind_speed_10m?.[i]||0);
+        const ok = (pr<30 && mm<0.2 && gs<55);
+        if(ok){ if(start==null){ start=hh; last=hh; } else if(hh===last+1){ last=hh; } else { goodSlots.push([start,last+1]); start=hh; last=hh; } }
+        else { if(start!=null){ goodSlots.push([start,last+1]); start=null; last=null; } }
+      }
+      if(start!=null){ goodSlots.push([start,last+1]); }
+      const good2h = goodSlots.filter(([a,b])=>(b-a)>=2);
+      const outdoor = good2h.length ? "fasce consigliate "+good2h.map(([a,b])=>fmt(a)+"–"+fmt(b)).join("; ") : "meglio rimandare o valutare con cautela";
+
+      // Bucato (8-20, asciutto)
+      const DRY_START=8, DRY_END=20;
+      const drySlots=[]; start=null; last=null; let wetDay=false;
+      for(const i of rows){
+        const hh=new Date(H.time[i]).getHours(); if(hh<DRY_START||hh>DRY_END) continue;
+        const pr=+(H.precipitation_probability?.[i]||0); const mm=+(H.precipitation?.[i]||0);
+        const dry = (pr<30 && mm<0.2); if(!dry) wetDay=true;
+        if(dry){ if(start==null){ start=hh; last=hh; } else if(hh===last+1){ last=hh; } else { drySlots.push([start,last+1]); start=hh; last=hh; } }
+        else { if(start!=null){ drySlots.push([start,last+1]); start=null; last=null; } }
+      }
+      if(start!=null){ drySlots.push([start,last+1]); }
+      const dry2h = drySlots.filter(([a,b])=>(b-a)>=2);
+      const bucato = (!wetDay && dry2h.length) ? "consigliato per l'intera giornata" :
+                     dry2h.length ? "consigliato nelle fasce: "+dry2h.map(([a,b])=>fmt(a)+"–"+fmt(b)).join("; ") :
+                     "non consigliato";
+
+      // Dettagli cielo (sintesi per fasce)
+      const sky = (function(){
+        try{
+          const codes=H.weathercode||H.weather_code||[];
+          const names=['mattina','pomeriggio','sera','notte'];
+          const map = {0:'sereno',1:'poco nuvoloso',2:'parzialmente nuvoloso',3:'nuvoloso',45:'foschie/nebbie',48:'brina/nebbie',51:'pioviggine',61:'piogge',63:'piogge',65:'piogge',80:'rovesci',95:'temporali'};
+          const seen=[null,null,null,null];
+          rows.forEach(i=>{ const h=new Date(H.time[i]).getHours(); const p=h>=6&&h<12?0:h>=12&&h<18?1:h>=18&&h<24?2:3; const c=+(codes[i]||0); if(seen[p]==null) seen[p]=map[c]||'variabile'; });
+          const seq = seen.map((s,j)=>s? `${names[j]} ${s}`:null).filter(Boolean);
+          return seq.length? ("Cielo: "+seq.join(", ")) : "";
+        }catch(e){ return ""; }
+      })();
+
+      const details=[];
+      if(sky) details.push(sky);
+      details.push(`Venti ${venti}${mareLine}.`);
+      details.push(`Attività all'aperto: ${outdoor}.`);
+      details.push(`Bucato: ${bucato}.`);
+
+      const trend = weeklyTrend(fc, place);
+
+      return { lead, meta, details, trend };
+    }catch(e){ return null; }
+  }
+
+  function renderBollettino(){
+    const box=document.getElementById('narrativeBox'); if(!box) return;
+    const fc=(window.fc && window.fc.daily?.time) ? window.fc : (window.__fullFc||window.fc);
+    const data=computeBollettino(fc); if(!data) return;
+    box.innerHTML=[
+      '<div class="bollettino-pro">',
+        '<div class="hdr"><span class="icon">📋</span><span class="title">Bollettino</span></div>',
+        '<p class="lead">', data.lead ,'</p>',
+        '<p class="meta">', data.meta ,'</p>',
+        '<ul>',
+          data.details.map(d=>'<li>'+d+'</li>').join(''),
+        '</ul>',
+        (data.trend?'<div class="trend"><strong>Tendenza 7 giorni:</strong> '+data.trend+'</div>':''),
+        '<p class="disclaimer">Oltre le 48 ore le previsioni richiedono conferme e possono cambiare: consultate spesso gli aggiornamenti.</p>',
+        '<div class="footer"><span><strong>Previsioni elaborate da Meteo Lo Gullo</strong></span><span>Per i <em>dati in tempo reale</em> consulta la MLG Map.</span></div>',
+      '</div>'
+    ].join('');
+  }
+
+  // ——— Disattiva vecchi renderer e aggancia il nostro ———
+  try{ window.renderNarrativeFuture = function(){}; }catch(e){}
+  try{ window.renderNarrativeFinal  = function(){}; }catch(e){}
+
+  // Rende sempre dopo gli altri script
+  function kick(){ try{ renderBollettino(); }catch(e){} }
+  document.addEventListener('mlg:dayparts-rendered', kick, true);
+  document.addEventListener('click', function(ev){
+    const el = ev.target && ev.target.closest ? ev.target.closest('#dailyPanel .day') : null;
+    if(el){ setTimeout(kick, 30); }
+  }, true);
+  ['run','render','renderDayParts'].forEach(function(name){
+    try{
+      const o=window[name];
+      if(typeof o==='function' && !o.__bollettinoHook){
+        window[name]=function(){ const r=o.apply(this, arguments); try{ kick(); }catch(e){} return r; };
+        window[name].__bollettinoHook=true;
+      }
+    }catch(e){}
+  });
+
+  // Se qualcosa sovrascrive il box, lo ripristiniamo
+  try{
+    const mo = new MutationObserver(function(){
+      const box=document.getElementById('narrativeBox'); if(!box) return;
+      const ok = box.querySelector('.bollettino-pro');
+      if(!ok) kick();
+    });
+    mo.observe(document.body, { childList:true, subtree:true });
+  }catch(e){}
+
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', function(){ setTimeout(kick, 60); }, {once:true}); }
+  else { setTimeout(kick, 60); }
 })();
 </script>
 
@@ -19237,11 +19535,13 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
     const data=compute(fc,d);
     if(!data){ box.innerHTML=''; return; }
     box.innerHTML=[
-      '<div class="card">',
-      '<h3>📝 Sintesi della giornata</h3>',
-      '<p>',data.lead,'</p>',
+      '<div class="card narrative-pro">',
+      '<div class="hdr"><span class="icon">📋</span><strong>Bollettino</strong></div>',
+      '<p class="lead">',data.lead,'</p>',
       '<p class="meta">',data.meta,'</p>',
-      '<p>• ',data.details[0],'<br/>• ',data.details[1],'<br/>• ',data.details[2],'</p>',
+      '<p>• ',data.details[0],'<br/>• ',(data.details[1]||''),'<br/>• ',(data.details[2]||''),'</p>',
+      '<div class="trend">'+(data.trend?('<strong>Tendenza 7 giorni:</strong> '+data.trend):'')+'</div>',
+      '<p class="disclaimer">Oltre le 48 ore le previsioni richiedono conferme e possono cambiare.</p>',
       '<div class="footer"><span><strong>Previsioni elaborate da Meteo Lo Gullo</strong></span>',
       '<span>Per i <em>dati in tempo reale</em> di tutta la regione consulta la <a target="_blank" rel="noopener" href="'+MAP_LINK+'">MLG Map</a>.</span></div>',
       '</div>'
@@ -20155,6 +20455,16 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
 <!-- === SAFE HOTFIX — non invasivo (solo lettura/scrittura DOM locale) === -->
 <script id="safe-live-into-firstblock">
 (function(){
+  function isTodaySelected(){
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(!strip) return true;
+      var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      var sel   = items.findIndex(function(el){ return el.classList.contains('sel'); });
+      return (sel <= 0); /* index 0 (oggi) or fallback when none */
+    }catch(e){ return true; }
+  }
+
   function num(s){
     if(s==null) return NaN;
     var m = String(s).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
@@ -20189,6 +20499,8 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
     return null;
   }
   function patchFirstBlocks(){
+    if(!isTodaySelected()) return;
+
     var L = readLiveFromDOM();
     if(!L) return;
 
@@ -20203,12 +20515,15 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
             var chip = tEl.querySelector('.temp-chip');
             var val = Math.round(L.t) + '°';
             if(chip){
-              chip.textContent = val;
-              chip.setAttribute('aria-label', val);
-            }else{
+              // ricrea il chip in base al nuovo valore
+              try{ chip.remove(); }catch(e){}
+              tEl.removeAttribute('data-temp-chip');
               tEl.textContent = val;
-              tEl.setAttribute('data-temp-chip','1');
+            }else{
+              tEl.textContent = val; // lasciamo che il sistema chips lo trasformi
+              tEl.removeAttribute('data-temp-chip');
             }
+            try{ window.__applyTempChips && window.__applyTempChips(); }catch(e){}
           }
         }
         if(!isNaN(L.ur)){
@@ -20250,6 +20565,16 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
 <!-- === STABILIZER — mantieni LIVE nel primo blocco anche se altri script riscr ivono === -->
 <script id="safe-live-stabilizer">
 (function(){
+  function isTodaySelected(){
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(!strip) return true;
+      var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      var sel   = items.findIndex(function(el){ return el.classList.contains('sel'); });
+      return (sel <= 0); /* index 0 (oggi) or fallback when none */
+    }catch(e){ return true; }
+  }
+
   function num(s){
     if(s==null) return NaN;
     var m = String(s).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
@@ -20332,6 +20657,8 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
     }
   }
   function stabilize(){
+    if(!isTodaySelected()) return;
+
     var L = readLive();
     if(!L) return;
     setFirstBlock(L);
@@ -20358,5 +20685,20 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
   function run(){ setTimeout(stabilize, 0); }
   if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', run, {once:true}); } else { run(); }
   document.addEventListener('mlg:dayparts-rendered', run, true);
+})();
+</script>
+
+<script id="force-bollettino-pro">
+// Disattiva definitivamente la versione scarna e forza il bollettino completo
+(function(){
+  function safeRender(){ try{ if(typeof renderBollettino==='function'){ renderBollettino(); } }catch(e){} }
+  window.computeFutureNarrative = function(){ return null; };
+  window.computeFinalNarrative  = function(){ return null; };
+  window.renderNarrativeFuture  = function(){ safeRender(); };
+  window.renderNarrativeFinal   = function(){ safeRender(); };
+  // Aggancia anche ad eventi ritardati
+  document.addEventListener('mlg:dayparts-rendered', safeRender, true);
+  document.addEventListener('DOMContentLoaded', safeRender, {once:true});
+  setTimeout(safeRender, 0);
 })();
 </script>
