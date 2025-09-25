@@ -19047,6 +19047,920 @@ body #dayParts{ margin: 2px 0 4px !important; }        /* riduce lo spazio sopra
 })();
 </script>
 
+
+<!-- SAFE PATCH: aggiorna SOLO la fascia giornaliera corrente usando SOLO le ore future.
+     Non tocca la logica esistente, non osserva mutazioni globali, non intercetta input. -->
+<script id="current-part-future-icon-patch-2025-09-24">
+(function(){
+  'use strict';
+  // Ranges in ore locali
+  var PARTS = [
+    {name:'Mattina', idx:0, start:6, end:12},
+    {name:'Pomeriggio', idx:1, start:12, end:18},
+    {name:'Sera', idx:2, start:18, end:24},
+    {name:'Notte', idx:3, start:0, end:6}
+  ];
+  function todayISO(){
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth()+1).padStart(2,'0');
+    var da = String(d.getDate()).padStart(2,'0');
+    return y+'-'+m+'-'+da;
+  }
+  function currentPartIndex(){
+    var h = new Date().getHours();
+    if(h>=6 && h<12) return 0;
+    if(h>=12 && h<18) return 1;
+    if(h>=18 && h<24) return 2;
+    return 3; // 0–6
+  }
+  function pickFutureIconForPart(fc, part){
+    try{
+      if(!fc || !fc.hourly || !Array.isArray(fc.hourly.time)) return null;
+      var now = Date.now();
+      var idxs = [];
+      for(var i=0;i<fc.hourly.time.length;i++){
+        var t = String(fc.hourly.time[i]);
+        var hh = Number(t.slice(11,13));
+        var inRange = (part.start<part.end) ? (hh>=part.start && hh<part.end) : (hh>=part.start || hh<part.end);
+        if(!inRange) continue;
+        var ts = Date.parse(t);
+        if(isFinite(ts) && ts>=now) idxs.push(i);
+      }
+      if(!idxs.length) return null; // nessuna ora futura: non tocchiamo nulla
+      // severità massima secondo codeWeight
+      function cw(c){ try{ return (typeof window.codeWeight==='function') ? window.codeWeight(c) : 0; }catch(_e){return 0;} }
+      var best = idxs[0], bestW = cw(fc.hourly.weathercode[idxs[0]]);
+      for(var k=1;k<idxs.length;k++){
+        var w = cw(fc.hourly.weathercode[idxs[k]]);
+        if(w>bestW){ best = idxs[k]; bestW = w; }
+      }
+      var code = fc.hourly.weathercode[best];
+      var isNight = (fc.hourly.is_day && fc.hourly.is_day[best]===0) ? true : false;
+      var iconHTML = '';
+      if(typeof window.iconHTML_NOEMOJI==='function'){ iconHTML = window.iconHTML_NOEMOJI(code, isNight); }
+      var label = (typeof window.wmoDesc==='function') ? window.wmoDesc(code) : '';
+      return {iconHTML: iconHTML, label: label};
+    }catch(e){ return null; }
+  }
+  function applyPatch(){
+    try{
+      var dayPartsEl = document.getElementById('dayParts');
+      if(!dayPartsEl) return;
+      // Modifica SOLO se il giorno mostrato è oggi (per evitare effetti collaterali quando si scorre altri giorni)
+      var iso = dayPartsEl.dataset && dayPartsEl.dataset.dayIso || null;
+      if(iso && iso.slice(0,10) !== todayISO()) return;
+// Guardia aggiuntiva: verifica anche l'indice selezionato nella strip 7‑giorni
+try{
+  var strip = document.querySelector('#dailyPanel .days');
+  if(strip){
+    var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+    var sel = items.findIndex(function(el){ return el.classList.contains('sel'); });
+    if(sel > 0) return; // se non è oggi, non toccare nulla
+  }
+}catch(_e){}
+
+      // Preferisci subset del giorno, se disponibile
+      var fc = window.dayFc || window.subForecastByDay && window.subForecastByDay(window.fc, 0) || window.fc;
+      if(!fc) return;
+      var pIdx = currentPartIndex();
+      var part = PARTS[pIdx];
+      var out = pickFutureIconForPart(fc, part);
+      if(!out) return;
+      var panels = dayPartsEl.querySelectorAll('.part');
+      if(!panels || !panels.length || !panels[pIdx]) return;
+      var summary = panels[pIdx].querySelector('summary');
+      if(!summary) return;
+      // sostituisci solo l'icona
+      var ic = summary.querySelector('svg, img.weather-icon, img, i');
+      if(ic && out.iconHTML){
+        ic.outerHTML = out.iconHTML;
+      }else if(out.iconHTML){
+        summary.insertAdjacentHTML('afterbegin', out.iconHTML);
+      }
+      // aggiorna/crea label fenomeno
+      var ph = summary.querySelector('.phen');
+      if(ph){
+        if(out.label) ph.textContent = out.label;
+      }else if(out.label){
+        var div = document.createElement('div');
+        div.className = 'phen';
+        div.textContent = out.label;
+        // posizioniamo sotto l'icona e sopra le temperature
+        var afterIcon = summary.querySelector('svg, img.weather-icon, img, i');
+        if(afterIcon && afterIcon.nextSibling){
+          summary.insertBefore(div, afterIcon.nextSibling);
+        }else{
+          summary.insertAdjacentElement('afterbegin', div);
+        }
+      }
+    }catch(e){ /* no-op */ }
+  }
+  // Esegui una sola volta dopo il render dei dayparts
+  function safeQueue(){
+    // usa micro-ritardo per lasciare terminare il render
+    setTimeout(applyPatch, 30);
+  }
+  // 1) al primo load
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', safeQueue, {once:true});
+  }else{ safeQueue(); }
+  // 2) ad ogni nuovo render esplicito
+  try{
+    document.addEventListener('mlg:dayparts-rendered', safeQueue, {passive:true});
+  }catch(_e){}
+})();
+</script>
+
+
+<!-- === ADDITIVE PATCH — LIVE into current day & current day‑part (non‑invasive) === -->
+<script id="mlg-dayparts-and-today-live-patch" data-obsolete>
+(function(){
+  "use strict";
+
+  // Utility: index of selected day in the 7‑day strip
+  function selectedDayIndex(){
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(!strip) return 0;
+      var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      var sel   = items.findIndex(function(el){ return el.classList.contains('sel'); });
+      return (sel>=0 ? sel : 0);
+    }catch(e){ return 0; }
+  }
+
+  // Utility: is the strip focused on "oggi"?
+  function isTodaySelected(){ return selectedDayIndex() === 0; }
+
+  // Map hour -> fascia name
+  function currentPartName(h){
+    if(h>=6 && h<12) return 'mattina';
+    if(h>=12 && h<18) return 'pomeriggio';
+    if(h>=18 && h<24) return 'sera';
+    return 'notte';
+  }
+
+  // Robust number parsing from text
+  function num(s){
+    if(s==null) return NaN;
+    var m = String(s).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+    return m ? parseFloat(m[0]) : NaN;
+  }
+
+  // Inject into TODAY tile (7‑day strip)
+  function injectIntoTodayTile(liveRounded){
+    try{
+      var today = document.querySelector('#dailyPanel .days .day');
+      if(!today) return;
+      // pick first DIV child containing a ° that is not ".min" (this is the MAX chip on your markup)
+      var divs = today.querySelectorAll('div');
+      var target = null;
+      for(var i=0;i<divs.length;i++){
+        var d = divs[i];
+        if(d.classList && d.classList.contains('min')) continue;
+        if((d.textContent||'').indexOf('°')>-1){ target = d; break; }
+      }
+      if(!target) return;
+      var shown = num(target.textContent);
+      if(!Number.isFinite(shown) || liveRounded !== shown){
+        target.textContent = liveRounded + '°';
+      }
+    }catch(e){}
+  }
+
+  // Inject into current day‑part summary tile
+  // (min for Notte/Mattina/Sera, max for Pomeriggio)
+  function injectIntoCurrentPart(liveRounded){
+    try{
+      if(!isTodaySelected()) return; // only for "oggi"
+      var h = (new Date()).getHours();
+      var needed = currentPartName(h);
+      document.querySelectorAll('#dayParts .part summary').forEach(function(sum){
+        var title = (sum.querySelector('h4') && sum.querySelector('h4').textContent || '').toLowerCase();
+        if(!title || title.indexOf(needed) === -1) return;
+        var css = title.indexOf('pomeriggio')>-1 ? '.temp' : '.min';
+        var cell = sum.querySelector(css);
+        if(!cell) return;
+        var shown = num(cell.textContent);
+        if(!Number.isFinite(shown) || liveRounded !== shown){
+          // If there's an existing chip, update it; otherwise set plain text
+          var chip = cell.querySelector('.temp-chip');
+          var label = liveRounded + '°';
+          if(chip){
+            chip.setAttribute('aria-label', label);
+            chip.textContent = label;
+          }else{
+            cell.textContent = label;
+          }
+        }
+      });
+    }catch(e){}
+  }
+
+  // Main update
+  function update(){
+    var lv = (window.LIVE && typeof window.LIVE.t === 'number') ? Math.round(window.LIVE.t) : NaN;
+    if(!Number.isFinite(lv)) return;
+    injectIntoTodayTile(lv);
+    injectIntoCurrentPart(lv);
+    try{ if(typeof window.__applyTempChips === 'function'){ setTimeout(window.__applyTempChips, 0); } }catch(_e){}
+  }
+
+  // Schedule a few retries to safely win over late re‑renders
+  function schedule(){
+    update();
+    setTimeout(update, 25);
+    setTimeout(update, 120);
+    setTimeout(update, 400);
+  }
+
+  // Hook into your existing lifecycle/events (already present in your project)
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  }else{
+    schedule();
+  }
+  document.addEventListener('mlg:dayparts-rendered', schedule, true);
+  document.addEventListener('click', function(ev){
+    if(ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day')){
+      setTimeout(schedule, 0); // when the user changes day
+    }
+  }, true);
+
+  // small keep‑alive (e.g., when LIVE changes a few minutes later)
+  setInterval(update, 60*1000);
+})();
+</script>
+
+<script id="mlg-dayparts-and-today-live-patch-v2">
+(function(){
+  "use strict";
+
+  // -------- helpers --------
+  function selectedDayIsToday(){
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(!strip) return true;                 // default to today
+      var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      var sel   = items.findIndex(function(el){ return el.classList.contains('sel'); });
+      return (sel <= 0); /* index 0 (oggi) or fallback when none */
+    }catch(e){ return true; }
+  }
+  function partLabel(el){
+    try{ return (el.querySelector('summary h4')||{}).textContent.toLowerCase().trim(); }catch(_){ return ''; }
+  }
+  function decideTargetCell(partEl){
+    var label = partLabel(partEl);
+    var css = (label.indexOf('pomeriggio')>-1) ? '.temp' : '.min';
+    return partEl.querySelector('summary '+css);
+  }
+  function extractNumber(s){
+    if(s==null) return NaN;
+    var m = String(s).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+    return m ? Math.round(parseFloat(m[0])) : NaN;
+  }
+  function repaintChipsLater(){
+    try{ if(typeof window.__applyTempChips === 'function') setTimeout(window.__applyTempChips, 0); }catch(_){}
+  }
+
+  // -------- injections --------
+  function injectLiveIntoTodayTile(live){
+    try{
+      var tile = document.querySelector('#dailyPanel .days .day'); // first = oggi
+      if(!tile) return;
+      // first non-min temperature slot inside the tile
+      var target = null;
+      var divs = tile.querySelectorAll('div');
+      for(var i=0;i<divs.length;i++){
+        var d = divs[i];
+        if(d.classList && d.classList.contains('tmin')) continue;
+        if((d.textContent||'').indexOf('°')>-1){ target = d; break; }
+      }
+      if(!target) return;
+      var shown = extractNumber(target.textContent);
+      if(!Number.isFinite(shown) || shown !== live){
+        target.textContent = live + '°';
+        repaintChipsLater();
+      }
+    }catch(e){}
+  }
+
+  function injectLiveIntoActivePart(live){
+    try{
+      if(!selectedDayIsToday()) return; // never touch other days
+      // Prefer the currently OPEN <details.part>; if none, fall back to the band of the current hour
+      var active = document.querySelector('#dayParts .part[open]');
+      if(!active){
+        var h = new Date().getHours();
+        var index = (h>=6&&h<12)?0:(h>=12&&h<18)?1:(h>=18&&h<24)?2:3;
+        active = document.querySelectorAll('#dayParts .part')[index] || null;
+      }
+      if(!active) return;
+      var cell = decideTargetCell(active);
+      if(!cell) return;
+      var shown = extractNumber(cell.textContent);
+      if(!Number.isFinite(shown) || shown !== live){
+        var chip = cell.querySelector('.temp-chip');
+        var label = live + '°';
+        if(chip){ chip.textContent = label; chip.setAttribute('aria-label', label); }
+        else     { cell.textContent = label; }
+        repaintChipsLater();
+      }
+    }catch(e){}
+  }
+
+  function update(){
+    var lv = (window.LIVE && Number.isFinite(Number(window.LIVE.t))) ? Math.round(Number(window.LIVE.t)) : NaN;
+    if(!Number.isFinite(lv)) return;
+    injectLiveIntoTodayTile(lv);
+    injectLiveIntoActivePart(lv);
+  }
+
+  function schedule(){ update(); setTimeout(update, 30); setTimeout(update, 150); setTimeout(update, 450); }
+
+  // lifecycle hooks
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  else schedule();
+  document.addEventListener('mlg:dayparts-rendered', schedule, true);
+  document.addEventListener('toggle', function(ev){
+    if(ev && ev.target && ev.target.matches && ev.target.matches('#dayParts .part')) schedule();
+  }, true);
+  document.addEventListener('click', function(ev){
+    if(ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day')) schedule();
+  }, true);
+  setInterval(update, 60*1000);
+})();
+</script>
+
+<script id="mlg-dayparts-and-today-live-patch-v3">
+(function(){
+  "use strict";
+
+  // Helpers
+  function number(x){
+    if(x==null) return NaN;
+    var m = String(x).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+    return m ? Math.round(parseFloat(m[0])) : NaN;
+  }
+  function selectedDayIsToday(){
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(!strip) return true;
+      var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      var sel = items.findIndex(function(el){ return el.classList.contains('sel'); });
+      return (sel <= 0);
+    }catch(e){ return true; }
+  }
+  function labelOf(partEl){
+    try{ return (partEl.querySelector('summary h4')||{}).textContent.toLowerCase().trim(); }catch(_){ return ''; }
+  }
+  function decideCell(partEl){
+    var lbl = labelOf(partEl);
+    return partEl.querySelector('summary ' + (lbl.indexOf('pomeriggio')>-1 ? '.temp' : '.min'));
+  }
+  function repaint(){ try{ if(typeof window.__applyTempChips==='function') setTimeout(window.__applyTempChips,0); }catch(_e){} }
+
+  // Choose which part to update
+  function pickActivePart(){
+    var root = document.getElementById('dayParts');
+    if(!root) return null;
+    // 1) if a details is open, take that
+    var open = root.querySelector('.part[open]');
+    if(open) return open;
+    // 2) otherwise take the first non-past (visible/attivo) tile
+    var nonPast = root.querySelector('.part:not(.past)');
+    if(nonPast) return nonPast;
+    // 3) fallback: time-of-day
+    var h = new Date().getHours();
+    var idx = (h>=6&&h<12)?0:(h>=12&&h<18)?1:(h>=18&&h<24)?2:3;
+    return root.querySelectorAll('.part')[idx] || null;
+  }
+
+  function injectIntoActivePart(liveRounded){
+    if(!selectedDayIsToday()) return;
+    var part = pickActivePart();
+    if(!part) return;
+    var cell = decideCell(part);
+    if(!cell) return;
+    var shown = number(cell.textContent);
+    if(!Number.isFinite(shown) || shown !== liveRounded){
+      var chip = cell.querySelector('.temp-chip');
+      var label = liveRounded + '°';
+      if(chip){ chip.textContent = label; chip.setAttribute('aria-label', label); }
+      else { cell.textContent = label; }
+      repaint();
+    }
+  }
+
+  function injectIntoTodayTile(liveRounded){
+    try{
+      var today = document.querySelector('#dailyPanel .days .day');
+      if(!today) return;
+      var target = null;
+      var divs = today.querySelectorAll('div');
+      for(var i=0;i<divs.length;i++){
+        var d = divs[i];
+        if(d.classList && (d.classList.contains('tmin')||d.classList.contains('min'))) continue;
+        if((d.textContent||'').indexOf('°')>-1){ target = d; break; }
+      }
+      if(!target) return;
+      var shown = number(target.textContent);
+      if(!Number.isFinite(shown) || shown !== liveRounded){
+        target.textContent = liveRounded + '°';
+        repaint();
+      }
+    }catch(e){}
+  }
+
+  function getLive(){
+    var v = (window.LIVE && window.LIVE.t);
+    var n = Number(v);
+    return Number.isFinite(n) ? Math.round(n) : NaN;
+  }
+
+  function update(){
+    var lv = getLive();
+    if(!Number.isFinite(lv)) return;
+    injectIntoTodayTile(lv);
+    injectIntoActivePart(lv);
+  }
+  function schedule(){ update(); setTimeout(update,30); setTimeout(update,140); setTimeout(update,450); }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  else schedule();
+  document.addEventListener('mlg:dayparts-rendered', schedule, true);
+  document.addEventListener('toggle', function(ev){ if(ev && ev.target && ev.target.matches && ev.target.matches('#dayParts .part')) schedule(); }, true);
+  document.addEventListener('click', function(ev){ if(ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day')) schedule(); }, true);
+  setInterval(update, 60*1000);
+})();
+</script>
+
+<!-- === PATCH: Giorno corrente "in corso" (non-invasivo) === -->
+<style id="mlg-incorso-css">
+/* Badge che rimpiazza i due blocchi temperatura SOLO per il giorno corrente */
+.day.mlg-current .mlg-incorso-badge{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2px; padding:4px 6px;
+  background:rgba(255,255,255,.10);
+  border-radius:8px;
+  font-weight:800;
+  letter-spacing:.2px;
+  text-transform:none;
+  line-height:1.05;
+  /* si adatta allo spazio dei due blocchi temp */
+  font-size: clamp(.62rem, 2.2vw, .78rem);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,.25) inset;
+}
+.day.mlg-current .mlg-incorso-badge .arrow-down{
+  width:0; height:0;
+  border-left:6px solid transparent;
+  border-right:6px solid transparent;
+  border-top:8px solid currentColor; /* freccia verso i pannelli sottostanti */
+  opacity:.9;
+}
+/* Nascondi con delicatezza i blocchi temperatura tradizionali del "giorno corrente".
+   Non cambiamo il DOM principale: solo display:none mirato. */
+.day.mlg-current .min,
+.day.mlg-current .max,
+.day.mlg-current .hi,
+.day.mlg-current .lo,
+.day.mlg-current .tmin,
+.day.mlg-current .tmax,
+.day.mlg-current .temp-hi,
+.day.mlg-current .temp-lo{
+  display:none !important;
+}
+/* Sicurezza: impedisce trabordare della card */
+.days .day.mlg-current{ overflow:hidden; }
+</style>
+
+<script id="mlg-incorso-js">
+/* === Post-render patch: sostituisce i blocchi temp del giorno corrente con "in corso" + freccetta.
+   — NON modifica la logica di generazione: osserva il DOM e applica dopo ogni render.
+   — Idempotente e prudente: non tocca gli altri giorni, non rimuove nodi ma li nasconde. */
+(function(){
+  const MONTHS_IT = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
+
+  function isTempLike(el){
+    if(!el || el.nodeType !== 1) return false;
+    const txt = (el.textContent || "").trim();
+    return /-?\d+\s*°/.test(txt) || el.classList.contains("min") || el.classList.contains("max")
+           || el.classList.contains("tmin") || el.classList.contains("tmax")
+           || el.classList.contains("temp-hi") || el.classList.contains("temp-lo");
+  }
+
+  function findCurrentDayEl(){
+    const wrap = document.querySelector(".days");
+    if(!wrap) return null;
+    const days = wrap.querySelectorAll(".day");
+    if(!days.length) return null;
+
+    // 1) Preferisci un marcatore esplicito
+    for(const d of days){
+      if(d.matches('[data-today], [data-today="1"], .today, .is-today')) return d;
+      const label = (d.getAttribute("aria-label") || "").toLowerCase();
+      if(label.includes("oggi")) return d;
+    }
+
+    // 2) Match sul testo "Oggi"
+    for(const d of days){
+      if((d.textContent || "").toLowerCase().includes("oggi")) return d;
+    }
+
+    // 3) Match su data esatta (es. "24 Set")
+    const now = new Date();
+    const dd = String(now.getDate());
+    const mon = MONTHS_IT[now.getMonth()];
+    const probe = (dd + " " + mon).toLowerCase();
+    for(const d of days){
+      const t = (d.textContent || "").replace(/\s+/g," ").trim().toLowerCase();
+      if(t.includes(probe)) return d;
+    }
+
+    // 4) Fallback prudente: primo elemento della strip
+    return days[0] || null;
+  }
+
+  function applyOnce(){
+    const el = findCurrentDayEl();
+    if(!el || el.dataset.mlgIncorsoApplied === "1") return;
+
+    // Nascondi i blocchi temperatura "noti"
+    Array.from(el.querySelectorAll("*")).forEach(n => {
+      if(isTempLike(n)){
+        // conserva display originale per eventuale ripristino futuro
+        if(!n.dataset._mlgDisplay){
+          const cs = getComputedStyle(n);
+          n.dataset._mlgDisplay = cs.display || "";
+        }
+        n.style.display = "none";
+      }
+    });
+
+    // Badge "in corso" (senza rompere layout)
+    const badge = document.createElement("div");
+    badge.className = "mlg-incorso-badge";
+    badge.setAttribute("role","note");
+    badge.setAttribute("aria-label","Previsione in corso");
+    badge.innerHTML = '<span>in corso</span><span class="arrow-down" aria-hidden="true"></span>';
+
+    // Inserisci in coda (stesso spazio dei blocchi temp)
+    el.appendChild(badge);
+    el.classList.add("mlg-current");
+    el.dataset.mlgIncorsoApplied = "1";
+  }
+
+  // Debounce helper
+  let t = 0;
+  function schedule(){ clearTimeout(t); t = setTimeout(applyOnce, 60); }
+
+  // DOM già pronto
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", schedule, { once:true });
+  }else{
+    schedule();
+  }
+
+  // Re-apply dopo render/ricerca: MutationObserver leggero
+  const mo = new MutationObserver((muts)=>{
+    for(const m of muts){
+      if(m.type === "childList" || m.type === "attributes"){
+        if((m.target && (m.target.classList && (m.target.classList.contains('days') || m.target.classList.contains('day'))))
+           || (m.addedNodes && m.addedNodes.length)){
+          schedule();
+          break;
+        }
+      }
+    }
+  });
+  mo.observe(document.body, { subtree:true, childList:true, attributes:true, attributeFilter:["class","data-today","aria-label"] });
+})();
+</script>
+
+<!-- === PATCH 2025-09-24 — Past parts: replace icon+title with MLG logo, keep "— ore trascorse" === -->
+<style id="mlg-past-logo-css">
+/* Hide title and any phenomenon text inside past tiles */
+#dayParts details.part.past summary h4,
+#dayParts details.part.past summary .phen{ display:none !important; }
+/* Hide any existing weather icon for past tiles (svg or image with the specific class) */
+#dayParts details.part.past summary svg,
+#dayParts details.part.past summary img.weather-icon,
+#dayParts details.part.past summary i{ display:none !important; }
+/* The compact MLG logo we inject */
+#dayParts details.part.past summary .mlg-logo-mini{
+  display:block;
+  width:34px; height:34px;
+  margin:0 auto 2px;
+  object-fit:contain;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.25));
+  user-select:none; -webkit-user-drag:none;
+}
+</style>
+<script id="mlg-past-logo-patch-2025-09-24">
+(function(){
+  "use strict";
+  var LOGO_SRC = (function(){
+    try{
+      var img = document.querySelector('#mlgLogoBadge img');
+      if(img && img.src) return img.src;
+    }catch(e){}
+    return "https://meteologullo.github.io/mappamlg/logo.png";
+  })();
+
+  function inject(){
+    try{
+      var parts = document.querySelectorAll('#dayParts details.part.past summary');
+      if(!parts.length) return;
+      parts.forEach(function(sum){
+        if(sum.dataset.mlgPastLogo === "1") return;
+        // Build logo <img>
+        var logo = document.createElement('img');
+        logo.src = LOGO_SRC;
+        logo.alt = "MLG";
+        logo.className = "mlg-logo-mini";
+        logo.setAttribute('aria-hidden', 'true');
+
+        // Replace the existing weather icon if present, otherwise insert
+        var icon = sum.querySelector('svg, img.weather-icon, i');
+        if(icon && icon.parentNode){
+          icon.parentNode.replaceChild(logo, icon);
+        }else{
+          var h4 = sum.querySelector('h4');
+          if(h4 && h4.parentNode){
+            h4.insertAdjacentElement('afterend', logo);
+          }else{
+            sum.insertBefore(logo, sum.firstChild);
+          }
+        }
+
+        // mark as applied to avoid duplicates
+        sum.dataset.mlgPastLogo = "1";
+      });
+    }catch(e){ /* silent by design */ }
+  }
+
+  function install(){
+    if(typeof window.renderDayParts === 'function' && !window.renderDayParts.__mlgPastLogo){
+      var orig = window.renderDayParts;
+      window.renderDayParts = function(fc){
+        var out = orig(fc);
+        try{ inject(); }catch(e){}
+        return out;
+      };
+      window.renderDayParts.__mlgPastLogo = 1;
+    }
+  }
+
+  function boot(){
+    install();
+    // run once now (if already rendered)
+    inject();
+    // keep the hook alive briefly in case other patches reassign renderDayParts
+    var n=0, t=setInterval(function(){ install(); inject(); if(++n>40) clearInterval(t); }, 120);
+    // also react to the custom event already used elsewhere
+    try{ document.addEventListener('mlg:dayparts-rendered', function(){ setTimeout(inject, 10); }, true); }catch(_e){}
+  }
+
+  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot, {once:true}); }
+  else { boot(); }
+})();
+</script>
+
+<!-- === NOWCAST SAFE: icona + rain live per “adesso” — v1.1 (Open‑Meteo base, Radar/Sat optional) === -->
+<script id="nowcast-safe-v1_1">
+(function(){
+  // --- tiny helpers
+  function nearestHourIndex(fc){
+    try{
+      const arr = fc?.hourly?.time || [];
+      if(!arr.length) return 0;
+      const now = Date.now();
+      let k=0, d=1e18;
+      for(let i=0;i<arr.length;i++){
+        const dd = Math.abs(Date.parse(arr[i]) - now);
+        if(dd<d){d=dd;k=i;}
+      }
+      return k;
+    }catch(_){ return 0; }
+  }
+  function isNight(fc){
+    try{
+      if(typeof fc?.current_weather?.is_day === 'number'){
+        return fc.current_weather.is_day === 0;
+      }
+      const i = nearestHourIndex(fc);
+      return (fc?.hourly?.is_day?.[i] === 0);
+    }catch(_){ return false; }
+  }
+  function clamp(n,a,b){ return Math.min(b, Math.max(a, n)); }
+
+  // --- WMO chooser (no precipitation -> cloudiness; else -> rain/snow by temp)
+  function pickWMO({mmh, temp, rh, cloudLvl, night}){
+    const snow = (Number(temp) || 0) <= 1;
+    if((Number(mmh)||0) >= 0.1){
+      if(snow){
+        if(mmh < 1) return 71;   // light snow
+        if(mmh < 3) return 73;   // mod
+        return 75;               // heavy
+      }else{
+        if(mmh < 1) return 61;   // light rain
+        if(mmh < 4) return 63;   // mod
+        return 65;               // heavy
+      }
+    }
+    // fog/low stratus
+    const wind = Number(window?.LIVE?.wind) || Number(fc?.current_weather?.windspeed) || 0;
+    if((Number(rh)||0) >= 96 && wind <= 6) return 45; // fog
+    // cloudiness mapping
+    if(cloudLvl<=0) return 0;
+    if(cloudLvl===1) return 1;
+    if(cloudLvl===2) return 2;
+    return 3;
+  }
+
+  // --- DOM writers (list + table)
+  function setIcon(wmo, night){
+    try{
+      const html = (window.iconHTML_NOEMOJI) ? window.iconHTML_NOEMOJI(wmo, !!night) : '';
+      [
+        document.querySelector('#dailyDetailPanel .hourly-list .hour-row.live .hr-icon'),
+        document.querySelector('#dailyDetailPanel table.hourly tbody tr.live-row td:nth-child(2)')
+      ].filter(Boolean).forEach(el => el.innerHTML = html);
+    }catch(_){}
+  }
+  function setRain(mm){
+    try{
+      const txt = (Number(mm)||0).toFixed(1) + ' mm';
+      [
+        document.querySelector('#dailyDetailPanel .hourly-list .hour-row.live .hr-rain'),
+        document.querySelector('#dailyDetailPanel table.hourly tbody tr.live-row td:nth-child(6)')
+      ].filter(Boolean).forEach(el => { el.textContent = txt; });
+      // The gauge patch observes DOM changes and updates automatically.
+    }catch(_){}
+  }
+
+  // --- Base using Open‑Meteo (always available in window.fc)
+  function baseFromOpenMeteo(fc){
+    try{
+      const i = nearestHourIndex(fc);
+      const mmh = Number(fc?.hourly?.precipitation?.[i]) || 0;
+      const cc  = Number(fc?.hourly?.cloudcover?.[i]);
+      const rh  = Number(window?.LIVE?.ur) || Number(fc?.hourly?.relativehumidity_2m?.[i]) || NaN;
+      const t   = Number(window?.LIVE?.t)  || Number(fc?.current_weather?.temperature) || NaN;
+      let cloudLvl = null;
+      if(isFinite(cc)){
+        if(cc < 20) cloudLvl = 0;
+        else if(cc < 45) cloudLvl = 1;
+        else if(cc < 80) cloudLvl = 2;
+        else cloudLvl = 3;
+      }else{
+        // fallback from WMO current code
+        const w = Number(fc?.current_weather?.weathercode);
+        cloudLvl = (w===0)?0:(w<=2?1:(w===3?3:2));
+      }
+      const night = isNight(fc);
+      const wmo = pickWMO({mmh, temp:t, rh, cloudLvl, night});
+      return {wmo, mmh, night};
+    }catch(_){ return null; }
+  }
+
+  // --- Optional RainViewer refine (safe: 2s timeout; fully try/catch)
+  function lonLatToTile(lon, lat, z){
+    const x = Math.floor((lon + 180) / 360 * Math.pow(2, z));
+    const y = Math.floor((1 - Math.log(Math.tan(lat * Math.PI/180) + 1 / Math.cos(lat * Math.PI/180)) / Math.PI) / 2 * Math.pow(2, z));
+    return {x,y};
+  }
+  function tileSample(url, lat, lon, z, timeoutMs){
+    return new Promise((resolve)=>{
+      try{
+        const t = lonLatToTile(lon, lat, z);
+        const u = url.replace('{z}', z).replace('{x}', t.x).replace('{y}', t.y);
+        const img = new Image();
+        const timer = setTimeout(()=>{ try{img.src='';}catch(_){ } resolve(null); }, timeoutMs||2000);
+        img.crossOrigin = 'anonymous';
+        img.onload = function(){
+          clearTimeout(timer);
+          try{
+            const c = document.createElement('canvas');
+            c.width = img.width; c.height = img.height;
+            const g = c.getContext('2d');
+            g.drawImage(img,0,0);
+            // pixel inside tile for our point
+            const n = Math.pow(2, z);
+            const xtile = (lon + 180) / 360 * n;
+            const sinLat = Math.sin(lat * Math.PI / 180);
+            const ytile = (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * n;
+            const dx = Math.floor((xtile - Math.floor(xtile)) * 256);
+            const dy = Math.floor((ytile - Math.floor(ytile)) * 256);
+            const d = g.getImageData(clamp(dx,0,255), clamp(dy,0,255), 1, 1).data;
+            resolve({r:d[0], g:d[1], b:d[2], a:d[3]});
+          }catch(_e){ resolve(null); }
+        };
+        img.onerror = function(){ clearTimeout(timer); resolve(null); };
+        img.src = u;
+      }catch(_){ resolve(null); }
+    });
+  }
+  async function refineWithRadar(fc, state){
+    try{
+      const lat = fc?.latitude, lon = fc?.longitude;
+      if(!(isFinite(lat)&&isFinite(lon))) return state;
+      const r = await fetch('https://api.rainviewer.com/public/weather-maps.json', {cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+      const t = r?.radar?.nowcast?.slice(-1)?.[0] || r?.radar?.past?.slice(-1)?.[0];
+      if(!t) return state;
+      const tpl = `https://tilecache.rainviewer.com/v2/radar/${t.time}/256/{z}/{x}/{y}/3/1_0.png`;
+      const px = await tileSample(tpl, lat, lon, 8, 1800);
+      if(!px) return state;
+      const val = Math.max(px.r, px.g, px.b);
+      // conservative mapping
+      let mmh = 0;
+      if(val >= 24 && val < 80) mmh = 0.4;
+      else if(val < 120) mmh = 1.2;
+      else if(val < 160) mmh = 3.0;
+      else if(val < 200) mmh = 7.0;
+      else if(val >= 200)  mmh = 15.0;
+      // if radar says stronger than base, upgrade
+      if(mmh > (state.mmh||0)){
+        state.mmh = mmh;
+        state.wmo = pickWMO({mmh, temp:Number(window?.LIVE?.t)||Number(fc?.current_weather?.temperature)||0,
+                             rh:Number(window?.LIVE?.ur)||Number(fc?.hourly?.relativehumidity_2m?.[nearestHourIndex(fc)])||0,
+                             cloudLvl:3, night:state.night});
+      }
+      return state;
+    }catch(_){ return state; }
+  }
+
+  
+  async function refineWithSatellite(fc, state){
+    try{
+      const lat = fc?.latitude, lon = fc?.longitude;
+      if(!(isFinite(lat)&&isFinite(lon))) return state;
+      const meta = await fetch('https://api.rainviewer.com/public/weather-maps.json', {cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+      const t = meta?.satellite?.infrared?.slice(-1)?.[0] || meta?.satellite?.past?.slice(-1)?.[0];
+      if(!t) return state;
+      const tpl = `https://tilecache.rainviewer.com/v2/satellite/${t.time}/256/{z}/{x}/{y}/0/1_1.png`;
+      const px = await tileSample(tpl, lat, lon, 6, 1800);
+      if(!px) return state;
+      const br = Math.max(px.r, px.g, px.b);
+      let cloud = null;
+      if(br < 40) cloud = 0;       // clear
+      else if(br < 90) cloud = 1;  // few
+      else if(br < 140) cloud = 2; // cloudy
+      else cloud = 3;              // overcast
+      // Only adjust if not raining (radar already decided precip)
+      if((state.mmh||0) < 0.1 && cloud != null){
+        state.wmo = pickWMO({mmh:0, temp:Number(window?.LIVE?.t)||Number(fc?.current_weather?.temperature)||0,
+                             rh:Number(window?.LIVE?.ur)||Number(fc?.hourly?.relativehumidity_2m?.[nearestHourIndex(fc)])||0,
+                             cloudLvl:cloud, night:state.night});
+      }
+      return state;
+    }catch(_){ return state; }
+  }
+
+  // --- main apply
+  async function apply(){
+    try{
+      const fc = window.fc;
+      if(!fc) return;
+      let s = baseFromOpenMeteo(fc);
+      if(!s) return;
+      setIcon(s.wmo, s.night);
+      setRain(s.mmh);
+      // refine silently; if anything fails, base is already shown
+      try{
+        s = await refineWithRadar(fc, s);
+        setIcon(s.wmo, s.night);
+        setRain(s.mmh);
+        s = await refineWithSatellite(fc, s);
+        setIcon(s.wmo, s.night);
+        setRain(s.mmh);
+      }catch(_){}
+    }catch(_){}
+  }
+
+  // run after your render completes; do NOT replace core funcs
+  function arm(){
+    apply();
+    setTimeout(apply, 250);    // once more after gauges render
+  }
+
+  // attach safely
+  if(typeof window.run === 'function' && !window.run.__nowcastSafe){
+    const orig = window.run;
+    window.run = async function(){
+      const out = await orig.apply(this, arguments);
+      try{ arm(); }catch(_){}
+      return out;
+    };
+    window.run.__nowcastSafe = true;
+  }
+  document.addEventListener('mlg:dayparts-rendered', arm);
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arm);
+  else arm();
+})();
+</script>
+
 </body>
 </html>
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
