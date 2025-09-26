@@ -3380,6 +3380,175 @@ body:has(#dailyPanel .days .day.sel:not(:first-child)) #triModal .hourly-list .h
 }
 </style>
 
+
+
+
+
+
+
+
+
+
+<script id="rg-severity-autotag-2025-09-26">
+(function(){
+  try{
+    var map = {
+      "debole":"debole",
+      "moderato":"moderata",
+      "moderata":"moderata",
+      "abbondante":"abbondante",
+      "forte":"forte",
+      "molto forte":"molto forte",
+      "estreme":"estreme",
+      "estrema":"estreme"
+    };
+    var labels = document.querySelectorAll('.rain-gauge .rg-label');
+    labels.forEach(function(el){
+      var t = (el.textContent || "").trim().toLowerCase();
+      // trova match per chiave di mappa presente nel testo
+      var sev = null;
+      for (var k in map){
+        if (t.indexOf(k) !== -1){ sev = map[k]; break; }
+      }
+      if (sev){
+        el.setAttribute('data-sev', sev);
+        el.setAttribute('aria-label','Intensità precipitazioni: ' + sev);
+      }
+      // garantire che il chip resti nello stesso flusso e non si sovrapponga
+      el.style.maxWidth = '100%';
+    });
+  }catch(e){/* no-op */}
+})();
+</script>
+
+
+<style id="rg-chip-nowrap-2025-09-26">
+/* ===== Rain Gauge chip: NO WRAP + vivid contrast ===== */
+.rain-gauge .rg-label{
+  display:inline-flex;
+  align-items:center;
+  white-space:nowrap;            /* mai a capo */
+  color:#fff !important;
+  font-weight:800;
+  font-size:13px;                /* base, sarà ridotto via JS solo se necessario */
+  line-height:1.15;
+  padding:4px 10px;
+  border-radius:12px;
+  margin-left:8px;               /* stacca dal termometro/slider blu */
+  background:#1e2a33;
+  border:1px solid rgba(0,0,0,.35);
+  box-shadow:0 2px 8px rgba(0,0,0,.20);
+  -webkit-font-smoothing:antialiased;
+  text-shadow:0 1px 1px rgba(0,0,0,.6);
+}
+
+/* Palette severità — VIVIDA e leggibilissima */
+.rain-gauge .rg-label[data-sev="debole"]{       background:#2b3947 }
+.rain-gauge .rg-label[data-sev="moderata"]{     background:#1063ff } /* blu vivo */
+.rain-gauge .rg-label[data-sev="abbondante"]{   background:#ff8a00 } /* arancione forte */
+.rain-gauge .rg-label[data-sev="forte"]{        background:#ff3b30 } /* rosso vivo */
+.rain-gauge .rg-label[data-sev="molto forte"]{  background:#c1121f } /* rosso scuro intenso */
+.rain-gauge .rg-label[data-sev="estreme"]{      background:#6a00ff } /* viola intenso */
+
+body.night .rain-gauge .rg-label{ filter:saturate(1.06) brightness(0.98) }
+</style>
+
+<script id="rg-chip-fit-2025-09-26">
+(function(){
+  try{
+    var map = {
+      "debole":"debole", "moderata":"moderata", "moderato":"moderata",
+      "abbondante":"abbondante", "forte":"forte", "molto forte":"molto forte",
+      "estreme":"estreme", "estrema":"estreme"
+    };
+    var labels = document.querySelectorAll('.rain-gauge .rg-label');
+    labels.forEach(function(el){
+      var t = (el.textContent||"").trim().toLowerCase();
+      var sev=null; for (var k in map){ if (t.indexOf(k)!==-1){ sev=map[k]; break; } }
+      if (sev){ el.setAttribute('data-sev', sev); el.setAttribute('aria-label','Intensità precipitazioni: '+sev); }
+
+      // NO WRAP: se comunque non entra nello spazio corrente, riduci il font un filo
+      // senza mai andare sotto 11px
+      var minFS = 11;
+      var fs = parseFloat(getComputedStyle(el).fontSize) || 13;
+      // allarga leggermente se il contenitore ha spazio (fino a 220px)
+      el.style.maxWidth = 'max-content';
+      var guard=0;
+      while (el.scrollWidth > el.clientWidth && fs > minFS && guard < 6){
+        fs -= 0.5; el.style.fontSize = fs + 'px'; guard++;
+      }
+    });
+  }catch(e){/* no-op */}
+})();
+</script>
+
+
+<style id="rg-contrast-guard-2025-09-26">
+/* Sfondo auto per etichette precipitazioni quando serve contrasto */
+.rg-ensure-contrast{
+  background: rgba(255,255,255,.82);
+  padding: 2px 6px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12);
+}
+</style>
+
+
+<script id="rg-contrast-guard-js-2025-09-26">
+(function(){
+  try{
+    function toRGB(c){
+      var m = (c||"").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/i);
+      if(!m) return null;
+      return {r:+m[1],g:+m[2],b:+m[3],a: (m[4]==null?1:+m[4])};
+    }
+    function relLum(rgb){
+      function chan(v){ v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); }
+      var R=chan(rgb.r), G=chan(rgb.g), B=chan(rgb.b);
+      return 0.2126*R + 0.7152*G + 0.0722*B;
+    }
+    function contrastRatio(fg,bg){
+      var L1 = relLum(fg), L2 = relLum(bg);
+      if(L1<L2){ var t=L1; L1=L2; L2=t; }
+      return (L1+0.05)/(L2+0.05);
+    }
+    function findBg(el){
+      var p = el;
+      while(p && p !== document.body){
+        var cs = getComputedStyle(p);
+        var bg = cs.backgroundColor;
+        var rgb = toRGB(bg);
+        if(rgb && rgb.a>0 && !(rgb.r===0&&rgb.g===0&&rgb.b===0&&rgb.a===0)) return rgb;
+        p = p.parentElement;
+      }
+      return {r:255,g:255,b:255,a:1}; // fallback bianco
+    }
+    function ensure(){
+      document.querySelectorAll('.rg-label').forEach(function(el){
+        var cs = getComputedStyle(el);
+        var fg = toRGB(cs.color) || {r:0,g:0,b:0,a:1};
+        var bg = findBg(el);
+        var ratio = contrastRatio(fg,bg);
+        if(ratio < 4.5){
+          el.classList.add('rg-ensure-contrast');
+          el.setAttribute('data-contrast','low');
+        }else{
+          el.classList.remove('rg-ensure-contrast');
+          el.removeAttribute('data-contrast');
+        }
+      });
+    }
+    // run now and on mutations (es. cambio tema/notte/giorno)
+    var ro = new ResizeObserver(ensure);
+    ro.observe(document.body);
+    var mo = new MutationObserver(ensure);
+    mo.observe(document.body,{subtree:true, attributes:true, childList:true});
+    window.addEventListener('load', ensure);
+    setTimeout(ensure, 50);
+  }catch(e){/* no-op */}
+})();
+</script>
+
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -3619,39 +3788,39 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 
     // --- Clear / cloud cover ---
     if (code === 0) return night ? "Sereno notte.PNG" : "Sereno giorno.PNG";                   // Clear sky
-    if (code === 1) return night ? "Poco nuvoloso notte.PNG" : "Poco nuvoloso giorno.PNG";     // Mainly clear
-    if (code === 2) return night ? "parzialmentenuvolosonotte.PNG" : "Parzialmente nuvoloso giorno.PNG"; // Partly cloudy
-    if (code === 3) return night ? "molto nuvoloso notte.png" : "molto nuvoloso giorno.png";   // Overcast / very cloudy
+    if (code === 1) return night ? "poconuvoloson.png" : "poconuvolosog.png";     // Mainly clear
+    if (code === 2) return night ? "parz.nuvn.png" : "parz.nuvg.png"; // Partly cloudy
+    if (code === 3) return night ? "nuvoloson.png" : "nuvolosog.png";   // Overcast / very cloudy
 
     // --- Fog / low stratus ---
-    if (code === 45 || code === 48) return "Nebbia nuvole basse.PNG";
+    if (code === 45 || code === 48) return "nebbia.png";
 
     // --- Drizzle / freezing drizzle ---
-    if ([51,53,55].includes(code)) return "Pioggia debole.png";                                 // Drizzle (light/moderate/dense)
-    if ([56,57].includes(code)) return "Pioggia debole.png";                                    // Freezing drizzle
+    if ([51,53,55].includes(code)) return "pioggiadebolen.png";                                 // Drizzle (light/moderate/dense)
+    if ([56,57].includes(code)) return "pioggiadebolen.png";                                    // Freezing drizzle
 
     // --- Rain (stratiform) ---
-    if (code === 61) return "Pioggia debole.png";
-    if (code === 63) return "Pioggia moderata.PNG";
-    if (code === 65) return "pioggia forte.png";
+    if (code === 61) return "pioggiadebolen.png";
+    if (code === 63) return "pioggiamoderatanuova.png";
+    if (code === 65) return "pioggiaforte.png";
 
     // --- Freezing rain ---
-    if (code === 66) return "Pioggia moderata.PNG";
-    if (code === 67) return "pioggia forte.png";
+    if (code === 66) return "pioggiamoderatanuova.png";
+    if (code === 67) return "pioggiaforte.png";
 
     // --- Rain showers (convective) ---
-    if (code === 80 || code === 81) return night ? "pioggia e schiarite notte.png" : "pioggia e schiarite giorno.png";
-    if (code === 82) return "pioggia forte.png";                                               // violent showers
+    if (code === 80 || code === 81) return night ? "pioggiaeschiariten.png" : "pioggiaeschiariteg2.png";
+    if (code === 82) return "pioggiaforte.png";                                               // violent showers
 
     // --- Snow / snow grains ---
-    if ([71,73,75,77,85,86].includes(code)) return "neve1.png";
+    if ([71,73,75,77,85,86].includes(code)) return "neve2.png";
 
     // --- Thunderstorm ---
-    if (code === 95) return "temporale moderato.png";
-    if (code === 96 || code === 99) return "Possibili temporali.PNG";                           // thunder + hail
+    if (code === 95) return "tempural3.png";
+    if (code === 96 || code === 99) return "posstemp.png";                           // thunder + hail
 
     // --- Fallback: partly cloudy ---
-    return night ? "Parz nuvoloso notte.PNG" : "Parzialmente nuvoloso giorno.PNG";
+    return night ? "parz.nuvn.png" : "parz.nuvg.png";
   }
 function buildUrlCandidates(file){
     const list = [];
@@ -3986,8 +4155,8 @@ function wmoDesc(code){
     case 0: return 'Sereno';
     case 1: return 'Poco nuvoloso';
     case 2: return 'Parzialmente nuvoloso';
-    case 3: return 'Molto nuvoloso';
-    case 45: case 48: return 'Nebbia';
+    case 3: return 'Nubi sparse o Nuvoloso';
+    case 45: case 48: return 'Coperto o Nuvole basse';
     case 51: case 53: case 55: return 'Pioggia debole';
     case 56: case 57: return 'Pioggia debole';
     case 61: return 'Pioggia debole';
@@ -5050,13 +5219,13 @@ document.getElementById('fab').addEventListener('contextmenu',e=>{
         /* —— Icon picker ——— */
         const iconSet=[
    "Sereno giorno.PNG","Sereno notte.PNG",
-  "Parzialmente nuvoloso giorno.PNG","Parz nuvoloso notte.PNG",
+  "parz.nuvg.png","parz.nuvn.png",
   "nuvoloso.png",
-  "Nebbia nuvole basse.PNG",
-  "Possibili piovaschi giorno.PNG","Possibili piovaschi notte.PNG",
-  "Pioggia debole.PNG","Pioggia moderata.PNG",
-  "Neve .PNG",
-  "Possibili temporali.PNG", "Poco nuvoloso giorno.PNG", "Poco nuvoloso notte.PNG","Pioggia debole.PNG","Pioggia mista a neve.PNG","pioggia forte.png","Mare grosso.PNG","Mare mosso.PNG","Mare poco mosso.PNG","Nuvoloso.PNG","ventodebole.png","ventoforte.png","ventonormale.png","molto nuvoloso giorno (2).png","molto nuvoloso notte.png","pioggia e schiarite giorno.png","pioggia e schiarite notte.png","pioggia forte.png","temporale moderato e schiarite notte.png","temporale moderato e schiarite giorno.png","temporale moderato.png","coperto.png","molto nuvoloso giorno.png","molto nuvoloso notte.png"
+  "nebbia.png",
+  "Possibili piovaschi gioro.PNG","Possibili piovaschi note.PNG",
+  "pioggiadebolen.png","pioggiamoderatanuova.png",
+  "neve2.png",
+  "posstemp.png", "poconuvolosog.png", "poconuvoloson.png","pioggiadebolen.png","pioggiamistaaneve2.png","pioggiaforte.png","Mare grosso.PNG","Mare mosso.PNG","Mare poco mosso.PNG","Nuvoloso.PNG","ventodebole.png","ventoforte.png","ventonormale.png","nuvolosog.png","nuvoloson.png","pioggiaeschiariteg2.png","pioggiaeschiariten.png","pioggia forte.png","temporaleeschiariten.png","temporaleeschiariteg.png","tempural3.png","nebbia.png","nuvolosog.png","nuvoloson.png"
 ];
         const iconPicker=document.getElementById('iconPicker');
         function buildIconPicker(selected){
@@ -5782,7 +5951,7 @@ if(typeof btnSaveForecast !== "undefined" && btnSaveForecast){
     // --- Clear / cloud cover ---
     if (code === 0) return night ? "Sereno notte.PNG" : "Sereno giorno.PNG";                   // Clear sky
     if (code === 1) return night ? "Poco nuvoloso notte.PNG" : "Poco nuvoloso giorno.PNG";     // Mainly clear
-    if (code === 2) return night ? "Parz nuvoloso notte.PNG" : "Parzialmente nuvoloso giorno.PNG"; // Partly cloudy
+    if (code === 2) return night ? "parz.nuvn.png" : "parz.nuvg.png"; // Partly cloudy
     if (code === 3) return night ? "molto nuvoloso notte.png" : "molto nuvoloso giorno.png";   // Overcast / very cloudy
 
     // --- Fog / low stratus ---
@@ -5813,7 +5982,7 @@ if(typeof btnSaveForecast !== "undefined" && btnSaveForecast){
     if (code === 96 || code === 99) return "Possibili temporali.PNG";                           // thunder + hail
 
     // --- Fallback: partly cloudy ---
-    return night ? "Parz nuvoloso notte.PNG" : "Parzialmente nuvoloso giorno.PNG";
+    return night ? "parz.nuvn.png" : "parz.nuvg.png";
   }
 function buildUrlCandidates(file){
     const list = [];
@@ -9963,7 +10132,7 @@ document.addEventListener('DOMContentLoaded', function(){
       var cont=document.getElementById('proIcons'); cont.innerHTML='';
       if(!list || !list.length){
         var p=document.createElement('div'); p.style.opacity='.8'; p.textContent='(Nessuna icona mappa — usa "Rileva icone" o inserisci WMO)'; cont.appendChild(p);
-        var fallback=[ {name:'Sereno', code:0},{name:'Poco', code:2},{name:'Nuvoloso', code:3},{name:'Nebbia', code:45},{name:'Pioggia', code:61},{name:'Temporali', code:95},{name:'Neve', code:71} ];
+        var fallback=[ {name:'Sereno', code:0},{name:'Poco', code:2},{name:'Nuvoloso', code:3},{name:'Coperto o Nuvole basse', code:45},{name:'Pioggia', code:61},{name:'Temporali', code:95},{name:'Neve', code:71} ];
         fallback.forEach(function(f){ var b=document.createElement('button'); b.style.cssText='all:unset;cursor:pointer;border-radius:10px;padding:6px 8px;border:1px solid rgba(255,255,255,.12);background:#0e2a36;'; b.className='proIcon'; b.setAttribute('data-code', String(f.code)); b.textContent=f.name; b.onclick=function(){ cont.querySelectorAll('.proIcon').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); b.style.outline='2px solid #2a7b62'; }; cont.appendChild(b); });
         var clr=document.createElement('button'); clr.style.cssText='all:unset;cursor:pointer;border-radius:10px;padding:6px 8px;border:1px dashed rgba(255,255,255,.25);background:#0e2a36;'; clr.className='proIcon'; clr.setAttribute('data-code',''); clr.textContent='Pulisci'; clr.onclick=function(){ cont.querySelectorAll('.proIcon').forEach(x=>x.classList.remove('selected')); clr.classList.add('selected'); clr.style.outline='2px solid #9b2a2a'; }; cont.appendChild(clr);
         return;
@@ -10683,7 +10852,7 @@ clicks=0;},700); if(clicks>=3){ clicks=0; openPro(); } });
   // Copy of the icon set used in the other (Admin) control panel
   const EXTRA_ICON_SET = [
     "Sereno giorno.PNG","Sereno notte.PNG",
-    "Parzialmente nuvoloso giorno.PNG","Parz nuvoloso notte.PNG",
+    "parz.nuvg.png","parz.nuvn.png",
     "nuvoloso.png","Nebbia nuvole basse.PNG",
     "Possibili piovaschi giorno.PNG","Possibili piovaschi notte.PNG",
     "Pioggia debole.PNG","Pioggia moderata.PNG","Neve .PNG",
@@ -11000,7 +11169,7 @@ function buildImg(icon){
 
   // Fallback list (used only if we can't harvest from the other panel)
   const FALLBACK_ICON_NAMES = [
-    "Sereno giorno.PNG","Sereno notte.PNG","Parzialmente nuvoloso giorno.PNG","Parz nuvoloso notte.PNG",
+    "Sereno giorno.PNG","Sereno notte.PNG","parz.nuvg.png","parz.nuvn.png",
     "nuvoloso.png","Nebbia nuvole basse.PNG","Possibili piovaschi giorno.PNG","Possibili piovaschi notte.PNG",
     "Pioggia debole.PNG","Pioggia moderata.PNG","Neve .PNG","Possibili temporali.PNG","Poco nuvoloso giorno.PNG",
     "Poco nuvoloso notte.PNG","Pioggia mista a neve.PNG","pioggia forte.png","Mare grosso.PNG","Mare mosso.PNG",
@@ -21191,11 +21360,11 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
     if(isSun(dayCode) && (isThunder(nightCode) || isRain(nightCode) || isSnow(nightCode))){
       if(isThunder(nightCode)) return "temporale moderato e schiarite giorno.png";
       if(isSnow(nightCode))    return "Neve .PNG"; // non abbiamo la variante 'schiarite' → fallback sicuro
-      return "pioggia e schiarite giorno.png";
+      return "https://meteologullo.github.io/mappamlg/pioggiaeschiariteg2.png";
     }
     // Giorno sole + notte molto nuvoloso/coperto/nebbia → nuvola con sole
     if(isSun(dayCode) && isCloudyDense(nightCode)){
-      return "Parzialmente nuvoloso giorno.PNG";
+      return "parz.nuvg.png";
     }
     return null;
   }
@@ -21614,5 +21783,243 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
   document.addEventListener('mlg:dayparts-rendered', safeRender, true);
   document.addEventListener('DOMContentLoaded', safeRender, {once:true});
   setTimeout(safeRender, 0);
+})();
+</script>
+
+<!-- === PATCH 2025‑09‑26 — Back button: bottom‑left, minimal & transparent on mobile === -->
+<style id="mobile-bottom-left-backbtn-2025-09-26">
+@media (max-width: 860px){
+  /* Use the robust sibling button that already exists */
+  #goBackForecast{
+    position: fixed !important;
+    top: auto !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px) !important;
+    left: 14px !important;
+    right: auto !important;
+    z-index: 10000 !important;
+
+    /* minimal floating circle */
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    border-radius: 9999px !important;
+    border: 1px solid rgba(255,255,255,.28) !important;
+    background: rgba(0,0,0,.28) !important;
+    color: #fff !important;
+    box-shadow: 0 6px 14px rgba(0,0,0,.28) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+
+    display: none; /* shown only when forecast-only is active */
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+  }
+  /* show only when the forecast view replaces the map */
+  #widget.forecast-only ~ #goBackForecast{ display: inline-flex !important; }
+
+  /* arrow only */
+  #goBackForecast .label{ display:none !important; }
+  #goBackForecast .arrow{ font-size: 20px !important; font-weight: 900 !important; line-height: 1 !important; }
+
+  /* hover/active feedback */
+  #goBackForecast:hover{ filter: brightness(1.05); }
+  #goBackForecast:active{ transform: translateY(1px); }
+
+  /* Hide the older helper (if present) to avoid duplicates */
+  #forecastBack{ display:none !important; }
+}
+</style>
+<script id="mobile-bottom-left-backbtn-js-2025-09-26">
+// Ensure the button scrolls back to the map and exits "forecast-only" safely.
+(function(){
+  function goBack(){
+    try{
+      var w = document.getElementById('widget');
+      if(w){ w.classList.remove('forecast-only'); }
+      var m = document.getElementById('mapArea');
+      if(m && m.scrollIntoView){ m.scrollIntoView({behavior:'smooth', block:'start'}); }
+    }catch(e){}
+  }
+  var btn = document.getElementById('goBackForecast');
+  if(btn && !btn.__mlgBound){
+    btn.addEventListener('click', goBack, {passive:true});
+    btn.__mlgBound = true;
+  }
+})();
+</script>
+
+<!-- === PATCH 2025-09-26-b — Search bar guards: prevent jump on empty + Enter key on mobile === -->
+<script id="mlg-search-guards-2025-09-26-b">
+(function(){
+  function byId(id){ return document.getElementById(id); }
+  function isEmpty(v){ return !v || !String(v).trim(); }
+
+  // 1) Guard: if input is empty, DO NOT enter "forecast-only".
+  //    We monkey-patch enterFocus so any existing hooks call this safe version.
+  var originalEnterFocus = window.enterFocus;
+  window.enterFocus = function(){
+    try{
+      var inp = byId('cityInput');
+      if(!inp || isEmpty(inp.value)){
+        // keep the map/search visible
+        try{ if(typeof window.exitFocus === 'function') window.exitFocus(); }catch(e){}
+        return;
+      }
+    }catch(e){}
+    if(typeof originalEnterFocus === 'function'){
+      return originalEnterFocus.apply(this, arguments);
+    }
+  };
+
+  // 2) UX: when input becomes empty (user cancella la scritta), stay in map mode.
+  (function bindEmptyGuard(){
+    try{
+      var inp = byId('cityInput');
+      if(!inp || inp.__mlgEmptyGuard) return;
+      inp.addEventListener('input', function(){
+        if(isEmpty(this.value)){
+          try{ if(typeof window.exitFocus === 'function') window.exitFocus(); }catch(e){}
+        }
+      }, {passive:true});
+      inp.__mlgEmptyGuard = true;
+    }catch(e){}
+  })();
+
+  // 3) Mobile Enter: pressing Invio must submit the form like tapping the 🔍 button.
+  (function bindEnterSubmit(){
+    try{
+      var inp = byId('cityInput');
+      var form = byId('searchForm');
+      if(!inp || !form || inp.__mlgEnterSubmit) return;
+      inp.addEventListener('keydown', function(ev){
+        if(ev.key === 'Enter'){
+          ev.preventDefault();
+          var q = inp.value.trim();
+          if(q){
+            // trigger the existing submit flow (keeps your logic intact)
+            form.dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}));
+          }else{
+            // empty: make sure UI remains in map mode and nothing scrolls away
+            try{ if(typeof window.exitFocus === 'function') window.exitFocus(); }catch(e){}
+          }
+        }
+      });
+      inp.__mlgEnterSubmit = true;
+    }catch(e){}
+  })();
+})();
+</script>
+
+<!-- === PATCH 2025-09-26-c — Lock forecast view until a NEW valid search === -->
+<script id="mlg-forecast-lock-2025-09-26-c">
+(function(){
+  function byId(id){ return document.getElementById(id); }
+
+  // Shared lock: when true, the UI stays in forecast view ("map giù") 
+  // until the user does a new valid search or presses the back button.
+  if(typeof window.__mlgForecastLock === 'undefined'){
+    window.__mlgForecastLock = false;
+  }
+
+  // Patch exitFocus so that emptying the field or any auto-calls won't escape forecast
+  var originalExitFocus = window.exitFocus;
+  window.exitFocus = function(){
+    if(window.__mlgForecastLock){ 
+      // blocked: remain in forecast, do nothing
+      return;
+    }
+    if(typeof originalExitFocus === 'function'){
+      return originalExitFocus.apply(this, arguments);
+    }
+  };
+
+  // When a non-empty submit happens, lock forecast (until back or next search)
+  (function bindLockOnSubmit(){
+    try{
+      var form = byId('searchForm');
+      var inp  = byId('cityInput');
+      if(!form || !inp || form.__mlgLockOnSubmit) return;
+      form.addEventListener('submit', function(ev){
+        var q = (inp.value||'').trim();
+        if(q){
+          window.__mlgForecastLock = true;
+        }else{
+          // empty submit should not change state nor scroll
+          ev.preventDefault();
+          return false;
+        }
+      }, true); // capture early to run before other handlers
+      form.__mlgLockOnSubmit = true;
+    }catch(e){}
+  })();
+
+  // Provide a safe way to force exit (used by the floating back button)
+  window.__mlgForceExitFocus = function(){
+    window.__mlgForecastLock = false;
+    if(typeof originalExitFocus === 'function'){
+      return originalExitFocus.apply(window, arguments);
+    }
+  };
+
+  // Rebind the floating back button to use the force-exit
+  try{
+    var btn = document.getElementById('goBackForecast');
+    if(btn && !btn.__mlgForceRebound){
+      btn.addEventListener('click', function(ev){
+        try{ window.__mlgForceExitFocus(); }catch(e){}
+        var m = byId('mapArea');
+        if(m && m.scrollIntoView){ m.scrollIntoView({behavior:'smooth', block:'start'}); }
+      }, {passive:true});
+      btn.__mlgForceRebound = true;
+    }
+  }catch(e){}
+})();
+</script>
+
+<!-- === PATCH 2025-09-26-d — Hard lock with MutationObserver to keep forecast-only even if input is empty === -->
+<script id="mlg-forecast-hardlock-2025-09-26-d">
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var widget = $('widget');
+  if(!widget) return;
+
+  // Ensure the class is present whenever the lock is active
+  function enforce(){
+    try{
+      if(window.__mlgForecastLock){
+        if(!widget.classList.contains('forecast-only')){
+          widget.classList.add('forecast-only');
+        }
+      }
+    }catch(e){}
+  }
+
+  // Run on load and whenever classes mutate
+  try{
+    enforce();
+    var obs = new MutationObserver(function(m){
+      for(var i=0;i<m.length;i++){
+        if(m[i].type === 'attributes' && m[i].attributeName === 'class'){
+          enforce();
+        }
+      }
+    });
+    obs.observe(widget, {attributes:true, attributeFilter:['class']});
+  }catch(e){}
+
+  // Also guard common escape routes that might scroll the map up
+  window.addEventListener('focusin', enforce, {passive:true});
+  window.addEventListener('input', function(ev){
+    if(ev && ev.target && ev.target.id === 'cityInput'){ enforce(); }
+  }, {passive:true});
+
+  // When we truly want to exit (via our force), disconnect observer briefly.
+  var _force = window.__mlgForceExitFocus;
+  window.__mlgForceExitFocus = function(){
+    try{ obs && obs.disconnect && obs.disconnect(); }catch(e){}
+    try{ window.__mlgForecastLock = false; }catch(e){}
+    if(typeof _force === 'function'){ return _force.apply(this, arguments); }
+  };
 })();
 </script>
