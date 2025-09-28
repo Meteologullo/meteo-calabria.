@@ -10853,18 +10853,18 @@ clicks=0;},700); if(clicks>=3){ clicks=0; openPro(); } });
   const EXTRA_ICON_SET = [
     "Sereno giorno.PNG","Sereno notte.PNG",
     "parz.nuvg.png","parz.nuvn.png",
-    "nuvoloso.png","Nebbia nuvole basse.PNG",
-    "Possibili piovaschi giorno.PNG","Possibili piovaschi notte.PNG",
-    "Pioggia debole.PNG","Pioggia moderata.PNG","Neve .PNG",
-    "Possibili temporali.PNG","Poco nuvoloso giorno.PNG","Poco nuvoloso notte.PNG",
-    "Pioggia mista a neve.PNG","pioggia forte.png",
+    "nuvolosog.png","nebbia.png",
+    "pioggiaeschiariteg2.png","pioggiaeschiariten.png",
+    "pioggiadebolen.png","pioggiamoderatanuova.png","neve2.png",
+    "posstemp.png","poconuvolosog.png","poconuvoloson.png",
+    "pioggiamistaaneve2.png","pioggiaforte.png",
     "Mare grosso.PNG","Mare mosso.PNG","Mare poco mosso.PNG",
-    "Nuvoloso.PNG",
+    "Nuvoloso.PN",
     "ventodebole.png","ventoforte.png","ventonormale.png",
-    "molto nuvoloso giorno (2).png","molto nuvoloso notte.png",
+    "molto nuvoloso giorno (2).pn","molto nuvoloso notte.pg",
     "pioggia e schiarite giorno.png","pioggia e schiarite notte.png",
-    "temporale moderato e schiarite notte.png","temporale moderato e schiarite giorno.png",
-    "temporale moderato.png","coperto.png","molto nuvoloso giorno.png","molto nuvoloso notte.png"
+    "temporaleeschiariteg.png","temporaleeschiariten.png",
+    "tempural3.png","coperto.pg","molto nuvoloso giorno.pn","molto nuvoloso notte.pn","nuvoloson.png"
   ];
 
   // Map extra icons to a safe WMO code (visual-only icons like sea/wind map to a neutral cloud code 2/3)
@@ -20130,6 +20130,133 @@ try{
 })();
 </script>
 
+
+<!-- === PATCH 2025-09-28 — Auto “pioggia mista a neve / neve” in base alla temperatura === -->
+<script id="auto-mix-snow-override-2025-09-28">
+(function(){
+  if(window.__autoMixSnowV1) return; window.__autoMixSnowV1 = true;
+
+  // Codice WMO "virtuale" per la mista (non confligge con WMO standard)
+  var MIX_CODE = 710;
+
+  // ---- Helpers ----
+  function hasPrecip(fc, i){
+    try{
+      var mm = Number(fc?.hourly?.precipitation?.[i]) || 0;
+      if(mm >= 0.05) return true;
+      var code = Number(fc?.hourly?.weathercode?.[i]);
+      // Qualsiasi codice precipitante (pioggia, rovesci, drizzle, pioggia gelata, temporali)
+      if((code>=51&&code<=57) || (code>=61&&code<=67) || (code>=80&&code<=82) || (code>=95)) return true;
+      var prob = Number(fc?.hourly?.precipitation_probability?.[i]);
+      if(prob >= 50) return true;
+    }catch(_){}
+    return false;
+  }
+  function pickSnowCodeByAmount(mm){
+    if(mm < 1) return 71;      // neve debole
+    if(mm < 3) return 73;      // neve moderata
+    return 75;                  // neve forte
+  }
+
+  // ---- Patching dei renderer/descrizioni/icone (non distruttivo) ----
+  try{
+    // wmoDesc: aggiungi testo per il codice virtuale "misto"
+    if(typeof window.wmoDesc === "function" && !window.wmoDesc.__mixWrapped){
+      var __origWmoDesc = window.wmoDesc;
+      window.wmoDesc = function(code){
+        if(Number(code) === MIX_CODE) return "Pioggia mista a neve";
+        return __origWmoDesc(Number(code));
+      };
+      window.wmoDesc.__mixWrapped = true;
+    }
+  }catch(_){}
+
+  try{
+    // iconHTML_NOEMOJI: usa l'icona dedicata per la mista se disponibile,
+    // altrimenti fallback sicuro alla neve.
+    if(typeof window.iconHTML_NOEMOJI === "function" && !window.iconHTML_NOEMOJI.__mixWrapped){
+      var __origIconFn = window.iconHTML_NOEMOJI;
+      window.iconHTML_NOEMOJI = function(code, isNight){
+        if(Number(code) === MIX_CODE){
+          try{
+            if(typeof window.buildDirectIconHTML_NOEMOJI === "function"){
+              // icona ufficiale del set extra
+              return window.buildDirectIconHTML_NOEMOJI("pioggiamistaaneve2.png");
+            }
+          }catch(_){}
+          // fallback: icona neve standard
+          return __origIconFn(71, !!isNight);
+        }
+        return __origIconFn(Number(code), !!isNight);
+      };
+      window.iconHTML_NOEMOJI.__mixWrapped = true;
+    }
+  }catch(_){}
+
+  try{
+    // codeWeight globale (se esposto) → garantisci un peso adeguato alla "mista"
+    if(typeof window.codeWeight === "function" && !window.codeWeight.__mixWrapped){
+      var __origCW = window.codeWeight;
+      window.codeWeight = function(c){
+        if(Number(c) === MIX_CODE) return 140; // ≈ pioggia forte / sotto alla neve forte
+        return __origCW(Number(c));
+      };
+      window.codeWeight.__mixWrapped = true;
+    }
+  }catch(_){}
+
+  // ---- Applicatore regola (su tutto il dataset) ----
+  function applyRule(fc){
+    try{
+      var T = fc?.hourly?.temperature_2m || [];
+      var P = fc?.hourly?.precipitation || [];
+      var C = fc?.hourly?.weathercode || [];
+      if(!Array.isArray(T) || !Array.isArray(C)) return fc;
+
+      for(var i=0;i<C.length;i++){
+        var t = Number(T[i]);
+        if(!isFinite(t)) continue;
+
+        // Valuta precipitazioni presenti
+        var wet = hasPrecip(fc, i);
+        if(!wet) continue;
+
+        var mm = Number(P?.[i]) || 0;
+        var tRound = Math.round(t);
+
+        if(tRound <= 0){
+          // Neve sicura
+          C[i] = pickSnowCodeByAmount(mm);
+        }else if(tRound === 1){
+          // Pioggia mista a neve
+          C[i] = MIX_CODE;
+        }
+      }
+    }catch(_){}
+    return fc;
+  }
+
+  // ---- Hook standard del progetto (__applyRangeOverrides) ----
+  window.__applyRangeOverrides = function(fc){
+    try{ applyRule(fc); }catch(_){}
+    return fc;
+  };
+
+  // Applica subito se i dati sono già presenti
+  try{
+    if(window.fc){ window.__applyRangeOverrides(window.fc); }
+  }catch(_){}
+
+  // Riprova dopo eventuali re-render
+  var tries = 0;
+  var iv = setInterval(function(){
+    try{
+      if(window.fc){ window.__applyRangeOverrides(window.fc); }
+    }catch(_){}
+    if(++tries > 30) clearInterval(iv);
+  }, 250);
+})();
+</script>
 </body>
 </html>
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
