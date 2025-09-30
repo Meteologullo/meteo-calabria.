@@ -2101,6 +2101,21 @@ details.part summary h4{ text-shadow: 0 1px 2px rgba(0,0,0,.26); }
 }
     
 </style>
+<style id="mlg-news-forecastonly-2025-09-30">
+/* Nascondi il box NEWS quando la previsione va in alto (ricerca attiva) */
+#mlgNewsCard{ transition: transform .35s ease, opacity .35s ease, margin .35s ease, height .35s ease, padding .35s ease; }
+#widget.forecast-only #mlgNewsCard,
+#widget.forecast-only ~ #mlgNewsCard{
+  transform: translateY(24px);
+  opacity: 0;
+  pointer-events: none;
+  height: 0 !important;
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+</style>
+
 
 
 <style id="mlg-sync-badges-css">
@@ -3549,6 +3564,179 @@ body.night .rain-gauge .rg-label{ filter:saturate(1.06) brightness(0.98) }
 })();
 </script>
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<style id="mlg-sticky-search-css">
+  /* === Costanti regolabili === */
+  :root{
+    --mlg-header-h-base: 128px; /* altezza "massima" fissa del banner (escluso notch) */
+    --mlg-gap-v: 6px;           /* spazio verticale tra righe interne */
+    --mlg-nav-gap: 10px;        /* spazio tra i pill del menu */
+  }
+
+  /* Header fisso a dimensione costante */
+  .mlg-banner{
+    position: fixed; top: 0; left: 0; width: 100%;
+    height: calc(var(--mlg-header-h-base) + env(safe-area-inset-top));
+    z-index: 3000;
+  }
+  .mlg-banner .mlg-inner{
+    box-sizing: border-box;
+    height: 100%;
+    display: flex; flex-wrap: wrap; align-items: center;
+    row-gap: var(--mlg-gap-v); column-gap: 8px;
+    padding-top: calc(env(safe-area-inset-top) + 4px);
+    padding-bottom: 4px;
+  }
+
+  /* Titolo + Search + Nav in tre righe al bisogno */
+  .mlg-title{ width:100%; text-align:center; font-size: clamp(20px, 5.2vw, 28px); font-weight:800; line-height:1.1; }
+  .mlg-search{ width:100%; display:flex; align-items:center; gap:8px; }
+  .mlg-search input{
+    flex:1; padding:.58rem .9rem; border:none; border-radius:999px;
+    background:#ffffff24; color:#fff; border:1px solid #ffffff35; outline:none; backdrop-filter: blur(6px);
+  }
+  .mlg-search input::placeholder{ color:#eaf2ffcc; }
+  .mlg-search button{ border:none; border-radius:12px; padding:.5rem .8rem; font-weight:800;
+    background:linear-gradient(135deg,#ffd54a,#ffb300); color:#002; box-shadow:0 6px 12px rgba(0,0,0,.28); cursor:pointer; }
+
+  .mlg-nav{ width:100%; display:flex !important; justify-content:center; flex-wrap:wrap; gap: var(--mlg-nav-gap); margin-top: 4px; }
+
+  /* Assicurati che tutto rientri in altezza nelle larghezze strette */
+  @media (max-width: 390px){
+    .mlg-title{ font-size: 20px; }
+    .mlg-search input{ padding:.5rem .8rem; }
+    .mlg-nav{ gap: 8px; }
+  }
+
+  /* Lo spazio del contenuto è identico a quello del banner */
+  #mlg-spacer{
+    height: calc(var(--mlg-header-h-base) + env(safe-area-inset-top));
+  }
+  html{
+    scroll-padding-top: calc(var(--mlg-header-h-base) + env(safe-area-inset-top));
+  }
+
+  /* Rimuovi margine extra del primo blocco sotto lo spacer */
+  #mlg-spacer + *{ margin-top: 0 !important; }
+</style>
+
+
+<style id="mlg-input-placeholder-ellipsis">
+/* Placeholder con puntini se non entra tutto */
+header.mlg-banner .mlg-search input::placeholder{
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+</style>
+
+
+<style id="mlg-hamburger-lines-fallback">
+/* Disegna tre linee interne sul pulsante menu (sempre visibili, non rompe nulla) */
+#mlgMenuBtn{ position: relative; }
+#mlgMenuBtn::after{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 12px;
+  /* tre righe orizzontali */
+  background:
+    linear-gradient(currentColor, currentColor) center 0/18px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center 50%/18px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center 100%/18px 2px no-repeat;
+  opacity: .92;
+  border-radius: 2px;
+  pointer-events: none;
+}
+/* Se il tema è chiaro/scuro, usa il colore del testo del bottone */
+#mlgMenuBtn{ color:#fff; }
+</style>
+
+
+<style id="mlg-search-fallback-label">
+/* Mostra 'Vai' solo se l'icona non rende (font non caricato) */
+header.mlg-banner .mlg-search button .fallback-label{ 
+  display:none; 
+  font-weight:800; 
+  font-size:12px; 
+  line-height:1; 
+}
+/* Greedy fallback: se l'icona non ha dimensioni (non caricata), mostra la label */
+header.mlg-banner .mlg-search button i.fa-solid:empty + .fallback-label{ 
+  display:inline-block; 
+}
+</style>
+
+
+<style id="mlg-hamburger-bars-css">
+/* Tre linee sempre visibili nel pulsante menu */
+#mlgMenuBtn{ position: relative; }
+#mlgMenuBtn .mlg-hb{ display:inline-block; width:18px; height:12px; position:relative; }
+#mlgMenuBtn .mlg-hb b{
+  position:absolute; left:0; right:0; height:2px; background:currentColor; border-radius:2px;
+}
+#mlgMenuBtn .mlg-hb b:nth-child(1){ top:0; }
+#mlgMenuBtn .mlg-hb b:nth-child(2){ top:50%; transform:translateY(-50%); }
+#mlgMenuBtn .mlg-hb b:nth-child(3){ bottom:0; }
+</style>
+
+
+<style id="mlg-news-css">
+#mlgNewsCard{
+  width:100%;
+  max-width:820px;
+  margin: 8px auto 14px;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  gap:12px;
+  align-items:center;
+  background:var(--glass);
+  backdrop-filter:blur(var(--blur));
+  border-radius:var(--radius);
+  padding:14px;
+  color:var(--text);
+  box-shadow:0 6px 18px rgba(0,0,0,.25);
+  border:1px solid rgba(255,255,255,.12);
+  position:relative;
+  cursor:pointer;
+  text-decoration:none;
+}
+#mlgNewsCard .badge{ display:flex; align-items:center; justify-content:center;
+  width:42px; height:42px; border-radius:10px;
+  background:linear-gradient(135deg,#3FD2FF,#2E63FF);
+  flex:0 0 auto; box-shadow:0 8px 18px rgba(0,0,0,.35); }
+#mlgNewsCard .badge i{ font-size:20px; color:#fff; }
+#mlgNewsCard .txt{ min-width:0; }
+#mlgNewsCard .kicker{ font-weight:800; font-size:.86rem; opacity:.9; letter-spacing:.3px; }
+#mlgNewsCard .title a{ font-size:1.05rem; font-weight:900; line-height:1.22; margin-top:2px; color:inherit; text-decoration:none; }
+#mlgNewsCard .title a:hover{ text-decoration:underline; }
+#mlgNewsCard .meta{ font-size:.85rem; opacity:.85; margin-top:2px; }
+#mlgNewsCard .thumb{ display:none; width:72px; height:72px; border-radius:10px; object-fit:cover; }
+@media (max-width:600px){
+  #mlgNewsCard{ padding:12px; gap:10px; }
+  #mlgNewsCard .title a{ font-size:1.02rem; }
+  #mlgNewsCard .thumb{ display:none; }
+}
+body.night #mlgNewsCard{ background:rgba(255,255,255,.09); }
+</style>
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -3559,24 +3747,39 @@ window.CITIES = Array.isArray(window.CITIES) ? window.CITIES : [];
 window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 </script>
 <body>
-<header class="mlg-banner" role="banner">
+<header class="mlg-banner mlg-sticky" role="banner">
   <div class="mlg-inner">
     <div class="mlg-title" aria-label="Meteo Lo Gullo">
       <span class="mlg-dot" aria-hidden="true"></span>
       <span>Meteo Lo Gullo</span>
     </div>
-    <nav class="mlg-nav" aria-label="Sezioni">
-      <a class="mlg-pill" href="#info" data-key="info" id="mlg-info-link">Info</a>
-    <a class="mlg-pill" href="https://www.meteologullo.com/" data-key="home">Home</a>
+
+    <!-- Search inside the banner -->
+    <form id="searchForm" class="mlg-search" role="search" aria-label="Cerca località">
+      <input id="cityInput" autocomplete="off" inputmode="search"
+             placeholder="Inserisci qui la tua località…"
+             aria-label="Scrivi il comune o usa la posizione"/>
+      <button type="submit" aria-label="Cerca">
+        <i class="fa-solid fa-search" aria-hidden="true"></i><span class="fallback-label" aria-hidden="true">Vai</span>
+      </button>
+    </form>
+
+    <!-- Hamburger toggle (mobile) --><!-- Desktop nav (kept for large screens) -->
+    <nav class="mlg-nav" aria-label="Sezioni principali">
+      <a class="mlg-pill" href="https://www.meteologullo.com/" data-key="home">Home</a>
       <a class="mlg-pill" href="https://www.meteologullo.com/stazioni-meteorologiche-mlg" data-key="mlgmap">MLG Map</a>
       <a class="mlg-pill" href="https://www.meteologullo.com/blog" data-key="news">News</a>
       <a class="mlg-pill" href="https://www.meteologullo.com/blank" data-key="chi-siamo">Chi Siamo</a>
       <a class="mlg-pill" href="https://www.meteologullo.com/blog/categories/meteo-curiosit%C3%A0" data-key="curiosita">Curiosità</a>
-    </nav></div></div>
+    </nav>
+  </div>
+
+  <!-- Dropdown menu (mobile) --></div>
 </header>
 
 
 
+<div id="mlg-spacer" aria-hidden="true"></div>
 <!-- === Mini Bollettino Meteo (iniettato non-distruttivo) === -->
 <div id="miniBollettino" class="panel" style="display:none" aria-live="polite">
   <div class="mb-head" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:.4rem">
@@ -3615,9 +3818,9 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
     Scorrendo in basso trovi anche l’<a href="#mlgAiBox">Assistente</a> con cui fare domande e chiedere informazioni.
   </p>
 </section>
-<form class="search" id="searchForm">
-<input autocomplete="off" id="cityInput" placeholder="Scrivi una città o usa 📍…" required=""/>
-<button type="submit"><i class="fa-solid fa-search"></i></button>
+<form style="display:none !important" class="search" id="searchForm_backup">
+<input autocomplete="off" id="cityInput_backup" placeholder="Scrivi una città o usa 📍…" required=""/>
+<button type="submit"><i class="fa-solid fa-search" aria-hidden="true"></i><span class="fallback-label" aria-hidden="true">Vai</span></button>
 </form>
 <!-- —— Widget map + forecast —— -->
 <div id="widget">
@@ -3734,6 +3937,8 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
 </div>
 <div id="toast"></div>
 </div>
+<div id="mlg-news-slot"></div>
+
 <!-- —— Extra dynamic panels —— -->
 <section id="dailyPanel"></section>
 <section id="nearestStation"></section>
@@ -20257,6 +20462,364 @@ try{
   }, 250);
 })();
 </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- === MLG • Compact Top Banner with Dropdown (2025-09-29) === -->
+<style id="mlg-compact-topbar-2025-09-29">
+  /* Make the header thin */
+  :root{ --mlg-header-h-base: 56px; }
+
+  header.mlg-banner{ height: calc(var(--mlg-header-h-base) + env(safe-area-inset-top)) !important; }
+  header.mlg-banner .mlg-inner{
+    display: grid !important;
+    grid-template-columns: auto auto 1fr !important; /* [menu][MLG][search] */
+    align-items: center !important;
+    gap: 8px !important;
+    height: 100% !important;
+    padding-top: calc(env(safe-area-inset-top) + 6px) !important;
+    padding-bottom: 6px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Hide the old pills completely (we move them into the dropdown) */
+  header.mlg-banner .mlg-nav{ display:none !important; }
+
+  /* Title becomes compact "MLG" brand */
+  header.mlg-banner .mlg-title{
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    white-space: nowrap !important;
+    font-family: 'Baloo 2', cursive !important;
+    font-size: clamp(18px, 5vw, 22px) !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    letter-spacing: .2px !important;
+    color: #fff !important;
+    text-shadow: 0 2px 6px rgba(0,0,0,.45), 0 0 1px rgba(255,255,255,.18) !important;
+  }
+  header.mlg-banner .mlg-title .mlg-dot{ display:none !important; } /* remove decorative dot */
+
+  /* Search bar fills the remaining space and has the icon inside */
+  header.mlg-banner .mlg-search{ position: relative !important; width: 100% !important; min-width: 0 !important; }
+  header.mlg-banner .mlg-search input{
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: .56rem 2.25rem .56rem .9rem !important; /* room for the icon */
+    border-radius: 999px !important;
+    background: #ffffff24 !important;
+    border: 1px solid #ffffff35 !important;
+    color: #fff !important;
+    outline: none !important;
+    backdrop-filter: blur(6px) !important;
+  }
+  header.mlg-banner .mlg-search button{
+    position: absolute !important;
+    top: 50% !important;
+    right: 4px !important;
+    transform: translateY(-50%) !important;
+    height: 34px !important;
+    width: 34px !important;
+    display: inline-flex !important; align-items:center !important; justify-content:center !important;
+    border: none !important;
+    border-radius: 999px !important;
+    padding: 0 !important;
+    background: linear-gradient(135deg,#ffd54a,#ffb300) !important;
+    color: #002 !important;
+    box-shadow: 0 6px 12px rgba(0,0,0,.28) !important;
+    cursor: pointer !important;
+  }
+
+  /* Menu (hamburger) button */
+  #mlgMenuBtn{
+    -webkit-tap-highlight-color: transparent;
+    appearance: none;
+    border: 1px solid #ffffff33;
+    background: #ffffff20;
+    color: #fff;
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 14px rgba(0,0,0,.28);
+  }
+  #mlgMenuBtn:active{ transform: translateY(1px); }
+  #mlgMenuBtn .fa-solid{ font-size: 1rem; }
+
+  /* Dropdown panel */
+  #mlgMenuPanel{
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + var(--mlg-header-h-base) + 6px);
+    left: max(8px, env(safe-area-inset-left));
+    width: min(92vw, 360px);
+    z-index: 4000;
+    display: none;
+    background: linear-gradient(180deg, var(--mlg-blue-2,#163a93), #102b78);
+    border: 1px solid #ffffff2b;
+    border-radius: 14px;
+    box-shadow: 0 14px 40px rgba(0,0,0,.45);
+    padding: 8px;
+    overflow: hidden;
+  }
+  #mlgMenuPanel.open{ display: block; }
+
+  #mlgMenuPanel a{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 800;
+    background: #ffffff18;
+    border: 1px solid #ffffff24;
+    margin: 6px 4px;
+  }
+  #mlgMenuPanel a:active{ transform: translateY(1px); }
+  #mlgMenuPanel a:hover{ background: #ffffff2a; }
+
+  /* Extreme narrow screens: slightly reduce header height */
+  @media (max-width: 360px){
+    :root{ --mlg-header-h-base: 52px; }
+    #mlgMenuPanel{ top: calc(env(safe-area-inset-top) + var(--mlg-header-h-base) + 6px); }
+  }
+</style>
+
+<script id="mlg-compact-topbar-js-2025-09-29">
+(function(){
+  const onReady = (fn)=> (document.readyState === 'loading') ? document.addEventListener('DOMContentLoaded', fn, {once:true}) : fn();
+
+  onReady(function(){
+    const header = document.querySelector('header.mlg-banner .mlg-inner');
+    if(!header) return;
+
+    const nav = header.querySelector('.mlg-nav');
+    const search = header.querySelector('.mlg-search');
+    const title = header.querySelector('.mlg-title');
+
+    /* 1) Create the hamburger button */
+    const btn = document.createElement('button');
+    btn.id = 'mlgMenuBtn';
+    btn.type = 'button';
+    btn.setAttribute('aria-haspopup','menu');
+    btn.setAttribute('aria-expanded','false');
+    btn.setAttribute('title','Apri menu');
+    btn.innerHTML = '<span class="mlg-hb" aria-hidden="true"><b></b><b></b><b></b></span>';
+    header.insertBefore(btn, header.firstChild);
+
+    /* 2) Convert title to compact brand "MLG" and place after button */
+    if(title){
+      title.querySelectorAll('.mlg-dot').forEach(el=>el.remove());
+      title.textContent = 'MLG';
+      header.insertBefore(title, search);
+    }
+
+    /* 3) Build dropdown panel using the existing links (then remove the old row) */
+    const panel = document.createElement('div');
+    panel.id = 'mlgMenuPanel';
+    let links = [];
+    if(nav){
+      links = Array.from(nav.querySelectorAll('a')).map(a=>{
+        const c = a.cloneNode(true);
+        c.className = ''; // clean pill style; we give new style in CSS
+        return c;
+      });
+      nav.remove(); // sparire
+    }else{
+      // fallback in case there is no .mlg-nav already in DOM
+      links = [
+        {t:'Home',h:'https://www.meteologullo.com/'},
+        {t:'MLG Map',h:'https://www.meteologullo.com/stazioni-meteorologiche-mlg'},
+        {t:'News',h:'https://www.meteologullo.com/blog'},
+        {t:'Chi Siamo',h:'https://www.meteologullo.com/blank'},
+        {t:'Curiosità',h:'https://www.meteologullo.com/blog/categories/meteo-curiosit%C3%A0'}
+      ].map(o=>{ const a = document.createElement('a'); a.textContent = o.t; a.href = o.h; a.target = '_blank'; a.rel='noopener'; return a; });
+    }
+    links.forEach(a=>panel.appendChild(a));
+    document.body.appendChild(panel);
+
+    /* 4) Toggle logic */
+    function closeMenu(){ panel.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
+    function openMenu(){ panel.classList.add('open'); btn.setAttribute('aria-expanded','true'); }
+    btn.addEventListener('click', ()=> panel.classList.contains('open') ? closeMenu() : openMenu());
+    document.addEventListener('click', (e)=>{
+      if(!panel.classList.contains('open')) return;
+      if(e.target === btn || btn.contains(e.target)) return;
+      if(panel.contains(e.target)) return;
+      closeMenu();
+    }, {passive:true});
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape') closeMenu();
+    });
+
+    /* 5) Make sure search stays last and flexes */
+    if(search){
+      search.style.order = '3';
+    }
+  });
+})();
+</script>
+
+
+
+
+<script id="mlg-news-js">
+(function(){
+  const FEEDS = [
+    "https://www.meteologullo.com/blog/blog-feed.xml",
+    "https://www.meteologullo.com/blog-feed.xml",
+    "https://www.meteologullo.com/blog/rss.xml",
+    "https://www.meteologullo.com/blog?format=rss"
+  ];
+
+  // Proxy fallbacks to bypass CORS when needed
+  function viaAllOrigins(url){ return "https://api.allorigins.win/raw?url=" + encodeURIComponent(url); }
+  function viaIsomorphic(url){ return "https://cors.isomorphic-git.org/" + url; }
+  function viaRSS2JSON(url){ return "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(url); }
+
+  function buildSkeleton(){
+    const card = document.createElement('div');
+    card.id = 'mlgNewsCard';
+    card.innerHTML = `
+      <div class="badge" aria-hidden="true"><i class="fa-solid fa-newspaper"></i></div>
+      <img class="thumb" alt="" style="display:none"/>
+      <div class="txt">
+        <div class="kicker">NEWS · Ultimo articolo</div>
+        <div class="title"><a id="mlgNewsLink" href="#" target="_self">Caricamento…</a></div>
+        <div class="meta" id="mlgNewsMeta"></div>
+      </div>
+      <div class="cta" aria-hidden="true">›</div>
+    `;
+    card.addEventListener('click', ()=>{
+      const a = card.querySelector('#mlgNewsLink');
+      if(a && a.href) window.location.href = a.href;
+    });
+    card.setAttribute('tabindex','0');
+    card.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const a=card.querySelector('#mlgNewsLink'); if(a && a.href) window.location.href=a.href; }});
+    return card;
+  }
+  function updateCard(card, data){
+    const a = card.querySelector('#mlgNewsLink');
+    a.textContent = data.title;
+    a.href = data.link;
+    if(data.pub){
+      const d = new Date(data.pub);
+      if(!isNaN(d)) card.querySelector('#mlgNewsMeta').textContent = d.toLocaleDateString('it-IT',{weekday:'short', day:'2-digit', month:'short'});
+    }
+    if(data.img){
+      const t = card.querySelector('.thumb');
+      t.src = data.img; t.style.display='block';
+    }
+  }
+  function matchesForecastString(str){
+    return /news/i.test(str || "");
+  }
+  function matchesForecastItemXML(item){
+    const t = (item.querySelector('title') && item.querySelector('title').textContent) || "";
+    if(matchesForecastString(t)) return true;
+    const cats = Array.from(item.querySelectorAll('category')).map(c => c.textContent);
+    return cats.some(matchesForecastString);
+  }
+  function extractImageXML(item){
+    let img = "";
+    const media = item.querySelector('media\\:content, media\\:thumbnail, enclosure');
+    if(media) img = media.getAttribute('url') || "";
+    if(!img){
+      const htmlNode = item.querySelector('content\\:encoded, description');
+      if(htmlNode){
+        const tmp = document.createElement('div');
+        tmp.innerHTML = htmlNode.textContent || "";
+        const im = tmp.querySelector('img');
+        if(im) img = im.getAttribute('src') || "";
+      }
+    }
+    return img;
+  }
+
+  async function fetchText(url){
+    const res = await fetch(url, {mode:"cors"});
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    return await res.text();
+  }
+
+  async function getFromXML(url){
+    const txt = await fetchText(url);
+    const doc = new DOMParser().parseFromString(txt, "text/xml");
+    let items = Array.from(doc.querySelectorAll('channel > item, item, entry'));
+    if(!items.length) throw new Error("No items");
+    let chosen = items.find(matchesForecastItemXML) || items[0];
+    return {
+      title: (chosen.querySelector('title') && chosen.querySelector('title').textContent.trim()) || "Ultimo articolo",
+      link: (chosen.querySelector('link') && (chosen.querySelector('link').getAttribute('href') || chosen.querySelector('link').textContent)) || "https://www.meteologullo.com/blog",
+      pub: (chosen.querySelector('pubDate') && chosen.querySelector('pubDate').textContent) || (chosen.querySelector('updated') && chosen.querySelector('updated').textContent) || "",
+      img: extractImageXML(chosen)
+    };
+  }
+
+  async function getFromRSS2JSON(url){
+    const res = await fetch(viaRSS2JSON(url));
+    const data = await res.json();
+    const items = (data && data.items) || [];
+    if(!items.length) throw new Error("No items");
+    let chosen = items.find(it => matchesForecastString(it.title) || (it.categories||[]).some(matchesForecastString)) || items[0];
+    return {
+      title: chosen.title || "Ultimo articolo",
+      link: chosen.link || data.feed && data.feed.link || "https://www.meteologullo.com/blog",
+      pub: chosen.pubDate || "",
+      img: chosen.thumbnail || ""
+    };
+  }
+
+  async function getData(){
+    // Try each feed direct, then through proxies, then rss2json
+    for(const base of FEEDS){
+      try { return await getFromXML(base); } catch(e){}
+      try { return await getFromXML(viaAllOrigins(base)); } catch(e){}
+      try { return await getFromXML(viaIsomorphic(base)); } catch(e){}
+      try { return await getFromRSS2JSON(base); } catch(e){}
+    }
+    return { title: "Ultimo articolo su Meteologullo", link: "https://www.meteologullo.com/blog", pub: "", img: "" };
+  }
+
+  function mount(card){
+    const slot = document.getElementById('mlg-news-slot');
+    if(slot){ slot.replaceWith(card); }
+    else{ document.body.appendChild(card); }
+  }
+
+  async function init(){
+    const card = buildSkeleton();
+    mount(card);
+    try{
+      const data = await getData();
+      updateCard(card, data);
+    }catch(e){
+      updateCard(card, { title: "Ultimo articolo su Meteologullo", link: "https://www.meteologullo.com/blog", pub: "", img: "" });
+    }
+  }
+
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+
+
 </body>
 </html>
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
@@ -22150,3 +22713,524 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
   };
 })();
 </script>
+
+<!-- === MLG • MAP TOP-RIGHT DATE & LOGO CLEANUP — 2025‑09‑29 (surgical, no breakages) === -->
+<style id="mlg-map-topdate-outside-and-logo-cleanup">
+  /* 0) Disattiva eventuale vecchia data ".map-date" che copriva la mappa */
+  .map-date{ display:none !important; }
+
+  /* 1) Il badge data ufficiale (#mlgTopDate) resta dentro #mapArea
+        ma viene posizionato SUBITO A DESTRA del PNG della Calabria,
+        così non copre mai la mappa. */
+  #mapArea{ position: relative !important; }
+  #mlgTopDate{
+    position: absolute !important;
+    left: auto !important; right: auto !important;  /* verranno calcolati via JS */
+    top: 8px !important;
+    transform: none !important;
+    white-space: nowrap;
+    max-width: 48vw;                  /* evita righe lunghissime su telefoni */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 8;
+  }
+  /* 2) “Controllo collisione” (classi usate dallo script)
+        - outside: appena a destra della mappa
+        - clamp-right: appiccicato al bordo destro del box se lo spazio è poco */
+  #mlgTopDate.outside{}
+  #mlgTopDate.clamp-right{}
+
+  /* 3) Logo pulito: solo il marchio, niente riquadro/colore diverso */
+  #mlgLogoBadge{
+    background: transparent !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    pointer-events: none !important;
+  }
+  #mlgLogoBadge img{
+    height: clamp(80px, 16vw, 110px) !important;
+    display:block;
+    /* leggero drop shadow per staccarlo dal mare (giorno e notte) */
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.12)) drop-shadow(0 8px 18px rgba(0,0,0,.28)) !important;
+    mix-blend-mode: normal !important;
+  }
+</style>
+<script id="mlg-map-topdate-outside-js">
+(function(){
+  "use strict";
+  function place(){
+    try{
+      var holder = document.getElementById("mapArea");
+      var mapImg = document.getElementById("map");       // PNG della Calabria
+      var badge  = document.getElementById("mlgTopDate"); // badge data da spostare
+      if(!holder || !mapImg || !badge) return;
+
+      // Misure correnti
+      var hR = holder.getBoundingClientRect();
+      var mR = mapImg.getBoundingClientRect();
+
+      // Reset per calcolare dimensioni reali
+      badge.style.left = "auto";
+      badge.style.right = "auto";
+      badge.style.top = "8px";
+      badge.classList.remove("clamp-right");
+      // Forza reflow e prendi dimensioni del badge
+      var bR = badge.getBoundingClientRect();
+
+      // Posizione ideale: subito a destra del PNG (rispetto a #mapArea)
+      var left = (mR.right - hR.left) + 8;  // 8px di aria dalla Calabria
+      var maxLeft = hR.width - bR.width - 8; // margine destro minimo 8px
+
+      if(left > maxLeft){
+        // Se non c'è abbastanza spazio esterno, appoggialo al bordo destro
+        left = Math.max(8, maxLeft);
+        badge.classList.add("clamp-right");
+      }
+
+      badge.style.left = left + "px";
+
+      // Ulteriore controllo: se per qualche motivo tocca il PNG,
+      // spostalo giù a scatti di una “altezza badge” fino a liberarlo.
+      function overlaps(a,b){
+        return !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+      }
+      var tries = 0, top = 8;
+      // Ricalcola dopo il set della left
+      bR = badge.getBoundingClientRect();
+      while(overlaps(bR, mR) && tries < 4){
+        top += (bR.height + 6);
+        badge.style.top = top + "px";
+        bR = badge.getBoundingClientRect();
+        tries++;
+      }
+
+      // Clamp verticale dentro #mapArea
+      var maxTop = hR.height - bR.height - 8;
+      if(top > maxTop){
+        top = Math.max(8, (mR.top - hR.top) - bR.height - 8); // prova sopra al PNG
+        badge.style.top = top + "px";
+      }
+    }catch(e){ /* silenzioso */ }
+  }
+  // Ricalcola su load, resize e dopo eventuali render personalizzati
+  function boot(){
+    place();
+    window.addEventListener("resize", place, {passive:true});
+    try{ document.addEventListener("mlg:map-rendered", place, true); }catch(_e){}
+    try{ document.addEventListener("mlg:dayparts-rendered", place, true); }catch(_e){}
+  }
+  if(document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot, {once:true}); }
+  else { boot(); }
+})();
+</script>
+
+<!-- === PATCH • Date badge anchored to RIGHT edge of original box (2025‑09‑29b) === -->
+<style id="mlg-date-fix-right-anchor-2025-09-29b">
+  /* Forza l'ancoraggio al margine destro del box originale (#mapArea).
+     Disattiva qualunque "left" calcolata dallo script precedente. */
+  #mapArea{ position: relative !important; }
+  #mlgTopDate{
+    position: absolute !important;
+    left: auto !important;
+    right: clamp(8px, 2vw, 14px) !important;
+    top: 8px !important;
+    transform: none !important;
+    white-space: nowrap !important;
+    max-width: min(50vw, 380px) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    z-index: 9 !important;
+  }
+  /* Riduci un filo sui telefoni stretti */
+  @media (max-width: 600px){
+    #mlgTopDate{ right: clamp(6px, 2vw, 12px) !important; top: 8px !important; }
+  }
+</style>
+<script id="mlg-date-fix-right-anchor-noop">
+/* Neutralizza il vecchio script di posizionamento (se presente):
+   gli stili con !important sopra vincono, qui evitiamo anche side‑effects. */
+(function(){
+  try{
+    var b=document.getElementById('mlgTopDate');
+    if(b){
+      b.style.left=''; // rimuove eventuale inline left messo in passato
+    }
+  }catch(e){}
+})();
+</script>
+
+<!-- === PATCH • Date badge anchored to RIGHT edge of #widget + Capitalize (2025‑09‑29c) === -->
+<style id="mlg-date-fix-right-of-widget">
+  #widget{ position: relative !important; }
+  #mapArea{ overflow: visible !important; }
+  /* Capitalizza “Lunedì” e “Settembre” senza toccare logica JS */
+  #mlgTopDate{ text-transform: capitalize !important; }
+</style>
+<script id="mlg-date-fix-right-of-widget-js">
+(function(){
+  "use strict";
+  function placeRightOfWidget(){
+    try{
+      var widget = document.getElementById("widget");
+      var holder = document.getElementById("mapArea");
+      var mapImg = document.getElementById("map");
+      var badge  = document.getElementById("mlgTopDate");
+      if(!widget || !holder || !badge) return;
+
+      // Misure
+      var wR = widget.getBoundingClientRect();
+      var hR = holder.getBoundingClientRect();
+      var mR = mapImg ? mapImg.getBoundingClientRect() : hR;
+
+      // Reset e dimensioni del badge
+      badge.style.right = "auto";
+      badge.style.left  = "0px";
+      badge.style.top   = "8px";
+      var bR = badge.getBoundingClientRect();
+
+      // Margine dal bordo destro del box originale (#widget)
+      var margin = 8;
+
+      // Calcolo: posiziona il bordo DESTRO del badge sul bordo destro del widget (meno margin)
+      var leftByWidget = (wR.right - hR.left) - bR.width - margin;
+
+      // Garanzia extra: se per qualche motivo tocca la mappa, tienilo anche oltre la mappa
+      var leftBeyondMap = (mR.right - hR.left) + margin;
+
+      var left = Math.max(leftByWidget, leftBeyondMap);
+
+      // Clamp per non uscire troppo verso destra (oltre il widget)
+      // (qui leftByWidget è già il massimo consentito dentro il widget)
+      left = Math.min(left, leftByWidget);
+
+      badge.style.left = left + "px";
+    }catch(e){ /* silent */ }
+  }
+  function boot(){
+    placeRightOfWidget();
+    window.addEventListener("resize", placeRightOfWidget, {passive:true});
+    try{ document.addEventListener("mlg:map-rendered", placeRightOfWidget, true); }catch(_e){}
+  }
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", boot, {once:true});
+  }else{
+    boot();
+  }
+})();
+</script>
+
+<!-- === PATCH • No-overlap: anchor right of map, auto-scale to fit (2025‑09‑29d) === -->
+<style id="mlg-date-no-overlap-scale">
+  #mapArea{ position: relative !important; overflow: visible !important; }
+  #mlgTopDate{
+    position: absolute !important;
+    right: auto !important;           /* cancella patch vecchie */
+    left: 0 !important;               /* verrà impostato via JS */
+    top: 8px !important;
+    z-index: 9 !important;
+    transform-origin: top left !important;
+    text-transform: capitalize !important; /* Lunedì 29 Settembre */
+    max-width: none !important;       /* gestiamo noi il fit con lo scale */
+    white-space: nowrap !important;
+  }
+</style>
+<script id="mlg-date-no-overlap-scale-js">
+(function(){
+  "use strict";
+  function placeAndScale(){
+    try{
+      var holder = document.getElementById("mapArea");
+      var mapImg = document.getElementById("map");
+      var badge  = document.getElementById("mlgTopDate");
+      if(!holder || !badge) return;
+      var hR = holder.getBoundingClientRect();
+      var mR = mapImg ? mapImg.getBoundingClientRect() : hR;
+      // reset temporary styles to measure
+      badge.style.transform = "scale(1)";
+      badge.style.left = "0px";
+      var bR = badge.getBoundingClientRect();
+
+      var margin = 8;
+      var leftCandidate = Math.max((mR.right - hR.left) + margin, margin);
+      // spazio disponibile fino al bordo destro del box originale (#mapArea)
+      var available = (hR.width - margin) - leftCandidate;
+      var needed = bR.width;
+      var scale = 1;
+      if(available < needed){
+        scale = Math.max(0.60, available / Math.max(needed,1)); // minimo 60%
+      }
+      badge.style.transform = "scale(" + scale + ")";
+      badge.style.left = leftCandidate + "px";
+
+      // Se per qualche motivo dopo lo scale risulta ancora a cavallo del PNG
+      // (es. font lato browser), fai un ulteriore aggiustamento a destra
+      // fino a liberarlo.
+      function overlaps(a,b){
+        return !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+      }
+      var guard = 0;
+      var curLeft = leftCandidate;
+      while(guard++ < 6){
+        var nb = badge.getBoundingClientRect();
+        if(!overlaps(nb, mR)) break;
+        curLeft += 6;
+        if(curLeft > (hR.right - hR.left - margin - nb.width)) break;
+        badge.style.left = curLeft + "px";
+      }
+    }catch(e){/* silent */}
+  }
+  function boot(){
+    placeAndScale();
+    window.addEventListener("resize", placeAndScale, {passive:true});
+    try{ document.addEventListener("mlg:map-rendered", placeAndScale, true); }catch(_e){}
+  }
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", boot, {once:true});
+  }else{
+    boot();
+  }
+})();
+</script>
+
+<!-- === PATCH • RIGHT-ANCHOR + AUTO-SHRINK — final (2025‑09‑29e) === -->
+<style id="mlg-date-right-anchor-autoshrink">
+  #mapArea{ position: relative !important; overflow: visible !important; }
+  #mlgTopDate{
+    position: absolute !important;
+    left: auto !important;
+    right: clamp(8px, 2vw, 14px) !important;  /* sempre a destra */
+    top: 8px !important;
+    transform-origin: top right !important;    /* scala ancorata al bordo destro */
+    z-index: 10 !important;
+    text-transform: capitalize !important;     /* Lunedì 29 Settembre */
+    white-space: nowrap !important;
+  }
+</style>
+<script id="mlg-date-right-anchor-autoshrink-js">
+(function(){
+  "use strict";
+  function anchorRightAndFit(){
+    try{
+      var holder = document.getElementById("mapArea");
+      var mapImg = document.getElementById("map");
+      var badge  = document.getElementById("mlgTopDate");
+      if(!holder || !badge) return;
+
+      var hR = holder.getBoundingClientRect();
+      var mR = mapImg ? mapImg.getBoundingClientRect() : hR;
+
+      // Reset scala per misurare dimensioni reali
+      badge.style.transform = "scale(1)";
+      // Forza layout per avere width/left corretti
+      var bR = badge.getBoundingClientRect();
+
+      var margin = 8;                  // aria minima dal bordo e dalla mappa
+      // Con ancoraggio a destra, la LEFT reale del badge è:
+      var leftIfRightAnchored = hR.right - margin - bR.width;
+
+      // Tolleranza: il badge NON deve entrare nell'area della mappa (mR.right)
+      var minLeftAllowed = (mR.right + margin);
+
+      if(leftIfRightAnchored < minLeftAllowed){
+        // Calcola quanto spazio resta tra mappa e bordo destro
+        var availableWidth = (hR.right - margin) - minLeftAllowed;
+        // Scala il badge per farlo rientrare in quello spazio, minimo 55%
+        var scale = Math.max(0.55, availableWidth / Math.max(bR.width,1));
+        badge.style.transform = "scale(" + scale + ")";
+      }
+      // Nessun cambio a 'right': resta fisso — SEMPRE a destra.
+    }catch(e){ /* no-op */ }
+  }
+  function boot(){
+    anchorRightAndFit();
+    window.addEventListener("resize", anchorRightAndFit, {passive:true});
+    try{ document.addEventListener("mlg:map-rendered", anchorRightAndFit, true); }catch(_e){}
+    try{ document.addEventListener("mlg:dayparts-rendered", anchorRightAndFit, true); }catch(_e){}
+  }
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", boot, {once:true});
+  }else{
+    boot();
+  }
+})();
+</script>
+
+<!-- === GUARD 2025‑09‑30 — Icône LIVE solo nel 1° blocco; ripristina le altre dai dati previsionali === -->
+
+<script id="tri-hourly-live-icon-guard-2025-09-30">
+(function(){
+  var RUNNING=false, LAST=0;
+  function throttle(fn){
+    return function(){
+      var now = Date.now();
+      if(RUNNING) return;
+      if(now-LAST<250) return;
+      RUNNING=true; LAST=now;
+      try{ fn(); } finally { RUNNING=false; }
+    };
+  }
+  function codeWeight(c){
+    c=Number(c);
+    if(c>=95) return 200;
+    if([75,85,86].includes(c)) return 170;
+    if([71,73,77].includes(c)) return 150;
+    if([65,67,82].includes(c)) return 140;
+    if([61,63,80,81].includes(c)) return 120;
+    if([51,53,55,56,57].includes(c)) return 100;
+    if([45,48].includes(c)) return 40;
+    if(c>=1&&c<=3) return 20;
+    return 0;
+  }
+  function isTodaySelected(){
+    var d=document.querySelector('#dailyPanel .days .day.sel');
+    if(!d) return true; // default to today
+    var idx=[].indexOf.call(d.parentNode.children,d);
+    return idx<=0;
+  }
+  function dayISOFromSelection(){
+    var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10);
+  }
+  function toRangeIndices(dayISO,startHH,endHH){
+    var fc=window.fc;
+    if(!fc||!fc.hourly||!Array.isArray(fc.hourly.time)) return [];
+    var t=fc.hourly.time, out=[];
+    for(var i=0;i<t.length;i++){
+      var s=t[i]; if(!s||s.slice(0,10)!==dayISO) continue;
+      var hh=s.slice(11,13); if(hh>=startHH && hh<=endHH) out.push(i);
+      if(out.length>12) break; // safety
+    }
+    return out;
+  }
+  function iconHTML(code,isNight){
+    try{
+      if(typeof window.iconHTML_NOEMOJI==='function')
+        return window.iconHTML_NOEMOJI(Number(code),!!isNight)||'';
+    }catch(_){}
+    return '';
+  }
+  function ensureForecastIcons(){
+    if(!isTodaySelected()) return;
+    var list=document.querySelector('#dailyDetailPanel .hourly-list');
+    if(!list) return;
+    var rows=list.querySelectorAll('.hour-row');
+    if(!rows||rows.length===0) return;
+
+    var fc=window.fc;
+    if(!fc||!fc.hourly||!fc.hourly.weathercode) return;
+
+    var dayISO=dayISOFromSelection();
+    for(var i=0;i<rows.length;i++){
+      var row=rows[i];
+      if(row.classList.contains('live')) continue;
+      var timeEl=row.querySelector('.hr-time');
+      if(!timeEl) continue;
+      var m=(timeEl.textContent||'').trim().match(/^(\d{2}):\d{2}\s*-\s*(\d{2}):\d{2}$/);
+      if(!m) continue;
+      var ids=toRangeIndices(dayISO,m[1],m[2]);
+      if(!ids.length) continue;
+      var worstIdx=ids[0], worst=-1;
+      for(var k=0;k<ids.length;k++){
+        var idx=ids[k], w=codeWeight(fc.hourly.weathercode[idx]);
+        if(w>worst){ worst=w; worstIdx=idx; }
+      }
+      var isNight = fc.hourly.is_day && fc.hourly.is_day[worstIdx]===0;
+      var html = iconHTML(fc.hourly.weathercode[worstIdx], isNight);
+      var holder=row.querySelector('.hr-icon');
+      if(holder && html) holder.innerHTML=html;
+    }
+  }
+  var run = throttle(ensureForecastIcons);
+  function observe(){
+    var root=document.getElementById('dailyDetailPanel'); if(!root) return;
+    try{ new MutationObserver(run).observe(root,{childList:true,subtree:true}); }catch(_){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ run(); observe(); });
+  else { run(); observe(); }
+  document.addEventListener('mlg:dayparts-rendered', run);
+  document.addEventListener('forceHourlyRerender', run);
+})();
+</script>
+
+
+<!-- === PATCH 2025‑09‑30 — Pannello giornaliero: temperatura LIVE nel daypart corrente === -->
+
+
+
+<script id="daypart-live-temp-guard-2025-09-30">
+(function(){
+  var BUSY=false, LAST=0;
+  function throttle(fn, ms){ ms=ms||250; return function(){ var n=Date.now(); if(BUSY||n-LAST<ms) return; BUSY=true; LAST=n; try{ fn(); } finally{ BUSY=false; } };}
+  function isTodaySelected(){
+    var d=document.querySelector('#dailyPanel .days .day.sel');
+    if(!d) return true;
+    var idx=[].indexOf.call(d.parentNode.children,d);
+    return idx<=0;
+  }
+  function currentDaypart(h){ if(h<6) return 'Notte'; if(h<12) return 'Mattina'; if(h<18) return 'Pomeriggio'; return 'Sera'; }
+  function readLiveFromHourly(){
+    // Prendi la temperatura dalla riga "adesso" del pannello orario
+    var row = document.querySelector('.hourly-list .hour-row.live') || (function(){
+      var rows = document.querySelectorAll('.hourly-list .hour-row');
+      for(var i=0;i<rows.length;i++){
+        var t=(rows[i].textContent||'').toLowerCase();
+        if(/\badesso\b/.test(t)) return rows[i];
+      }
+      return null;
+    })();
+    if(!row) return null;
+    var el = row.querySelector('.temp, .value, .badge, .pill, [class*="temp"]') || row;
+    var m  = (el.textContent||'').match(/(-?\d+)\s*°/);
+    return m?Number(m[1]):null;
+  }
+  function findDaypartCard(dpName){
+    // Cerca il titolo esatto del daypart e risali alla card
+    var titles = document.querySelectorAll('h3,h4,h5,.title,.card-title, .dp-title');
+    for(var i=0;i<titles.length;i++){
+      var t=(titles[i].textContent||'').trim();
+      if(t===dpName){
+        var card = titles[i].closest('.card, .panel, .box, .dp, [class*="part"]') || titles[i].parentElement;
+        if(card) return card;
+      }
+    }
+    // fallback: card con data-attr
+    var card2 = document.querySelector('[data-daypart="'+dpName+'"]');
+    return card2 || null;
+  }
+  function setCardTemp(card, val){
+    if(!card || val==null) return false;
+    var badge = card.querySelector('.dp-temp, .badge, .pill, .temp, .value, [data-role="dp-temp"]');
+    if(badge){ badge.textContent = String(val)+'°'; return true; }
+    // fallback: sostituzione sulla prima occorrenza NN°
+    var tree = document.createTreeWalker(card, NodeFilter.SHOW_TEXT, null);
+    var node;
+    while(node=tree.nextNode()){
+      var s=node.nodeValue;
+      if(/\d+\s*°/.test(s)){ node.nodeValue = s.replace(/\d+\s*°/, String(val)+'°'); return true; }
+    }
+    return false;
+  }
+  function apply(){
+    if(!isTodaySelected()) return;
+    var live = readLiveFromHourly();
+    if(live==null) return;
+    var dp = currentDaypart(new Date().getHours());
+    var card = findDaypartCard(dp);
+    setCardTemp(card, live);
+  }
+  var run = throttle(apply, 300);
+  function observe(){
+    var roots = [document.querySelector('#dailyPanel'), document.querySelector('#dayparts'), document.querySelector('.hourly-list')];
+    roots.forEach(function(root){ if(!root) return;
+      try{ new MutationObserver(run).observe(root,{childList:true,subtree:true}); }catch(_){}
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ run(); observe(); });
+  else { run(); observe(); }
+  document.addEventListener('mlg:dayparts-rendered', run);
+  document.addEventListener('forceHourlyRerender', run);
+})();
+</script>
+
+
+
