@@ -3768,7 +3768,8 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
     <nav class="mlg-nav" aria-label="Sezioni principali">
       <a class="mlg-pill" href="https://www.meteologullo.com/" data-key="home">Home</a>
       <a class="mlg-pill" href="https://www.meteologullo.com/stazioni-meteorologiche-mlg" data-key="mlgmap">MLG Map</a>
-      <a class="mlg-pill" href="https://www.meteologullo.com/blog" data-key="news">News</a>
+      
+      <a class="mlg-pill" href="https://www.meteologullo.com/webcam" data-key="webcam">Webcam</a><a class="mlg-pill" href="https://www.meteologullo.com/blog" data-key="news">News</a>
       <a class="mlg-pill" href="https://www.meteologullo.com/blank" data-key="chi-siamo">Chi Siamo</a>
       <a class="mlg-pill" href="https://www.meteologullo.com/blog/categories/meteo-curiosit%C3%A0" data-key="curiosita">Curiosità</a>
     </nav>
@@ -10439,6 +10440,14 @@ clicks=0;},700); if(clicks>=3){ clicks=0; openPro(); } });
   var STORAGE_KEY = 'sectorCondMiniV1';     // stesso store del PRO
   var MIN_PROB_WET = 60;
   var WET = {51:1,53:1,55:1,56:1,57:1,61:1,63:1,65:1,66:1,67:1,71:1,73:1,75:1,77:1,80:1,81:1,82:1,85:1,86:1,95:1,96:1,99:1};
+  function codeFromUrl(u){
+    if(!u || typeof u!=="string") return null;
+    // prova a pescare un numero di 1-3 cifre nell'URL (es. ".../wmo-61.png", ".../WMO_95@2x.svg")
+    var m = u.match(/(?:^|[^\d])(\d{1,3})(?:\D|$)/);
+    if(m){ var n = +m[1]; if(isFinite(n)) return n; }
+    return null;
+  }
+
 
   function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
   function loadStore(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY))||{overrides:{},grid:{rows:8,cols:6}}; }catch(e){ return {overrides:{},grid:{rows:8,cols:6}}; } }
@@ -20646,7 +20655,7 @@ try{
       links = [
         {t:'Home',h:'https://www.meteologullo.com/'},
         {t:'MLG Map',h:'https://www.meteologullo.com/stazioni-meteorologiche-mlg'},
-        {t:'News',h:'https://www.meteologullo.com/blog'},
+        {t:'Webcam',h:'https://www.meteologullo.com/webcam'}, {t:'News',h:'https://www.meteologullo.com/blog'},
         {t:'Chi Siamo',h:'https://www.meteologullo.com/blank'},
         {t:'Curiosità',h:'https://www.meteologullo.com/blog/categories/meteo-curiosit%C3%A0'}
       ].map(o=>{ const a = document.createElement('a'); a.textContent = o.t; a.href = o.h; a.target = '_blank'; a.rel='noopener'; return a; });
@@ -20819,6 +20828,670 @@ try{
 })();
 </script>
 
+
+
+<!-- === SECTOR PRO • Motore unico e blindato (v2.0, 2025-10-01) === -->
+<script id="sector-pro-engine-v2">
+(function(){
+  "use strict";
+  if(window.__sectorProEngineV2) return; window.__sectorProEngineV2 = true;
+
+  // ——— Costanti e util ———
+  var STORAGE_KEY = "sectorCondMiniV1";
+  var MICRO_GRID = {rows:4, cols:4};
+  var MIN_PROB_WET = 60;
+  var WET = {51:1,53:1,55:1,56:1,57:1,61:1,63:1,65:1,66:1,67:1,71:1,73:1,75:1,77:1,80:1,81:1,82:1,85:1,86:1,95:1,96:1,99:1};
+  function codeFromUrl(u){
+    if(!u || typeof u!=="string") return null;
+    // prova a pescare un numero di 1-3 cifre nell'URL (es. ".../wmo-61.png", ".../WMO_95@2x.svg")
+    var m = u.match(/(?:^|[^\d])(\d{1,3})(?:\D|$)/);
+    if(m){ var n = +m[1]; if(isFinite(n)) return n; }
+    return null;
+  }
+
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function loadStore(){
+    try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {overrides:{}, grid:{rows:8, cols:6}}; }
+    catch(e){ return {overrides:{}, grid:{rows:8, cols:6}}; }
+  }
+  function saveStore(s){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){}
+  }
+  function grid(){ var s=loadStore(); return {rows:(s.grid&&s.grid.rows)||8, cols:(s.grid&&s.grid.cols)||6}; }
+  function latLonToXYWrap(lat,lon){
+    try{ if(typeof window.latLonToXY==='function'){ var xy=window.latLonToXY(+lat,+lon); if(xy) return {x:clamp(+xy.x,0,100), y:clamp(+xy.y,0,100)}; } }catch(e){}
+    return null;
+  }
+  function sectorAndMicroForLatLon(lat,lon){
+    var g = grid();
+    var xy = latLonToXYWrap(lat,lon); if(!xy) return null;
+    var cellW = 100/g.cols, cellH = 100/g.rows;
+    var ccol = clamp(Math.floor(xy.x/cellW),0,g.cols-1);
+    var crow = clamp(Math.floor(xy.y/cellH),0,g.rows-1);
+    // coordinate relative all'interno della cella
+    var rx = xy.x - ccol*cellW;
+    var ry = xy.y - crow*cellH;
+    var mw = cellW / MICRO_GRID.cols;
+    var mh = cellH / MICRO_GRID.rows;
+    var mcol = clamp(Math.floor(rx/mw), 0, MICRO_GRID.cols-1);
+    var mrow = clamp(Math.floor(ry/mh), 0, MICRO_GRID.rows-1);
+    var sid = crow + "-" + ccol;
+    var mid = mrow + "x" + mcol;
+    return {sid:sid, mid:mid, key: sid + "@" + mid};
+  }
+  function indicesForDay(fc, dayIndex){
+    try{
+      var dayISO=(fc.daily&&fc.daily.time&&fc.daily.time[dayIndex])||null; if(!dayISO) return null;
+      var times=(fc.hourly&&fc.hourly.time)||[];
+      var start=times.findIndex(function(t){ return (t||"").startsWith(dayISO); });
+      if(start<0) return null;
+      var end=times.length; for(var i=start+1;i<times.length;i++){ if(!times[i].startsWith(dayISO)){ end=i; break; } }
+      if(!isFinite(end)) end=Math.min(times.length,start+24);
+      return {start:start,end:end};
+    }catch(e){ return null; }
+  }
+  function inRange(h, start, end){ return (start<end) ? (h>=start && h<end) : (h>=start || h<end); }
+  function bandToRange(name){
+    var k=(name||"").toLowerCase();
+    if(k==="mattina") return {start:6,end:12};
+    if(k==="pomeriggio") return {start:12,end:18};
+    if(k==="sera") return {start:18,end:24};
+    if(k==="notte") return {start:0,end:6};
+    return null;
+  }
+
+  // ——— Applica delta e mm (riusato dal progetto originale, ma reso indipendente) ———
+  function applyDeltaAndMm(fc, dayIndex, idx, delta, mm, codeRef){
+    try{
+      var H = fc.hourly||{}, D = fc.daily||{};
+      // Delta T / UR / Vento
+      if(delta && typeof delta==="object"){
+        var dT = +delta.t || 0, dUR = +delta.ur || 0, dW = +delta.wind || 0;
+        if(idx && Array.isArray(H.temperature_2m)){
+          for(var i=idx.start;i<idx.end;i++){ if(isFinite(H.temperature_2m[i])) H.temperature_2m[i] = +H.temperature_2m[i] + dT; }
+        }
+        if(Array.isArray(D.temperature_2m_min)) D.temperature_2m_min[dayIndex] = +D.temperature_2m_min[dayIndex] + dT;
+        if(Array.isArray(D.temperature_2m_max)) D.temperature_2m_max[dayIndex] = +D.temperature_2m_max[dayIndex] + dT;
+
+        if(idx && Array.isArray(H.relative_humidity_2m)){
+          for(var j=idx.start;j<idx.end;j++){ if(isFinite(H.relative_humidity_2m[j])) H.relative_humidity_2m[j] = clamp(+H.relative_humidity_2m[j] + dUR, 0, 100); }
+        }
+
+        if(idx && Array.isArray(H.wind_speed_10m)){
+          for(var k=idx.start;k<idx.end;k++){ if(isFinite(H.wind_speed_10m[k])) H.wind_speed_10m[k] = Math.max(0, +H.wind_speed_10m[k] + dW); }
+        }
+      }
+
+      // mm pioggia/neve: applica su orario e aggiorna daily.*_sum se presenti
+      if(mm!=null && isFinite(mm) && idx){
+        var perHour = (+mm)/Math.max(1,(idx.end-idx.start));
+        var wetCodes = WET;
+        var isSnow = function(c){ c=Number(c); return [71,73,75,85,86].indexOf(c)>=0; };
+        var snow = (codeRef!=null) ? isSnow(codeRef) : false;
+
+        if(Array.isArray(H.precipitation)){
+          for(var h=idx.start; h<idx.end; h++){
+            H.precipitation[h] = +H.precipitation[h] + perHour;
+            if(Array.isArray(H.precipitation_probability)){
+              var cur=Number(H.precipitation_probability[h]||0);
+              if(!(isFinite(cur)&&cur>=MIN_PROB_WET)) H.precipitation_probability[h]=MIN_PROB_WET;
+            }
+            if(Array.isArray(H.weathercode) && codeRef!=null){
+              H.weathercode[h] = Number(codeRef);
+            }
+          }
+        }
+        // aggiorna i daily
+        var dayPrec = 0;
+        if(Array.isArray(H.precipitation)){
+          for(var h2=idx.start; h2<idx.end; h2++){ dayPrec += (+H.precipitation[h2]||0); }
+        }else{
+          dayPrec = +mm;
+        }
+        if(Array.isArray(D.precipitation_sum)) D.precipitation_sum[dayIndex] = Math.round(dayPrec*10)/10;
+        if(snow){
+          if(Array.isArray(D.snowfall_sum)) D.snowfall_sum[dayIndex] = Math.round(dayPrec*10)/10;
+        }else{
+          if(Array.isArray(D.rain_sum)) D.rain_sum[dayIndex] = Math.round(dayPrec*10)/10;
+        }
+      }
+    }catch(e){ console.warn("applyDeltaAndMm error", e); }
+  }
+
+  // ——— Lettura override per una data + chiavi (settore e micro) ———
+  function dayOverrideFor(store, iso, keys){
+    var per = store.overrides && store.overrides[iso]; if(!per) return null;
+    for(var i=0;i<keys.length;i++){ if(per[keys[i]]) return per[keys[i]]; } // micro ha priorità se viene prima
+    return null;
+  }
+
+  // ——— Applicatore principale: icone + deltas + mm. Micro > settore. ———
+  function applySectorOverrides(fc){
+    try{
+      if(!fc || !fc.daily) return;
+      var sm = sectorAndMicroForLatLon(fc.latitude, fc.longitude);
+      var store = loadStore();
+      var days = fc.daily.time || [];
+      var keys = [];
+      if(sm && sm.key) keys.push(sm.key); // micro prima
+      if(sm && sm.sid) keys.push(sm.sid);
+
+      for(var d=0; d<days.length; d++){
+        var iso = days[d];
+        var ov = dayOverrideFor(store, iso, keys);
+        if(!ov) continue;
+
+        var idx = indicesForDay(fc, d);
+
+        // 1) FULL-DAY ICON
+        var __codeTmp = (ov.code!=null? Number(ov.code) : (ov.iconUrl? codeFromUrl(ov.iconUrl) : null));
+        if(__codeTmp!=null){
+          var code = Number(__codeTmp);
+          if(Array.isArray(fc.daily.weathercode)) fc.daily.weathercode[d] = code;
+          if(Array.isArray(fc.daily.weathercode_day)) fc.daily.weathercode_day[d] = code;
+          if(Array.isArray(fc.daily.weathercode_night)) fc.daily.weathercode_night[d] = code;
+          if(idx && Array.isArray(fc.hourly.weathercode)){
+            for(var i=idx.start;i<idx.end;i++){
+              fc.hourly.weathercode[i] = code;
+              if(WET[code] && Array.isArray(fc.hourly.precipitation_probability)){
+                var cur=Number(fc.hourly.precipitation_probability[i]||0);
+                if(!(isFinite(cur)&&cur>=MIN_PROB_WET)) fc.hourly.precipitation_probability[i]=MIN_PROB_WET;
+              }
+            }
+          }
+        }
+
+        // 2) RANGED ICON (fasce/ore) — non distruttivo sul resto
+        var __rcTmp = (ov.ranged && ov.ranged.code!=null) ? Number(ov.ranged.code) : (ov.ranged && ov.ranged.iconUrl ? codeFromUrl(ov.ranged.iconUrl) : null);
+        if(ov.ranged && __rcTmp!=null && idx){
+          var codeR = Number(__rcTmp);
+          // banda -> ore
+          var start=0, end=24;
+          if(ov.ranged.type==="band"){
+            var b = bandToRange(ov.ranged.band); if(b){ start=b.start; end=b.end; }
+          }else if(ov.ranged.type==="hours"){
+            start = clamp(parseInt(ov.ranged.start)||0, 0, 23);
+            end   = clamp(parseInt(ov.ranged.end)||24, 1, 24);
+          }
+          for(var h=idx.start; h<idx.end; h++){
+            var hh = +String(fc.hourly.time[h]).slice(11,13);
+            if(inRange(hh, start, end)){
+              if(Array.isArray(fc.hourly.weathercode)) fc.hourly.weathercode[h] = codeR;
+              if(WET[codeR] && Array.isArray(fc.hourly.precipitation_probability)){
+                var cur2=Number(fc.hourly.precipitation_probability[h]||0);
+                if(!(isFinite(cur2)&&cur2>=MIN_PROB_WET)) fc.hourly.precipitation_probability[h]=MIN_PROB_WET;
+              }
+            }
+          }
+          // forza anche il daily a mostrare l'icona scelta, come richiesto
+          if(Array.isArray(fc.daily.weathercode)) fc.daily.weathercode[d] = codeR;
+          if(Array.isArray(fc.daily.weathercode_day)) fc.daily.weathercode_day[d] = codeR;
+          if(Array.isArray(fc.daily.weathercode_night)) fc.daily.weathercode_night[d] = codeR;
+        }
+
+        // 3) DELTA (full-day) + mm
+        if(ov.delta || ov.mm!=null){
+          applyDeltaAndMm(fc, d, idx, ov.delta||null, (ov.mm!=null?Number(ov.mm):null), (ov.code!=null?Number(ov.code):(ov.ranged&&ov.ranged.code!=null?Number(ov.ranged.code):null)));
+        }
+        // 4) DELTA/mm nella fascia oraria
+        if(ov.ranged && (ov.ranged.delta || ov.ranged.mm!=null) && idx){
+          var rr = ov.ranged;
+          var st=0,en=24;
+          if(rr.type==="band"){ var bb=bandToRange(rr.band); if(bb){ st=bb.start; en=bb.end; } }
+          else if(rr.type==="hours"){ st = clamp(parseInt(rr.start)||0,0,23); en = clamp(parseInt(rr.end)||24,1,24); }
+          var rIdx = { start: idx.start + st, end: idx.start + en };
+          var refCode = (rr.code!=null?Number(rr.code):(ov.code!=null?Number(ov.code):null));
+          applyDeltaAndMm(fc, d, rIdx, rr.delta||null, (rr.mm!=null?Number(rr.mm):null), refCode);
+        }
+      }
+    }catch(e){ console.warn("[sector-pro-engine] apply error", e); }
+  }
+
+  // ——— Render hook: applica SEMPRE prima di renderizzare ———
+  (function hookRender(){
+    var old = window.render;
+    if(typeof old === "function" && !old.__sectorEngineWrapped){
+      window.render = async function(){
+        try{ if(window.fc) applySectorOverrides(window.fc); }catch(e){}
+        return old.apply(this, arguments);
+      };
+      window.render.__sectorEngineWrapped = true;
+    }
+    // Per sicurezza, anche quando cambia la previsione
+    var oldRun = window.run;
+    if(typeof oldRun === "function" && !oldRun.__sectorEngineWrapped){
+      window.run = async function(){
+        var r = await oldRun.apply(this, arguments);
+        try{ if(window.fc) applySectorOverrides(window.fc); }catch(e){}
+        return r;
+      };
+      window.run.__sectorEngineWrapped = true;
+    }
+  })();
+
+  // ——— "Applica adesso": forza l'apply immediato e rinfresca i pannelli ———
+  (function hookApplyNow(){
+    function patch(){
+      var btn = document.getElementById("proApplyNow");
+      if(!btn || btn.__sectorEngineHook) return;
+      var old = btn.onclick;
+      btn.onclick = function(ev){
+        var r; try{ if(typeof old==="function") r = old.call(this, ev); }catch(e){}
+        try{ if(window.fc){ applySectorOverrides(window.fc); } if(typeof window.render==="function") window.render(); }catch(e){}
+        return r;
+      };
+      btn.__sectorEngineHook = true;
+    }
+    document.addEventListener("DOMContentLoaded", patch);
+    setInterval(patch, 500);
+  })();
+
+  // ——— Esponi pubblicamente (debug) ———
+  window.applySectorOverrides = applySectorOverrides;
+})();
+</script>
+
+<!-- === PATCH 2025‑10‑01 — Readability & Fit for Rain‑Gauge Labels (indipendente) === -->
+<style id="rg-readability-fit-css">
+/* Accessorio visivo per forzare contrasto solo quando necessario */
+.rg-chip-contrast{
+  background: rgba(0,0,0,.62);
+  color: #fff !important;
+  padding: 2px 6px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.24);
+}
+/* Abbreviazioni stilizzate */
+.rg-abbrev{ letter-spacing: .2px; }
+/* Ultima rete di sicurezza contro overflow */
+.rg-fit{ max-width: 100%; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+</style>
+
+<script id="rg-readability-fit-js">
+(function(){
+  // ——— Utilities ———
+  function $(sel, root){ return (root||document).querySelector(sel); }
+  function $all(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function rgbOf(c){
+    var m = (c||'').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/);
+    if(!m) return null;
+    return { r:+m[1], g:+m[2], b:+m[3], a: (m[4]==null?1:+m[4]) };
+  }
+  function luminance(rgb){
+    function lin(v){ v/=255; return v<=0.03928? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); }
+    return 0.2126*lin(rgb.r) + 0.7152*lin(rgb.g) + 0.0722*lin(rgb.b);
+  }
+  function contrastRatio(fg, bg){
+    if(!fg||!bg) return 7; // safe default
+    var L1 = Math.max(luminance(fg), luminance(bg)) + 0.05;
+    var L2 = Math.min(luminance(fg), luminance(bg)) + 0.05;
+    return L1 / L2;
+  }
+
+  // Map per severità -> abbreviazione breve
+  var ABBR = {"abbondante":"abb.","molto forte":"molto"};
+
+  function fitOne(el){
+    if(!el || el.__rgFitApplied) return;
+    el.__rgFitApplied = true;
+
+    // 1) Contrasto: se il rapporto testo vs sfondo è basso, applica chip scuro
+    try{
+      var cs = getComputedStyle(el);
+      var fg = rgbOf(cs.color);
+      // Trova il bg effettivo risalendo l'albero (se trasparente)
+      var n = el, bg = null, guard = 0;
+      while(n && guard<8){
+        var c = getComputedStyle(n).backgroundColor;
+        var rgb = rgbOf(c);
+        if(rgb && rgb.a>0){ bg = rgb; break; }
+        n = n.parentElement; guard++;
+      }
+      if(!bg){
+        var bodyBg = getComputedStyle(document.body).backgroundColor;
+        bg = rgbOf(bodyBg);
+      }
+      var ratio = contrastRatio(fg, bg);
+      if(ratio < 4.5){
+        el.classList.add('rg-chip-contrast');
+      }
+    }catch(e){ /* silent */ }
+
+    // 2) Fit: prova a ridurre il font finché non rientra (min 11px)
+    try{
+      var minFS = 11;
+      var fs = parseFloat(getComputedStyle(el).fontSize) || 13;
+      var guard2 = 0;
+      while(el.scrollWidth > el.clientWidth && fs > minFS && guard2 < 10){
+        fs -= 0.5;
+        el.style.fontSize = fs + 'px';
+        guard2++;
+      }
+    }catch(e){}
+
+    // 3) Se ancora esce, usa abbreviazione compatta (una sola volta)
+    try{
+      if(el.scrollWidth > el.clientWidth * 1.02){
+        var t = (el.textContent||'').trim().toLowerCase();
+        var key = Object.keys(ABBR).find(k => t.indexOf(k) !== -1)!==-1);
+        if(key){
+          el.textContent = ABBR[key];
+          el.classList.add('rg-abbrev');
+        }
+      }
+    }catch(e){}
+
+    // 4) Ultimo fallback: ellissi
+    el.classList.add('rg-fit');
+  }
+
+  function applyAll(root){
+    $all('.rain-gauge .rg-label', root).forEach(fitOne);
+  }
+
+  // ——— Observer: reagisce quando si aggiorna la sezione previsione/box tri‑orario ———
+  var targets = ['#hourlyPanel', '#dailyDetailPanel', '#triModal', '#forecast'];
+  var mo = new MutationObserver(function(muts){
+    for(var m of muts){
+      for(var n of (m.addedNodes||[])){
+        if(n.nodeType===1){
+          if(n.matches && targets.some(sel => n.matches(sel))) applyAll(n);
+          applyAll(n);
+        }
+      }
+    }
+  });
+  targets.forEach(function(sel){
+    var el = $(sel); if(el) mo.observe(el, {childList:true, subtree:true});
+  });
+
+  // ——— Hook: quando parte una ricerca o viene ricostruita la previsione ———
+  function hookRun(){
+    try{
+      var _old = window.run;
+      if(typeof _old === 'function' && !_old.__rgFitHook){
+        window.run = function(){
+          var out = _old.apply(this, arguments);
+          try{ setTimeout(function(){ applyAll(document); }, 30); }catch(e){}
+          return out;
+        };
+        window.run.__rgFitHook = true;
+      }
+    }catch(e){}
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    applyAll(document);
+    hookRun();
+    // se l'utente scrive nella barra, applica dopo ogni submit valido
+    try{
+      var form = document.getElementById('searchForm');
+      if(form && !form.__rgFitSubmit){
+        form.addEventListener('submit', function(){
+          setTimeout(function(){ applyAll(document); }, 80);
+        }, true);
+        form.__rgFitSubmit = true;
+      }
+    }catch(e){}
+  });
+
+  // Espone per test manuale
+  window.__rgApplyReadabilityFit = function(root){ applyAll(root||document); };
+
+})();
+</script>
+
+<!-- === PATCH v2: Rain‑Gauge Leggibilità/Fit for forecast labels === -->
+<style id="rg-badge-contrast-css">
+/* Badge contenitore per testo leggibile */
+.rg-badge{
+  display:inline-flex; align-items:center;
+  height:22px; padding:0 8px; border-radius:10px;
+  border:1px solid transparent; box-sizing:border-box;
+  vertical-align:middle; max-width:132px;
+}
+/* Testo sempre leggibile sopra il badge */
+.rg-badge .rg-label{ color:#fff !important; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+/* severità -> palette soft (riuso di quelle definite nella prima patch) */
+.rg-badge[data-sev="assente"]{ background:rgba(152,161,171,.22); border-color:rgba(152,161,171,.35); }
+.rg-badge[data-sev="debole"]{ background:rgba(47,160,255,.26); border-color:rgba(47,160,255,.38); }
+.rg-badge[data-sev="moderata"]{ background:rgba(11,91,211,.28); border-color:rgba(11,91,211,.42); }
+.rg-badge[data-sev="abbondante"]{ background:rgba(230,126,34,.32); border-color:rgba(230,126,34,.44); }
+.rg-badge[data-sev="forte"]{ background:rgba(255,59,48,.32); border-color:rgba(255,59,48,.44); }
+.rg-badge[data-sev="molto forte"]{ background:rgba(183,28,28,.34); border-color:rgba(183,28,28,.46); }
+.rg-badge[data-sev="estreme"]{ background:rgba(106,0,255,.30); border-color:rgba(106,0,255,.46); }
+
+/* integrazione con le altezze esistenti */
+.rain-gauge{ gap:8px; }
+#dailyDetailPanel .rg-badge{ height:20px; padding:0 6px; }
+</style>
+
+<script id="rg-badge-contrast-js">
+(function(){
+  var ABBR = {"abbondante":"abb.","molto forte":"molto"};
+
+  function ensureBadge(label){
+    if(!label) return null;
+    if(label.parentElement && label.parentElement.classList.contains('rg-badge')) return label.parentElement;
+    var sev = label.getAttribute('data-sev') || (label.dataset && label.dataset.sev) || 'debole';
+    var badge = document.createElement('span');
+    badge.className = 'rg-badge';
+    badge.setAttribute('data-sev', sev);
+    label.style.color = ''; // togli il colore inline della prima patch
+    label.parentNode.insertBefore(badge, label);
+    badge.appendChild(label);
+    return badge;
+  }
+
+  function fitLabel(label){
+    var badge = ensureBadge(label);
+    if(!badge) return;
+
+    // primo tentativo: font-size step‑down fino a 11px
+    var fs = parseFloat(getComputedStyle(label).fontSize) || 12;
+    var guard = 0;
+    while(label.scrollWidth > badge.clientWidth - 4 && fs > 11 && guard < 8){
+      fs -= 0.5; label.style.fontSize = fs + 'px'; guard++;
+    }
+    // secondo: abbreviazioni
+    if(label.scrollWidth > badge.clientWidth - 4){
+      var t = (label.textContent||'').trim().toLowerCase();
+      var key = Object.keys(ABBR).find(k => t.indexOf(k) !== -1)!==-1);
+      if(key){ label.textContent = ABBR[key]; }
+    }
+    // terzo: ellissi è già attiva via CSS
+  }
+
+  function apply(root){
+    (root||document).querySelectorAll('.rain-gauge .rg-label').forEach(fitLabel);
+  }
+
+  // osserva i pannelli previsione
+  function observe(){
+    var roots = [document, document.getElementById('dailyDetailPanel'), document.getElementById('hourlyPanel')];
+    roots.forEach(function(r){
+      if(!r) return;
+      new MutationObserver(function(){ apply(r); }).observe(r, {childList:true, subtree:true});
+    });
+    apply(document);
+    document.addEventListener('DOMContentLoaded', function(){ apply(document); });
+    document.addEventListener('mlg:dayparts-rendered', function(){ apply(document); });
+    document.addEventListener('forceHourlyRerender', function(){ apply(document); });
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', observe);
+  else observe();
+})();
+</script>
+
+<!-- === PATCH v3: solo contrasto testo (outline) + no badge wrapper === -->
+<style id="rg-text-contrast-only">
+/* Elimina qualsiasi "riquadro aggiuntivo" introdotto dalla v2 */
+.rg-badge{ 
+  display: contents !important; 
+  padding:0 !important; margin:0 !important; border:none !important; 
+  background:none !important; box-shadow:none !important;
+}
+
+/* Contrasto forte e leggibile del testo delle etichette
+   - manteniamo il colore di sistema (es. blu/arancio) ma aggiungiamo outline/shadow */
+.rain-gauge .rg-label{
+  font-weight:700;
+  text-shadow:
+    0 0 1px rgba(0,0,0,.70),
+    0 1px 1px rgba(0,0,0,.70),
+    0 -1px 1px rgba(0,0,0,.70),
+    1px 0 1px rgba(0,0,0,.70),
+    -1px 0 1px rgba(0,0,0,.70),
+    1px 1px 1px rgba(0,0,0,.7),
+    -1px -1px 1px rgba(0,0,0,.7);
+  -webkit-text-stroke: .6px rgba(0,0,0,.55);
+}
+
+/* Quando il pill è scuro (blu), usa outline leggermente chiaro per staccare */
+.rain-gauge .rg-label.on-dark{
+  -webkit-text-stroke: .6px rgba(255,255,255,.35);
+  text-shadow:
+    0 0 1px rgba(255,255,255,.28),
+    0 1px 1px rgba(0,0,0,.6),
+    1px 0 1px rgba(0,0,0,.6),
+    -1px 0 1px rgba(0,0,0,.6);
+}
+
+/* Safety fit: evita scroll/overflow senza cambiare layout */
+.rain-gauge .rg-label{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+</style>
+
+<script id="rg-text-contrast-only-js">
+// Abbreviazione + fit senza creare wrapper o modificare layout
+(function(){
+  var ABBR = {"abbondante":"abb.","molto forte":"molto"};
+
+  function fitOne(el){
+    if(!el || el.__rgTextContrast) return;
+    el.__rgTextContrast = true;
+    // 1) Riduci font in modo non invasivo (min 11px)
+    var fs = parseFloat(getComputedStyle(el).fontSize) || 12;
+    var guard = 0;
+    while(el.scrollWidth > el.clientWidth && fs > 11 && guard < 8){
+      fs -= 0.5; el.style.fontSize = fs + 'px'; guard++;
+    }
+    // 2) Abbrevia se ancora non entra
+    if(el.scrollWidth > el.clientWidth * 1.02){
+      var t = (el.textContent||'').trim().toLowerCase();
+      var key = Object.keys(ABBR).find(k => t.indexOf(k) !== -1)!==-1);
+      if(key){ el.textContent = ABBR[key]; }
+    }
+  }
+  function run(root){ (root||document).querySelectorAll('.rain-gauge .rg-label').forEach(fitOne); }
+  // Osserva pannelli previsione
+  var targets = ['#hourlyPanel','#dailyDetailPanel','#forecast'];
+  var mo = new MutationObserver(function(){ run(document); });
+  targets.forEach(function(s){ var n=document.querySelector(s); if(n) mo.observe(n,{childList:true,subtree:true}); });
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ run(); });
+  else run();
+  // Esporta per debug
+  window.__rgTextContrastApply = run;
+})();
+</script>
+
+<!-- === PATCH v4: abbrevia SOLO se non entra e SOLO per 'abbondante'/'molto forte' === -->
+<script id="rg-text-contrast-only-js-v4">
+(function(){
+  var ABBR_MAP = {"abbondante":"abb.","molto forte":"molto"};
+  var ALLOW_ABBR_KEYS = Object.keys(ABBR_MAP);
+
+  function overflow(el){ return el.scrollWidth > el.clientWidth * 1.02; }
+
+  function fitOne(el){
+    if(!el) return;
+    // 1) riduzione font fino a 11px
+    var fs = parseFloat(getComputedStyle(el).fontSize) || 12;
+    var guard = 0;
+    while(overflow(el) && fs > 11 && guard < 8){
+      fs -= 0.5; el.style.fontSize = fs + 'px'; guard++;
+    }
+    // 2) se ANCORA non entra, abbrevia SOLO parole "lunghe" consentite
+    if(overflow(el)){
+      var t = (el.textContent||'').trim().toLowerCase();
+      var key = ALLOW_ABBR_KEYS.find(k => t.indexOf(k)!==-1);
+      if(key){ el.textContent = ABBR_MAP[key]; }
+      // se comunque non entra, lascia ellissi (già via CSS)
+    }
+  }
+
+  function run(root){ (root||document).querySelectorAll('.rain-gauge .rg-label').forEach(fitOne); }
+
+  // ricollega all'handler esistente se presente
+  window.__rgTextContrastApply = run;
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ run(); });
+  else run();
+
+  // osserva modifiche
+  var mo = new MutationObserver(function(){ run(document); });
+  ['#hourlyPanel','#dailyDetailPanel','#forecast'].forEach(function(s){
+    var n=document.querySelector(s); if(n) mo.observe(n,{childList:true,subtree:true});
+  });
+})();
+</script>
+
+<script>
+(function(){
+  function ellipsizeToFit(container, label, full){
+    if(!container || !label) return;
+    label.textContent = full;
+    var pad = 8;
+    if(label.scrollWidth <= container.clientWidth - pad) return;
+    var t = full;
+    while(t.length > 3 && label.scrollWidth > container.clientWidth - pad){
+      t = t.slice(0, -1);
+      label.textContent = t.trim() + '..';
+    }
+  }
+
+  function process() {
+    // pills that previously show fixed abbreviations
+    var candidates = Array.from(document.querySelectorAll('*'))
+      .filter(function(el){
+        var txt = (el.textContent || '').trim().toLowerCase();
+        return txt === 'abb.' || txt === 'molto';
+      });
+    candidates.forEach(function(el){
+      // try to find the "badge container": the nearest rounded pill
+      var container = el.closest('.badge, .tag, .pill, .chip') || el.parentElement;
+      var full = el.getAttribute('data-full');
+      if(!full){
+        full = (el.textContent || '').trim().toLowerCase() === 'abb.' ? 'abbondanti' : 'molto forte';
+        el.setAttribute('data-full', full);
+      }
+      // Only change if the full string would overflow
+      // Temporarily set to full to measure
+      var prev = el.textContent;
+      el.textContent = full;
+      var fits = container && el.scrollWidth <= container.clientWidth - 8;
+      if(!fits){
+        ellipsizeToFit(container || el, el, full);
+      } else {
+        el.textContent = full; // show full if it fits
+      }
+    });
+  }
+
+  // Run on load and whenever the DOM updates (forecast opens, etc.)
+  if(document.readyState === 'complete'){
+    process();
+  } else {
+    window.addEventListener('load', process);
+  }
+  // Observe DOM changes to re-apply when forecast content renders
+  var mo = new MutationObserver(function(){ process(); });
+  mo.observe(document.documentElement || document.body, {childList:true, subtree:true});
+  // Also retry after small delays in case of async rendering
+  setTimeout(process, 400);
+  setTimeout(process, 1200);
+})();
+</script>
 
 </body>
 </html>
