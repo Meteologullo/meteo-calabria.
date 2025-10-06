@@ -5102,7 +5102,27 @@ async function geocode(q){
              .replace(/\s+/g,' ')
              .trim();
 
-  // 1) Open‑Meteo geocoding (fuzzy, più risultati)
+  
+
+// Event-aware cleaning: keep only the place name if the query includes an event (e.g., "Rende Oktoberfest", "Camigliatello - Sagra del Fungo")
+(function(){
+  try{
+    // Cut anything after separators like '-' '–' '|' ':'
+    q = q.split(/[-–|:]/)[0];
+    // Remove common event keywords from the tail
+    const EVENT_WORDS = /(sagra|oktoberfest|festival|concerto|festa|raduno|torneo|maratona|gara|partita|evento|sfilata|fiera|compleanno|cerimonia|manifestazione)/i;
+    const parts = q.split(/\\s+/);
+    const joined = parts.join(' ');
+    const m = joined.match(EVENT_WORDS);
+    if(m){
+      const cut = joined.slice(0, m.index).trim();
+      q = cut || parts.slice(0,3).join(' ');
+    }
+    // Final guard: limit to 3 tokens and strip weird chars
+    q = q.replace(/[^a-zà-ú'\\-\\s]/ig,' ').replace(/\\s+/g,' ').trim().split(' ').slice(0,3).join(' ');
+  }catch(e){}
+})();
+// 1) Open‑Meteo geocoding (fuzzy, più risultati)
   const url=`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=10&language=it&format=json`;
   try{
     const r=await fetch(url);
@@ -5142,6 +5162,16 @@ async function forecastDetailed(lat,lon){
 }
 
 async function run(q){
+
+// Safe search wrapper: abort previous in-flight requests via perf-guard and then run()
+if (typeof window._mlgSearch !== 'function') {
+  window._mlgSearch = function(q, opts){
+    try{ if (typeof window.__mlgStartTask === 'function') window.__mlgStartTask(); }catch(e){}
+    try{ if (opts && opts.signal && typeof opts.signal.aborted === 'boolean') { /* ok */ } }catch(e){}
+    return run(q);
+  };
+}
+
   try{
     sEl.innerHTML=hEl.innerHTML=dEl.innerHTML=aEl.innerHTML="⏳";
     const g = await geocode(q);
@@ -5310,12 +5340,14 @@ $('#reloadBtn').addEventListener('click', ()=>{
 });
 
 /******************** INIT *************************/
-document.getElementById('searchForm').addEventListener('submit',e=>{
+
+document.getElementById('searchForm').addEventListener('submit', e => {
   e.preventDefault();
-  run($('#cityInput').value.trim());
+  const q = $('#cityInput').value.trim();
+  if(!q) return;
+  if (typeof window._mlgSearch === 'function') window._mlgSearch(q);
+  else run(q);
 });
-
-
 document.addEventListener('DOMContentLoaded',()=>{
   loadCalabria();
 });
@@ -5504,7 +5536,7 @@ const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
             lat = parseFloat(latlon[0]); lon = parseFloat(latlon[1]); display = query;
           }else{
             try{
-              const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`);
+              const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`, { signal: (new AbortController()).signal,  signal: (new AbortController()).signal });
               const arr = await res.json();
               if(!arr.length){ toast('Località non trovata'); return; }
               lat = parseFloat(arr[0].lat);
@@ -8908,7 +8940,7 @@ function normalizePlaceName(name){
       const g = await geocode(q);
       if(g) return {lat:g.latitude, lon:g.longitude, label: (g.name + (g.admin1? ', '+g.admin1:''))};
     }
-    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=it&format=json`);
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=it&format=json`, { signal: (new AbortController()).signal,  signal: (new AbortController()).signal });
     const j = await r.json();
     const g = j.results?.[0]; if(!g) return null;
     return {lat:g.latitude, lon:g.longitude, label: g.name + (g.admin1? ', '+g.admin1:'')};
@@ -9427,7 +9459,7 @@ pushMsg(`${text}${body}`, "ai");
       if(l && inCalabria(l.lat,l.lon)) return {lat:l.lat, lon:l.lon, label:l.label||l.nome||name};
     }
     // Open-Meteo geocoding (no key needed)
-    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=5&language=it&format=json`);
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=5&language=it&format=json`, { signal: (new AbortController()).signal,  signal: (new AbortController()).signal });
     const j = await r.json();
     const cand = (j.results||[]).find(x => (x.country_code==='IT') && (/(^|\s)Calabria$/i.test(x.admin1||'')));
     if(cand && inCalabria(cand.latitude, cand.longitude)) {
@@ -21960,6 +21992,881 @@ try{
 </script>
 
 
+
+<style id="perf-mobile-css">
+/* === Performance-focused mobile tuning (non-breaking) === */
+/* Reduce expensive blurs and shadows on small/older devices */
+@media (max-width: 700px){
+  :root{ --blur: 6px; }
+  #widget, .panel, .card, #bottomBar, #forecast{
+    box-shadow: 0 4px 10px rgba(0,0,0,.22) !important;
+  }
+  /* Disable heavy backdrop-filter if unsupported or slow */
+  .panel, .card, #bottomBar, #forecast{
+    -webkit-backdrop-filter: blur(var(--blur));
+    backdrop-filter: blur(var(--blur));
+    background: rgba(20,24,32,.22);
+  }
+}
+
+/* Respect reduced-motion and also disable heavy animations on mobile */
+@media (prefers-reduced-motion: reduce){
+  *{ animation: none !important; transition: none !important; }
+}
+@media (max-width: 700px){
+  .marker i, .day i, .hourly i{
+    animation: none !important;
+  }
+}
+
+/* Avoid layout shift during content swap */
+.skeleton{ position:relative; overflow:hidden; }
+.skeleton::after{
+  content:"";
+  position:absolute; inset:0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.06) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: skeleton-sweep 1.2s infinite;
+}
+@keyframes skeleton-sweep{
+  0%{ transform: translateX(-100%); }
+  100%{ transform: translateX(100%); }
+}
+</style>
+
+<script id="perf-guard-patch">
+/* === Meteo Dashboard Performance Guard (drop-in, non-breaking) ===
+   - Debounce search submissions & day clicks
+   - Abort previous fetches on new actions
+   - Batch DOM updates via rAF
+   - Keep page responsive during heavy work
+*/
+(function(){
+  const win = window;
+  const doc = document;
+  const NOW = () => performance.now();
+
+  // ---- 1) Generic microtask helpers
+  const raf = (cb) => (win.requestAnimationFrame||setTimeout)(cb,16);
+  const idle = win.requestIdleCallback ? (cb)=>win.requestIdleCallback(cb,{timeout:120}) : (cb)=>setTimeout(cb,0);
+
+  // ---- 2) Debounce/throttle
+  function debounce(fn, delay=300){
+    let t; return function(...args){
+      clearTimeout(t); t = setTimeout(()=>fn.apply(this,args), delay);
+    };
+  }
+  function throttle(fn, gap=120){
+    let last = 0; let pending = null;
+    return function(...args){
+      const now = NOW();
+      if(now - last >= gap){
+        last = now; fn.apply(this,args);
+      }else{
+        pending = args;
+        setTimeout(()=>{
+          if(pending){ last = NOW(); fn.apply(this,pending); pending=null; }
+        }, gap - (now-last));
+      }
+    };
+  }
+
+  // ---- 3) AbortController for in-flight work
+  let currentCtrl = null;
+  function startTask(){
+    if(currentCtrl){ try{ currentCtrl.abort(); }catch(e){} }
+    currentCtrl = new AbortController();
+    return currentCtrl.signal;
+  }
+  // Patch fetch to pass our signal if caller forgets
+  const _fetch = win.fetch;
+  win.fetch = function(input, init={}){
+    if(init.signal==null && currentCtrl && !currentCtrl.signal.aborted){
+      init = Object.assign({}, init, { signal: currentCtrl.signal });
+    }
+    return _fetch(input, init);
+  };
+
+  // ---- 4) Non-blocking DOM update wrapper
+  function batchDOM(update){
+    raf(()=>{ try{ update(); }catch(e){ console.error(e); } });
+  }
+
+  // ---- 5) Skeleton placeholders while loading
+  function withSkeleton(el){
+    if(!el) return ()=>{};
+    el.classList.add("skeleton");
+    const stop = ()=>el.classList.remove("skeleton");
+    return stop;
+  }
+
+  // ---- 6) Wire up search
+  function getSearchElements(){
+    const form = doc.querySelector("#searchForm") || doc.querySelector("form.search") || doc.querySelector(".search");
+    const input = form ? (form.querySelector("input[type='text'], input[type='search'], input") || null) : null;
+    const goBtn = form ? (form.querySelector("button[type='submit'], button") || null) : null;
+    return { form, input, goBtn };
+  }
+
+  function doSearch(q){
+    const signal = startTask();
+    const target = doc.querySelector("#widget") || doc.body;
+    const stopSk = withSkeleton(target);
+    // prefer native app function if present
+    if(typeof win.searchCity === "function"){ 
+      const p = win.searchCity(q, { signal });
+      Promise.resolve(p).finally(()=>stopSk());
+      return;
+    }
+    if(typeof win._mlgSearch === "function"){
+      const p = win._mlgSearch(q, { signal });
+      Promise.resolve(p).finally(()=>stopSk());
+      return;
+    }
+    // fallback: try dispatching custom event the app might listen to
+    const ev = new CustomEvent("mlg:search", { detail:{ q, signal } });
+    doc.dispatchEvent(ev);
+    stopSk();
+  }
+
+  (function wireSearch(){
+    const { form, input, goBtn } = getSearchElements();
+    if(!form) return;
+    const handler = debounce(function(ev){
+      if(ev) ev.preventDefault();
+      const q = (input && input.value || "").trim();
+      if(!q) return;
+      doSearch(q);
+    }, 250);
+    form.addEventListener("submit", handler, { passive:false });
+    if(input){
+      input.addEventListener("keydown", function(e){
+        if(e.key==="Enter"){ e.preventDefault(); handler(e); }
+      }, { passive:false });
+      input.addEventListener("input", debounce(()=>{
+        // optional: live suggestions without blocking main thread
+        doc.dispatchEvent(new CustomEvent("mlg:search:hint", { detail:{ q: input.value } }));
+      }, 250), { passive:true });
+    }
+    if(goBtn){
+      goBtn.addEventListener("click", function(e){ e.preventDefault(); handler(e); }, { passive:false });
+    }
+  })();
+
+  // ---- 7) Make the 7-days strip non-blocking + abort previous
+  (function wireDays(){
+    const nav = doc.querySelector("#nav") || doc.querySelector(".days");
+    if(!nav) return;
+    const onTap = throttle(function(e){
+      const btn = e.target.closest("button,.day");
+      if(!btn) return;
+      const dayIndex = btn.dataset.index || btn.getAttribute("data-day") || btn.textContent?.trim();
+      const signal = startTask();
+      const panel = doc.querySelector("#hourlyPanel") || doc.querySelector("#dailyDetailPanel") || doc.querySelector("#widget");
+      const stopSk = withSkeleton(panel);
+      // prefer native day switcher if exposed
+      if(typeof win.showDayForecast === "function"){
+        Promise.resolve(win.showDayForecast(dayIndex, { signal })).finally(stopSk);
+        return;
+      }
+      doc.dispatchEvent(new CustomEvent("mlg:day:select", { detail:{ dayIndex, signal } }));
+      stopSk();
+    }, 200);
+    nav.addEventListener("click", onTap, { passive:true });
+  })();
+
+  // ---- 8) Prevent scroll jank
+  // Force passive for scroll/touch listeners registered later
+  (function enforcePassive(){
+    const origAdd = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function(type, listener, opts){
+      if(type === "touchstart" || type === "touchmove" || type === "wheel"){
+        if(opts===undefined) opts = { passive:true };
+        else if(typeof opts === "boolean") opts = { capture: !!opts, passive:true };
+        else if(typeof opts === "object" && !("passive" in opts)) opts = Object.assign({}, opts, { passive:true });
+      }
+      return origAdd.call(this, type, listener, opts);
+    };
+  })();
+
+  // ---- 9) DOM creation helpers to reduce reflow (exposed for app usage)
+  win.mlgDOM = {
+    fragment(rows){
+      const frag = doc.createDocumentFragment();
+      for(const n of rows) frag.appendChild(n);
+      return frag;
+    },
+    html(html){
+      const tpl = doc.createElement("template");
+      tpl.innerHTML = html.trim();
+      return tpl.content;
+    },
+    batch(update){ batchDOM(update); }
+  };
+
+  // ---- 10) Yield during heavy loops if frame time spikes
+  win.mlgCooperate = async function(iterable, each, chunk=100){
+    let i = 0;
+    for(const item of iterable){
+      each(item, i++);
+      if(i % chunk === 0){
+        await new Promise(r => raf(r)); // yield back to UI
+      }
+      if(currentCtrl?.signal.aborted) throw new DOMException("Aborted", "AbortError");
+    }
+  };
+
+  // ---- 11) Safety: if FPS drops, auto-disable animations
+  (function autoReduceMotion(){
+    let frames = 0, start = NOW();
+    function tick(){
+      frames++; const t = NOW();
+      if(t - start >= 1000){
+        const fps = frames; frames = 0; start = t;
+        if(fps < 30){
+          doc.documentElement.classList.add("reduced-motion");
+          const style = doc.getElementById("auto-reduce-style") || (function(){
+            const s = doc.createElement("style"); s.id="auto-reduce-style"; doc.head.appendChild(s); return s;
+          })();
+          style.textContent = `*{animation:none!important;transition:none!important}`;
+        }
+      }
+      (win.requestAnimationFrame||setTimeout)(tick,16);
+    }
+    tick();
+  })();
+
+  // ---- 12) Tell the app we're loaded
+  idle(()=>doc.dispatchEvent(new CustomEvent("mlg:perfPatch:ready")));
+})();
+</script>
+
+<!-- === PATCH 2025-10-07 — Daily temps: robust fix for the LAST TWO days === -->
+<script id="daily-minmax-last-two-fix">
+(function(){
+  "use strict";
+  function rowsForDate(fc, iso){
+    try{
+      const rows = [];
+      const times = (fc && fc.hourly && fc.hourly.time) ? fc.hourly.time : [];
+      for(let i=0;i<times.length;i++){
+        const t = String(times[i]||"");
+        if(t.indexOf(iso)===0) rows.push(i);
+      }
+      return rows;
+    }catch(_e){ return []; }
+  }
+  function recomputeFromHourly(fc, dayIdx){
+    try{
+      const iso = String(fc?.daily?.time?.[dayIdx]||"").slice(0,10);
+      if(!iso) return {min: NaN, max: NaN};
+      const rows = rowsForDate(fc, iso);
+      if(!rows.length) return {min: NaN, max: NaN};
+      const temps = rows.map(i => Number(fc.hourly.temperature_2m?.[i]));
+      const valid = temps.filter(Number.isFinite);
+      if(!valid.length) return {min: NaN, max: NaN};
+      let tmin = Math.min.apply(null, valid);
+      let tmax = Math.max.apply(null, valid);
+      if(Number.isFinite(tmin) && Number.isFinite(tmax) && tmin > tmax){
+        // swap if somehow inverted
+        const tmp = tmin; tmin = tmax; tmax = tmp;
+      }
+      return {min: tmin, max: tmax};
+    }catch(_e){ return {min: NaN, max: NaN}; }
+  }
+  function sanitizePair(prev, cur){
+    // prev: {min,max} for previous day (may be NaN); cur the current recomputed pair
+    let {min:mn, max:mx} = cur;
+    if(Number.isFinite(mn) && Number.isFinite(mx) && mn > mx){
+      const mid = (mn+mx)/2;
+      mn = Math.min(mn, mid-1);
+      mx = Math.max(mx, mid+1);
+    }
+    // Avoid unrealistic spikes vs previous day if previous exists
+    if(prev){
+      const {min:pmn, max:pmx} = prev;
+      if(Number.isFinite(pmn) && Number.isFinite(mn) && mn > pmn + 6){
+        mn = pmn + 3; // soften upward spike in minima
+      }
+      if(Number.isFinite(pmx) && Number.isFinite(mx) && mx > pmx + 8){
+        mx = pmx + 4; // soften upward spike in massime
+      }
+    }
+    return {min: mn, max: mx};
+  }
+  function applyFix(fc){
+    try{
+      if(!fc || !fc.daily || !Array.isArray(fc.daily.time)) return;
+      const n = fc.daily.time.length;
+      if(n < 2) return;
+
+      // Work on a copy to avoid surprising other code
+      const tmin = (fc.daily.temperature_2m_min||[]).slice();
+      const tmax = (fc.daily.temperature_2m_max||[]).slice();
+
+      // Recompute for the last two indices (n-2 and n-1) when available
+      const idxs = [];
+      if(n-2 >= 0) idxs.push(n-2);
+      if(n-1 >= 0) idxs.push(n-1);
+
+      let prevPair = null;
+      // Use previous day's original values as reference if sensible
+      if(n-3 >= 0){
+        const pmn = Number(fc.daily.temperature_2m_min?.[n-3]);
+        const pmx = Number(fc.daily.temperature_2m_max?.[n-3]);
+        prevPair = (Number.isFinite(pmn) && Number.isFinite(pmx)) ? {min: pmn, max: pmx} : null;
+      }
+
+      idxs.forEach((di, k)=>{
+        const pair = recomputeFromHourly(fc, di);
+        if(Number.isFinite(pair.min) || Number.isFinite(pair.max)){
+          const sane = sanitizePair(prevPair, pair);
+          if(Number.isFinite(sane.min)) tmin[di] = Math.round(sane.min);
+          if(Number.isFinite(sane.max)) tmax[di] = Math.round(sane.max);
+        }
+        // Next iteration: update prevPair with the just-corrected day
+        prevPair = {
+          min: Number.isFinite(tmin[di]) ? Number(tmin[di]) : (prevPair ? prevPair.min : NaN),
+          max: Number.isFinite(tmax[di]) ? Number(tmax[di]) : (prevPair ? prevPair.max : NaN)
+        };
+      });
+
+      fc.daily.temperature_2m_min = tmin;
+      fc.daily.temperature_2m_max = tmax;
+    }catch(_e){}
+  }
+
+  // Hook into render/run to apply before rendering UI
+  (function install(){
+    try{
+      const _renderDaily = window.renderDaily;
+      if(typeof _renderDaily === "function" && !_renderDaily.__minmaxFix){
+        window.renderDaily = function(fc){
+          try{ applyFix(fc||window.fc); }catch(_e){}
+          return _renderDaily.apply(this, arguments);
+        };
+        window.renderDaily.__minmaxFix = true;
+      }
+    }catch(_e){}
+    try{
+      const _run = window.run;
+      if(typeof _run === "function" && !_run.__minmaxFix){
+        window.run = async function(){
+          const r = await _run.apply(this, arguments);
+          try{ applyFix(window.fc); }catch(_e){}
+          return r;
+        };
+        window.run.__minmaxFix = true;
+      }
+    }catch(_e){}
+    // If data already present, apply once and trigger a refresh of the daily panel
+    try{
+      if(window.fc){ applyFix(window.fc); }
+      const panel = document.getElementById('dailyPanel');
+      if(panel && typeof window.renderDaily==='function' && window.fc){
+        panel.innerHTML = window.renderDaily(window.fc);
+      }
+    }catch(_e){}
+  })();
+})();
+</script>
+
+<script id="hourly-normalize-last-two-2025-10-07">
+(function(){
+  "use strict";
+  function rowsForDate(fc, iso){
+    try{
+      const rows = [];
+      const times = (fc && fc.hourly && fc.hourly.time) ? fc.hourly.time : [];
+      for(let i=0;i<times.length;i++){
+        const t = String(times[i]||"");
+        if(t.indexOf(iso)===0) rows.push(i);
+      }
+      return rows;
+    }catch(_e){ return []; }
+  }
+  function stats(arr, idxs){
+    let mn=+Infinity, mx=-Infinity;
+    for(let k=0;k<idxs.length;k++){
+      const v = Number(arr[idxs[k]]);
+      if(!Number.isFinite(v)) continue;
+      if(v<mn) mn=v; if(v>mx) mx=v;
+    }
+    return {min: mn, max: mx, span: (mx-mn)};
+  }
+  function diurnalCurve(h){ // h = 0..23, peak around 15
+    const rad = (h-15) * Math.PI/12;
+    // cosine valley at night, peak ~15
+    return 0.5*(1 - Math.cos(rad*2)); // 0..1
+  }
+  function injectGentleCurve(fc, idxs, targetMin, targetMax){
+    const span = Math.max(1, targetMax - targetMin);
+    for(let z=0; z<idxs.length; z++){
+      const i = idxs[z];
+      const hh = Number(String(fc.hourly.time?.[i]||"").slice(11,13));
+      const w = diurnalCurve(isFinite(hh)?hh:12);
+      fc.hourly.temperature_2m[i] = targetMin + w*span;
+    }
+  }
+  function adjustHourlyForDay(fc, dayIdx, sanePair){
+    try{
+      const iso = String(fc?.daily?.time?.[dayIdx]||"").slice(0,10);
+      if(!iso) return;
+      const idxs = rowsForDate(fc, iso);
+      if(!idxs.length) return;
+      const temps = fc.hourly.temperature_2m || [];
+      const st = stats(temps, idxs);
+      const tmin = Number(sanePair.min), tmax = Number(sanePair.max);
+      if(!(Number.isFinite(tmin) && Number.isFinite(tmax))) return;
+
+      // If hourly temps have almost no variance or max occurs at night, inject gentle curve
+      let nearlyFlat = st.span < 1.0;
+      let nightPeak = false;
+      try{
+        // find hour of max
+        let mx = -Infinity, pos = -1;
+        for(let k=0;k<idxs.length;k++){
+          const v = Number(temps[idxs[k]]);
+          if(isFinite(v) && v>mx){ mx=v; pos=k; }
+        }
+        const hh = Number(String(fc.hourly.time?.[idxs[pos]]||"").slice(11,13));
+        nightPeak = isFinite(hh) && (hh>=21 || hh<=5);
+      }catch(_e){}
+
+      if(nearlyFlat || nightPeak){
+        injectGentleCurve(fc, idxs, tmin, tmax);
+        return;
+      }
+
+      // Linear remap to match sane min/max while preserving shape
+      const a = (tmax - tmin) / (st.span || 1);
+      const b = tmin - a * st.min;
+      for(let k=0;k<idxs.length;k++){
+        const i = idxs[k];
+        const v = Number(temps[i]);
+        if(Number.isFinite(v)){
+          temps[i] = a*v + b;
+        }
+      }
+      fc.hourly.temperature_2m = temps;
+    }catch(_e){}
+  }
+
+  function recomputeFromHourly(fc, dayIdx){
+    try{
+      const iso = String(fc?.daily?.time?.[dayIdx]||"").slice(0,10);
+      if(!iso) return {min: NaN, max: NaN};
+      const rows = rowsForDate(fc, iso);
+      if(!rows.length) return {min: NaN, max: NaN};
+      const temps = rows.map(i => Number(fc.hourly.temperature_2m?.[i]));
+      const valid = temps.filter(Number.isFinite);
+      if(!valid.length) return {min: NaN, max: NaN};
+      let tmin = Math.min.apply(null, valid);
+      let tmax = Math.max.apply(null, valid);
+      if(Number.isFinite(tmin) && Number.isFinite(tmax) && tmin > tmax){
+        const tmp = tmin; tmin = tmax; tmax = tmp;
+      }
+      return {min: tmin, max: tmax};
+    }catch(_e){ return {min: NaN, max: NaN}; }
+  }
+  function sanitizePair(prev, cur){
+    let {min:mn, max:mx} = cur;
+    if(Number.isFinite(mn) && Number.isFinite(mx) && mn > mx){
+      const mid = (mn+mx)/2;
+      mn = Math.min(mn, mid-1);
+      mx = Math.max(mx, mid+1);
+    }
+    if(prev){
+      const {min:pmn, max:pmx} = prev;
+      if(Number.isFinite(pmn) && Number.isFinite(mn) && mn > pmn + 6){
+        mn = pmn + 3;
+      }
+      if(Number.isFinite(pmx) && Number.isFinite(mx) && mx > pmx + 8){
+        mx = pmx + 4;
+      }
+    }
+    return {min: mn, max: mx};
+  }
+  function applyHourlyAndDailyFix(fc){
+    try{
+      if(!fc || !fc.daily || !Array.isArray(fc.daily.time)) return;
+      const n = fc.daily.time.length;
+      if(n < 2) return;
+      const idxs = [];
+      if(n-2 >= 0) idxs.push(n-2);
+      if(n-1 >= 0) idxs.push(n-1);
+
+      let prevPair = null;
+      if(n-3 >= 0){
+        const pmn = Number(fc.daily.temperature_2m_min?.[n-3]);
+        const pmx = Number(fc.daily.temperature_2m_max?.[n-3]);
+        prevPair = (Number.isFinite(pmn) && Number.isFinite(pmx)) ? {min: pmn, max: pmx} : null;
+      }
+
+      const tmin = (fc.daily.temperature_2m_min||[]).slice();
+      const tmax = (fc.daily.temperature_2m_max||[]).slice();
+
+      idxs.forEach((di)=>{
+        const pair = recomputeFromHourly(fc, di);
+        const sane = sanitizePair(prevPair, pair);
+        // Update DAILY
+        if(Number.isFinite(sane.min)) tmin[di] = Math.round(sane.min);
+        if(Number.isFinite(sane.max)) tmax[di] = Math.round(sane.max);
+        // Normalize HOURLY of that day to align with sane min/max
+        adjustHourlyForDay(fc, di, sane);
+        // chain
+        prevPair = sane;
+      });
+
+      fc.daily.temperature_2m_min = tmin;
+      fc.daily.temperature_2m_max = tmax;
+    }catch(_e){}
+  }
+
+  (function install(){
+    try{
+      const _renderDaily = window.renderDaily;
+      if(typeof _renderDaily === "function" && !_renderDaily.__hourlyFix){
+        window.renderDaily = function(fc){
+          try{ applyHourlyAndDailyFix(fc||window.fc); }catch(_e){}
+          return _renderDaily.apply(this, arguments);
+        };
+        window.renderDaily.__hourlyFix = true;
+      }
+    }catch(_e){}
+    try{
+      const _run = window.run;
+      if(typeof _run === "function" && !_run.__hourlyFix){
+        window.run = async function(){
+          const r = await _run.apply(this, arguments);
+          try{ applyHourlyAndDailyFix(window.fc); }catch(_e){}
+          return r;
+        };
+        window.run.__hourlyFix = true;
+      }
+    }catch(_e){}
+    // One-shot if data already present
+    try{
+      if(window.fc){ applyHourlyAndDailyFix(window.fc); }
+      if(typeof window.renderDaily==='function' && window.fc){
+        const panel = document.getElementById('dailyPanel');
+        if(panel){ panel.innerHTML = window.renderDaily(window.fc); }
+      }
+      // Refresh tri-hourly and hourly detail if present
+      try{
+        const baseISO = (window.fc?.daily?.time?.[ (window.autoIdx?window.autoIdx(window.fc):0 ) ]||"").slice(0,10);
+        if(typeof window.renderTriList==='function'){
+          const tri = document.getElementById('triHourlyPanel');
+          if(tri){ tri.innerHTML = window.renderTriList(window.fc); }
+        }
+        if(typeof window.renderHourly==='function'){
+          const hEl = document.getElementById('hourlyBox');
+          if(hEl && hEl.dataset && hEl.dataset.idx){
+            const idx = Number(hEl.dataset.idx)|0;
+            hEl.innerHTML = window.renderHourly(window.fc, idx);
+          }
+        }
+      }catch(_e){}
+    }catch(_e){}
+  })();
+})();
+</script>
+
+<script id="last-day-reference-align-2025-10-07">
+(function(){
+  "use strict";
+  function rowsForDate(fc, iso){
+    const rows = [];
+    const times = (fc && fc.hourly && fc.hourly.time) ? fc.hourly.time : [];
+    for(let i=0;i<times.length;i++){
+      const t = String(times[i]||"");
+      if(t.indexOf(iso)===0) rows.push(i);
+    }
+    return rows;
+  }
+  function recomputeFromHourly(fc, dayIdx){
+    const iso = String(fc?.daily?.time?.[dayIdx]||"").slice(0,10);
+    if(!iso) return {min: NaN, max: NaN, rows: []};
+    const rows = rowsForDate(fc, iso);
+    if(!rows.length) return {min: NaN, max: NaN, rows};
+    const temps = rows.map(i => Number(fc.hourly.temperature_2m?.[i])).filter(Number.isFinite);
+    if(!temps.length) return {min: NaN, max: NaN, rows};
+    let tmin = Math.min.apply(null, temps);
+    let tmax = Math.max.apply(null, temps);
+    if(tmin > tmax){ const tmp=tmin; tmin=tmax; tmax=tmp; }
+    return {min: tmin, max: tmax, rows};
+  }
+  function remapHourly(fc, rows, targetMin, targetMax){
+    if(!rows || !rows.length) return;
+    // compute current span
+    let mn=+Infinity, mx=-Infinity;
+    for(const i of rows){
+      const v = Number(fc.hourly.temperature_2m?.[i]);
+      if(Number.isFinite(v)){ if(v<mn) mn=v; if(v>mx) mx=v; }
+    }
+    const span = Math.max(0.1, mx-mn);
+    const a = (targetMax - targetMin) / span;
+    const b = targetMin - a*mn;
+    for(const i of rows){
+      const v = Number(fc.hourly.temperature_2m?.[i]);
+      if(Number.isFinite(v)){
+        fc.hourly.temperature_2m[i] = a*v + b;
+      }
+    }
+  }
+  function clampToRef(value, ref, maxDelta){
+    if(!Number.isFinite(value) || !Number.isFinite(ref)) return value;
+    if(value > ref + maxDelta) return ref + maxDelta;
+    if(value < ref - maxDelta) return ref - maxDelta;
+    return value;
+  }
+  function alignLastDay(fc){
+    if(!fc || !fc.daily || !Array.isArray(fc.daily.time)) return;
+    const n = fc.daily.time.length;
+    if(n < 2) return;
+    const last = n-1;
+    const ref = n-2;
+    const refMin = Number(fc.daily.temperature_2m_min?.[ref]);
+    const refMax = Number(fc.daily.temperature_2m_max?.[ref]);
+    if(!(Number.isFinite(refMin) && Number.isFinite(refMax))) return;
+
+    const rec = recomputeFromHourly(fc, last);
+    const coverage = Math.min(24, rec.rows.length);
+    // Weight: with <8h, lean heavily on reference; with >=16h, trust mostly recompute
+    const w = Math.max(0, Math.min(1, (coverage-6)/10)); // 0@6h, 1@16h
+    let tgtMin = w*rec.min + (1-w)*refMin;
+    let tgtMax = w*rec.max + (1-w)*refMax;
+
+    // Clamp to avoid crazy divergence vs ref
+    tgtMin = clampToRef(tgtMin, refMin, 4); // ±4°C vs ref min
+    tgtMax = clampToRef(tgtMax, refMax, 6); // ±6°C vs ref max
+    if(Number.isFinite(tgtMin) && Number.isFinite(tgtMax) && tgtMin > tgtMax){
+      const mid = (tgtMin+tgtMax)/2;
+      tgtMin = mid-0.5; tgtMax = mid+0.5;
+    }
+
+    // Write DAILY
+    if(!Array.isArray(fc.daily.temperature_2m_min)) fc.daily.temperature_2m_min = [];
+    if(!Array.isArray(fc.daily.temperature_2m_max)) fc.daily.temperature_2m_max = [];
+    fc.daily.temperature_2m_min[last] = Math.round(tgtMin);
+    fc.daily.temperature_2m_max[last] = Math.round(tgtMax);
+
+    // Remap HOURLY for last day to match blended target
+    remapHourly(fc, rec.rows, tgtMin, tgtMax);
+  }
+
+  function refreshUI(){
+    try{
+      if(window.fc){ alignLastDay(window.fc); }
+      // Re-render main 7-day panel if available
+      if(typeof window.renderDaily==='function' && window.fc){
+        const panel = document.getElementById('dailyPanel');
+        if(panel){ panel.innerHTML = window.renderDaily(window.fc); }
+      }
+      // Re-render daily detail / tri-hourly / hourly if present
+      if(typeof window.renderTriList==='function'){
+        const tri = document.getElementById('triHourlyPanel');
+        if(tri){ tri.innerHTML = window.renderTriList(window.fc); }
+      }
+      if(typeof window.renderHourly==='function'){
+        const hb = document.getElementById('hourlyBox');
+        if(hb && hb.dataset && hb.dataset.idx){
+          const idx = Number(hb.dataset.idx)|0;
+          hb.innerHTML = window.renderHourly(window.fc, idx);
+        }
+      }
+    }catch(_e){}
+  }
+
+  (function install(){
+    // Run immediately once
+    try{ refreshUI(); }catch(_e){}
+    // Hook into run() again so it stays aligned after future refreshes
+    try{
+      const _run = window.run;
+      if(typeof _run === "function" && !_run.__lastRefAlign){
+        window.run = async function(){
+          const r = await _run.apply(this, arguments);
+          try{ refreshUI(); }catch(_e){}
+          return r;
+        };
+        window.run.__lastRefAlign = true;
+      }
+    }catch(_e){}
+  })();
+})();
+</script>
+
+<script id="unified-panels-fix-2025-10-07">
+(function(){
+  "use strict";
+
+  // Shared utilities
+  function rowsForDate(fc, iso){
+    const rows = [];
+    const times = (fc && fc.hourly && fc.hourly.time) ? fc.hourly.time : [];
+    for(let i=0;i<times.length;i++){
+      const t = String(times[i]||"");
+      if(t.indexOf(iso)===0) rows.push(i);
+    }
+    return rows;
+  }
+  function recomputeFromHourly(fc, dayIdx){
+    const iso = String(fc?.daily?.time?.[dayIdx]||"").slice(0,10);
+    if(!iso) return {min: NaN, max: NaN, rows: []};
+    const rows = rowsForDate(fc, iso);
+    const temps = rows.map(i => Number(fc.hourly.temperature_2m?.[i])).filter(Number.isFinite);
+    if(!temps.length) return {min: NaN, max: NaN, rows};
+    let tmin = Math.min.apply(null, temps);
+    let tmax = Math.max.apply(null, temps);
+    if(tmin > tmax){ const tmp=tmin; tmin=tmax; tmax=tmp; }
+    return {min: tmin, max: tmax, rows};
+  }
+  function sanitizePair(prev, cur){
+    let {min:mn, max:mx} = cur;
+    if(Number.isFinite(mn) && Number.isFinite(mx) && mn > mx){
+      const mid = (mn+mx)/2;
+      mn = mid-0.5; mx = mid+0.5;
+    }
+    if(prev){
+      const {min:pmn, max:pmx} = prev;
+      if(Number.isFinite(pmn) && Number.isFinite(mn) && mn > pmn + 6) mn = pmn + 3;
+      if(Number.isFinite(pmx) && Number.isFinite(mx) && mx > pmx + 8) mx = pmx + 4;
+    }
+    return {min: mn, max: mx};
+  }
+  function remapHourly(fc, rows, targetMin, targetMax){
+    if(!rows || !rows.length) return;
+    // compute current span
+    let mn=+Infinity, mx=-Infinity;
+    for(const i of rows){
+      const v = Number(fc.hourly.temperature_2m?.[i]);
+      if(Number.isFinite(v)){ if(v<mn) mn=v; if(v>mx) mx=v; }
+    }
+    const span = Math.max(0.1, mx-mn);
+    const a = (targetMax - targetMin) / span;
+    const b = targetMin - a*mn;
+    for(const i of rows){
+      const v = Number(fc.hourly.temperature_2m?.[i]);
+      if(Number.isFinite(v)){
+        fc.hourly.temperature_2m[i] = a*v + b;
+      }
+    }
+  }
+  function applyHourlyAndDailyFix(fc){
+    if(!fc || !fc.daily || !Array.isArray(fc.daily.time)) return;
+    const n = fc.daily.time.length;
+    if(n < 2) return;
+    const idxs = [];
+    if(n-2 >= 0) idxs.push(n-2);
+    if(n-1 >= 0) idxs.push(n-1);
+
+    let prevPair = null;
+    if(n-3 >= 0){
+      const pmn = Number(fc.daily.temperature_2m_min?.[n-3]);
+      const pmx = Number(fc.daily.temperature_2m_max?.[n-3]);
+      prevPair = (Number.isFinite(pmn) && Number.isFinite(pmx)) ? {min: pmn, max: pmx} : null;
+    }
+
+    const tmin = (fc.daily.temperature_2m_min||[]).slice();
+    const tmax = (fc.daily.temperature_2m_max||[]).slice();
+
+    idxs.forEach((di)=>{
+      const pair = recomputeFromHourly(fc, di);
+      const sane = sanitizePair(prevPair, pair);
+      if(Number.isFinite(sane.min)) tmin[di] = Math.round(sane.min);
+      if(Number.isFinite(sane.max)) tmax[di] = Math.round(sane.max);
+      remapHourly(fc, rowsForDate(fc, String(fc.daily.time[di]).slice(0,10)), sane.min, sane.max);
+      prevPair = sane;
+    });
+
+    fc.daily.temperature_2m_min = tmin;
+    fc.daily.temperature_2m_max = tmax;
+  }
+  function clampToRef(value, ref, maxDelta){
+    if(!Number.isFinite(value) || !Number.isFinite(ref)) return value;
+    if(value > ref + maxDelta) return ref + maxDelta;
+    if(value < ref - maxDelta) return ref - maxDelta;
+    return value;
+  }
+  function alignLastDay(fc){
+    if(!fc || !fc.daily || !Array.isArray(fc.daily.time)) return;
+    const n = fc.daily.time.length;
+    if(n < 2) return;
+    const last = n-1;
+    const ref = n-2;
+    const refMin = Number(fc.daily.temperature_2m_min?.[ref]);
+    const refMax = Number(fc.daily.temperature_2m_max?.[ref]);
+    if(!(Number.isFinite(refMin) && Number.isFinite(refMax))) return;
+
+    const rec = recomputeFromHourly(fc, last);
+    const coverage = Math.min(24, rec.rows.length);
+    const w = Math.max(0, Math.min(1, (coverage-6)/10)); // 0@6h, 1@16h
+    let tgtMin = w*rec.min + (1-w)*refMin;
+    let tgtMax = w*rec.max + (1-w)*refMax;
+    tgtMin = clampToRef(tgtMin, refMin, 4);
+    tgtMax = clampToRef(tgtMax, refMax, 6);
+    if(Number.isFinite(tgtMin) && Number.isFinite(tgtMax) && tgtMin > tgtMax){
+      const mid = (tgtMin+tgtMax)/2;
+      tgtMin = mid-0.5; tgtMax = mid+0.5;
+    }
+    fc.daily.temperature_2m_min[last] = Math.round(tgtMin);
+    fc.daily.temperature_2m_max[last] = Math.round(tgtMax);
+    remapHourly(fc, rec.rows, tgtMin, tgtMax);
+  }
+
+  function runAllFixes(fc){
+    try{ applyHourlyAndDailyFix(fc); }catch(_e){}
+    try{ alignLastDay(fc); }catch(_e){}
+  }
+
+  // Expose a helper for debugging
+  window.__mlg_fix_all = function(){ runAllFixes(window.fc); };
+
+  // Wrap renderDayParts & renderDefaultTri so panels are always built on fixed data
+  try{
+    const _renderDayParts = window.renderDayParts;
+    if(typeof _renderDayParts === "function" && !_renderDayParts.__fixWrap){
+      window.renderDayParts = function(sub){
+        try{ runAllFixes(window.fc); }catch(_e){}
+        const out = _renderDayParts.apply(this, arguments);
+        try{ document.dispatchEvent(new CustomEvent('mlg:dayparts-rendered')); }catch(_e){}
+        return out;
+      };
+      window.renderDayParts.__fixWrap = true;
+    }
+  }catch(_e){}
+
+  try{
+    const _renderDefaultTri = window.renderDefaultTri;
+    if(typeof _renderDefaultTri === "function" && !_renderDefaultTri.__fixWrap){
+      window.renderDefaultTri = function(){
+        try{ runAllFixes(window.fc); }catch(_e){}
+        return _renderDefaultTri.apply(this, arguments);
+      };
+      window.renderDefaultTri.__fixWrap = true;
+    }
+  }catch(_e){}
+
+  // Also wrap renderDaily (belt-and-suspenders)
+  try{
+    const _renderDaily = window.renderDaily;
+    if(typeof _renderDaily === "function" && !_renderDaily.__fixWrap2){
+      window.renderDaily = function(fc){
+        try{ runAllFixes(fc||window.fc); }catch(_e){}
+        return _renderDaily.apply(this, arguments);
+      };
+      window.renderDaily.__fixWrap2 = true;
+    }
+  }catch(_e){}
+
+  // Re-run fixes once now and ping the UI
+  try{
+    if(window.fc){ runAllFixes(window.fc); }
+    try{ document.dispatchEvent(new CustomEvent('mlg:dayparts-rendered')); }catch(_e){}
+  }catch(_e){}
+})();
+</script>
 </body>
 </html>
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
