@@ -17554,8 +17554,11 @@ html, body{ overflow-x:hidden; }
 
 /* Modalità UR: nasconde il vento e mostra la goccia */
 #dailyDetailPanel .hr-wind .ur-alt{ display:none; }
+#hourlyPanel .hr-wind .ur-alt{ display:none; }
 #dailyDetailPanel.ur-on .hr-wind .wind-wrap{ display:none !important; }
+#hourlyPanel.ur-on .hr-wind .wind-wrap{ display:none !important; }
 #dailyDetailPanel.ur-on .hr-wind .ur-alt{ display:inline-flex !important; }
+#hourlyPanel.ur-on .hr-wind .ur-alt{ display:inline-flex !important; }
 
 /* Goccia UR */
 .hr-wind .ur-alt{ align-items:center; gap:6px; white-space:nowrap; }
@@ -17572,7 +17575,7 @@ html, body{ overflow-x:hidden; }
 
 <script id="wind-ur-toggle-js-2025-09-18">
 (function(){
-  var MODE = 'wind'; // 'wind' | 'ur'
+  var MODE = 'ur'; // 'wind' | 'ur'
 
   function humiLabel(p){
     var v = Number(p)||0;
@@ -17694,9 +17697,9 @@ html, body{ overflow-x:hidden; }
   function applyMode(){
     prepareCells();
     var panel = document.getElementById('dailyDetailPanel');
-    if(!panel) return;
-    if(MODE==='ur'){ panel.classList.add('ur-on'); }
-    else{ panel.classList.remove('ur-on'); }
+    var hp = document.getElementById('hourlyPanel');
+    if(panel){ if(MODE==='ur'){ panel.classList.add('ur-on'); } else { panel.classList.remove('ur-on'); } }
+    if(hp){ if(MODE==='ur'){ hp.classList.add('ur-on'); } else { hp.classList.remove('ur-on'); } }
     try{ if(typeof window.convertWind==='function') window.convertWind(document); }catch(_e){}
   }
 
@@ -17715,7 +17718,7 @@ html, body{ overflow-x:hidden; }
 
   function init(){
     ensureHeaderToggle();
-    applyMode();
+    setMode(MODE);
   }
 
   if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); }
@@ -21493,6 +21496,470 @@ try{
 })();
 </script>
 
+
+<!-- =================== MLG Hard Visual Freeze (no flicker) =================== -->
+<style>
+.mlg-freeze-layer{position:fixed; left:0; top:0; width:0; height:0; pointer-events:none; z-index:2147483647;}
+.mlg-freeze-shot{position:absolute; box-sizing:border-box; will-change:transform;}
+.mlg-freeze-hidden{opacity:0 !important;}
+</style>
+<script>
+/* MLG Hard Visual Freeze
+   Congela VISIVAMENTE i pannelli orario/tri-orario creando un clone statico
+   posizionato in un layer fisso sopra la pagina. L'app continua ad aggiornare
+   gli originali (che restano invisibili). Niente lampeggi. */
+(function(){
+  const HARD_CAP = 5000;
+  const QUIET = 800;
+  const START = 100;
+  const PANEL_SEL = ['#hourlyPanel','.hourly-panel','.box-orario','.orario','#trihourlyPanel','.trihourly'];
+
+  const layer = document.createElement('div');
+  layer.className = 'mlg-freeze-layer';
+  document.addEventListener('DOMContentLoaded', ()=> document.body.appendChild(layer));
+
+  let mo, last=performance.now(), start=performance.now(), frozen=false;
+  let shots = [];
+
+  function qsa(r,s){ return Array.from(r.querySelectorAll(s)); }
+  function findPanels(){
+    const out = [];
+    PANEL_SEL.forEach(sel => { qsa(document, sel).forEach(n=> out.push(n)); });
+    // de-dup
+    return Array.from(new Set(out));
+  }
+  function rectOnViewport(el){
+    const r = el.getBoundingClientRect();
+    return {x:r.left, y:r.top, w:r.width, h:r.height};
+  }
+  function cloneStatic(el){
+    // deep clone statico
+    const c = el.cloneNode(true);
+    // neutralizza anim/transizioni nel clone
+    c.querySelectorAll('*').forEach(n=>{ n.style.animation='none'; n.style.transition='none'; n.style.filter='none'; });
+    c.style.animation='none'; c.style.transition='none';
+    // fissa dimensioni del root clone
+    const r = el.getBoundingClientRect();
+    c.style.width = r.width+'px';
+    c.style.height = r.height+'px';
+    c.style.overflow = 'hidden';
+    return c;
+  }
+  function makeShotFor(el){
+    const r = rectOnViewport(el);
+    if(r.w<10 || r.h<10) return null;
+    const holder = document.createElement('div');
+    holder.className = 'mlg-freeze-shot';
+    holder.style.left = r.x+'px';
+    holder.style.top = r.y+'px';
+    holder.style.width = r.w+'px';
+    holder.style.height = r.h+'px';
+    const clone = cloneStatic(el);
+    holder.appendChild(clone);
+    layer.appendChild(holder);
+    // nascondi originale (resta attivo)
+    el.classList.add('mlg-freeze-hidden');
+    return {el, holder};
+  }
+  function clearShots(){
+    shots.forEach(s=>{ try{s.el.classList.remove('mlg-freeze-hidden');}catch(e){} });
+    shots = [];
+    while(layer.firstChild) layer.removeChild(layer.firstChild);
+  }
+  function refitShots(){
+    // riposiziona su scroll/resize
+    shots.forEach(s=>{
+      const r = rectOnViewport(s.el);
+      s.holder.style.left = r.x+'px';
+      s.holder.style.top  = r.y+'px';
+      s.holder.style.width = r.w+'px';
+      s.holder.style.height= r.h+'px';
+    });
+  }
+
+  function observeFor(el,cb){
+    const m = new MutationObserver(()=> cb());
+    m.observe(el, {childList:true, subtree:true, attributes:true, characterData:true});
+    return m;
+  }
+
+  function freeze(){
+    if(frozen) return;
+    const panels = findPanels();
+    if(!panels.length){ setTimeout(run, 250); return; }
+    clearShots();
+    panels.forEach(p => {
+      const s = makeShotFor(p);
+      if(s) shots.push(s);
+    });
+    frozen = true;
+    window.addEventListener('scroll', refitShots, {passive:true});
+    window.addEventListener('resize', refitShots);
+    refitShots();
+  }
+
+  function unfreeze(){
+    frozen = false;
+    clearShots();
+    window.removeEventListener('scroll', refitShots);
+    window.removeEventListener('resize', refitShots);
+  }
+
+  function run(){
+    const panels = findPanels();
+    if(!panels.length){ setTimeout(run, 250); return; }
+    mo && mo.disconnect();
+    start = last = performance.now();
+    // osserva tutti i pannelli
+    const multi = new MutationObserver(()=>{ last = performance.now(); });
+    panels.forEach(p => multi.observe(p, {childList:true, subtree:true, attributes:true, characterData:true}));
+    mo = multi;
+
+    (function tick(){
+      const now = performance.now();
+      if(((now-last)>QUIET && (now-start)>600) || (now-start)>HARD_CAP){
+        freeze();
+        return;
+      }
+      requestAnimationFrame(tick);
+    })();
+  }
+
+  // API
+  window.MLGHardFreeze = { freeze, unfreeze, rerun: ()=>{ unfreeze(); run(); } };
+
+  window.addEventListener('load', ()=> setTimeout(run, START));
+  window.addEventListener('mlg:cityChanged', ()=> { MLGHardFreeze.rerun(); });
+  window.addEventListener('mlg:forecastOpened', ()=> { MLGHardFreeze.rerun(); });
+})();
+</script>
+<!-- ================= / FINE MLG Hard Visual Freeze (no flicker) ================= -->
+
+
+<style id="mlg-freeze-css">
+/* === Freeze Manager (anti-flicker + dedupe) === */
+[data-frozen]{ opacity:0; pointer-events:none; }
+[data-frozen="soft"]{ opacity:0; pointer-events:none; }
+[data-frozen="hard"]{ opacity:0; pointer-events:none; }
+/* when revealed */
+.mlg-freeze-revealed{ opacity:1 !important; transition:opacity .28s ease; pointer-events:auto; }
+/* hide duplicate wind flags and empty gauges proactively */
+.mlg-hide{ display:none !important; }
+/* make swaps invisible while building */
+.mlg-swap-building{ visibility:hidden; }
+</style>
+
+<script id="mlg-freeze-js">
+/* === Freeze Manager v2 — stabilizza 24h, tri‑orari e 7 giorni ===
+   - Blocca subito i pannelli che lampeggiano durante gli update iniziali
+   - Li sblocca SOLO quando i contenuti sono stabili (nessuna mutazione per 350ms)
+   - Dopo lo sblocco resta in HARD‑FREEZE: niente lampeggiamenti da aggiornamenti live
+   - Se l'utente seleziona un altro giorno, usa uno swap atomico (senza flicker)
+*/
+(function(){
+  const SEL = {
+    hourly:    '#hourlyPanel',
+    tri:       '#dayParts',
+    dailyRow:  '.days'
+  };
+
+  // 1) Applica subito il freeze
+  function applyInitialFreeze(){
+    [SEL.hourly, SEL.tri, SEL.dailyRow].forEach(s => {
+      document.querySelectorAll(s).forEach(el => {
+        if(!el.dataset.frozen){ el.dataset.frozen = 'hard'; }
+      });
+    });
+  }
+
+  // 2) Heuristics per deduplica e pulizia
+  function dedupeAndClean(root){
+    if(!root) return;
+    try{
+      // Doppia bandierina del vento: rimuovi duplicati adiacenti di icone "vento"
+      const windIcons = root.querySelectorAll('i.fa-flag, i.fa-flag-wind, .wind-flag, [data-wind-flag="1"]');
+      const seen = new Set();
+      windIcons.forEach(icon => {
+        const key = icon.closest('tr, .row, .slot')?.innerText?.slice(0,80) || icon.outerHTML.slice(0,120);
+        if(seen.has(key)){ icon.classList.add('mlg-hide'); }
+        else{ seen.add(key); }
+      });
+
+      // Gauge senza precipitazioni: se nella stessa riga/cella c'è "assente", "—", "0 mm" -> nascondi gauge
+      const gauges = root.querySelectorAll('.gauge, .precip-gauge, [data-role="precip-gauge"]');
+      gauges.forEach(g => {
+        const scope = g.closest('tr, .row, .hour-row, .cell, .slot') || g.parentElement;
+        const txt = (scope?.innerText || '').toLowerCase();
+        if(/assente|—|0\s*mm|0\.0\s*mm|nessuna/i.test(txt)){
+          g.classList.add('mlg-hide');
+        }
+      });
+
+      // Icone meteo immagini: evita raddoppi (img.weather-icon immediatamente duplicati)
+      root.querySelectorAll('img.weather-icon + img.weather-icon').forEach(el => el.classList.add('mlg-hide'));
+    }catch(e){ /* silent */ }
+  }
+
+  // 3) Observer che aspetta la quiete (no mutazioni per quietMs) prima dello sblocco
+  function makeStabilizer(target){
+    if(!target) return;
+    let timer = null;
+    const quietMs = 350;
+    const observer = new MutationObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        // Una volta quieto, pulisci dedupe e sblocca ma mantieni hard-freeze (niente future animazioni)
+        dedupeAndClean(target);
+        revealOnce(target);
+        observer.disconnect();
+        // Mantieni lo stato in hard-freeze logico: impedisci future transizioni visibili
+        target.dataset.frozen = 'hard';  // flag rimane, ma visivamente è già revealed
+      }, quietMs);
+    });
+    observer.observe(target, {childList:true, subtree:true, attributes:true, characterData:true});
+  }
+
+  function revealOnce(el){
+    // Rimuove l'opacità e rende interattivo
+    el.classList.add('mlg-freeze-revealed');
+  }
+
+  // 4) Swap atomico quando si clicca un altro giorno della riga a 7 giorni
+  function setupDailySwap(){
+    const row = document.querySelector(SEL.dailyRow);
+    if(!row) return;
+    row.addEventListener('click', (ev) => {
+      const day = ev.target.closest('.day');
+      if(!day) return;
+      // Blocca pannelli che possono lampeggiare
+      const hourly = document.querySelector(SEL.hourly);
+      const tri    = document.querySelector(SEL.tri);
+      [hourly, tri].forEach(el => el && el.classList.add('mlg-swap-building'));
+      // Mini debounce: lascia all'app aggiornare il DOM, poi pulisci e mostra in un colpo
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          [hourly, tri].forEach(el => {
+            if(!el) return;
+            dedupeAndClean(el);
+            el.classList.remove('mlg-swap-building');
+            el.classList.add('mlg-freeze-revealed');
+            el.dataset.frozen = 'hard';
+          });
+        }, 120); // tempo sufficiente a completare il re-render interno
+      });
+    }, {passive:true});
+  }
+
+  // 5) Impedisci che aggiornamenti successivi rendano visibili intermediate states
+  function blockFutureFlicker(){
+    const guard = (el) => {
+      if(!el) return;
+      const obs = new MutationObserver((mutList) => {
+        // Applica dedupe "al volo" ma non togliere mai la classe revealed
+        dedupeAndClean(el);
+      });
+      obs.observe(el, {childList:true, subtree:true});
+    };
+    [document.querySelector(SEL.hourly),
+     document.querySelector(SEL.tri),
+     document.querySelector(SEL.dailyRow)].forEach(guard);
+  }
+
+  // 6) Avvio
+  function init(){
+    applyInitialFreeze();
+    // attacca stabilizer ai pannelli principali
+    [SEL.hourly, SEL.tri, SEL.dailyRow].forEach(s => {
+      document.querySelectorAll(s).forEach(makeStabilizer);
+    });
+    setupDailySwap();
+    blockFutureFlicker();
+    // sblocco di sicurezza se qualcosa resta vuoto ma stabile
+    setTimeout(() => {
+      [SEL.hourly, SEL.tri, SEL.dailyRow].forEach(s => {
+        document.querySelectorAll(s).forEach(revealOnce);
+      });
+    }, 2000);
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init, {once:true});
+  }else{
+    init();
+  }
+})();
+</script>
+
+<!-- === MLG Loading Banner (2025-10-06) === -->
+<style id="mlg-loading-banner-css">
+  #mlgLoading{
+    position:fixed; inset:0; display:none; place-items:center; z-index:1400;
+    background:rgba(0,0,0,.45); backdrop-filter: blur(6px);
+  }
+  #mlgLoading.visible{ display:grid; }
+  #mlgLoading .box{
+    width: min(92vw, 560px);
+    border-radius: 18px;
+    padding: 18px 16px 14px;
+    background: var(--glass, rgba(255,255,255,.16));
+    color: var(--text, #ecf1f8);
+    border: 1px solid rgba(255,255,255,.22);
+    box-shadow: 0 18px 44px rgba(0,0,0,.35);
+    text-align: center;
+  }
+  #mlgLoading .row{
+    display:flex; align-items:center; gap:12px; justify-content:center; margin-bottom:6px;
+  }
+  #mlgLoading .spinner{
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.35);
+    border-top-color: var(--clr-accent, #facc15);
+    animation: mlgSpin 0.9s linear infinite;
+  }
+  @keyframes mlgSpin{ to{ transform: rotate(360deg); } }
+  #mlgLoading .title{
+    font-weight: 800; font-size: clamp(16px, 4.6vw, 20px);
+  }
+  #mlgLoading .sub{
+    margin-top: 4px; font-size: clamp(12px, 3.5vw, 14px); opacity:.92;
+  }
+  /* High-contrast in night mode */
+  body.night #mlgLoading .box{ background: rgba(0,0,0,.72); border-color: rgba(255,255,255,.18); }
+  /* Reduce motion */
+  @media (prefers-reduced-motion: reduce){
+    #mlgLoading .spinner{ animation: none; }
+  }
+</style>
+<div id="mlgLoading" role="status" aria-live="polite" aria-label="Caricamento previsioni">
+  <div class="box">
+    <div class="row">
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="title">Meteo Lo Gullo sta elaborando le previsioni per la tua zona..</div>
+    </div>
+    <div class="sub">la velocità dipende dalla tua connessione di rete attuale.</div>
+  </div>
+</div>
+
+
+<script id="mlg-loading-banner-js-2025-10-06">
+(function(){
+  function $(id){ return document.getElementById(id); }
+  function ensure(){ 
+    var el = $('mlgLoading');
+    if(el) return el;
+    try{
+      el = document.createElement('div'); el.id='mlgLoading';
+      el.innerHTML = '<div class="box"><div class="row"><div class="spinner" aria-hidden="true"></div><div class="title">Meteo Lo Gullo sta elaborando le previsioni per la tua zona..</div></div><div class="sub">la velocità dipende dalla tua connessione di rete attuale.</div></div>';
+      document.body.appendChild(el);
+      return el;
+    }catch(e){ return null; }
+  }
+  function show(){ var el = ensure(); if(el) el.classList.add('visible'); }
+  function hide(){ var el = $('mlgLoading'); if(el) el.classList.remove('visible'); }
+  window.__mlgLoading = { show, hide };
+
+  // Utility: wait until the forecast table exists and has data
+  function waitForecastReady(timeoutMs){
+    return new Promise(function(resolve){
+      var t0 = performance.now();
+      (function check(){
+        try{
+          var t = $('forecast');
+          var ok = !!(t && t.rows && t.rows.length > 1);
+          if(ok){ return resolve(t); }
+        }catch(e){}
+        if(timeoutMs && performance.now() - t0 > timeoutMs){ return resolve(null); }
+        requestAnimationFrame(check);
+      })();
+    });
+  }
+
+  // Find a "section" wrapper for #forecast to observe settling (fallback to table itself)
+  function forecastSection(){
+    var t = $('forecast');
+    if(!t) return null;
+    var s = t.closest && t.closest('section, .section, .forecast, #forecastSection, .forecast-section, main, .container');
+    return s || t;
+  }
+
+  // Wait until an element's layout is stable and has reached near-top position
+  function waitSectionSettled(el, opts){
+    opts = Object.assign({ stableForMs: 600, maxWaitMs: 8000, topThresholdVH: 48 }, opts||{});
+    if(!el) return Promise.resolve();
+    return new Promise(function(resolve){
+      var lastKey = null, stable = 0, start = performance.now(), rafId = 0;
+      function atTopEnough(r){
+        var vh = Math.max(1, window.innerHeight || 1);
+        var topVH = (r.top / vh) * 100;
+        return topVH <= opts.topThresholdVH; // section has "salito su" (top is above ~half viewport)
+      }
+      function sample(){
+        var r = el.getBoundingClientRect();
+        var cs = getComputedStyle(el);
+        // include transform + opacity + height + top; round to reduce noise
+        var key = [r.top.toFixed(2), r.height.toFixed(2), cs.opacity, cs.transform].join('|');
+        if(key === lastKey && atTopEnough(r)){
+          stable += 16;
+        } else {
+          stable = 0;
+          lastKey = key;
+        }
+        if(stable >= opts.stableForMs){ cancelAnimationFrame(rafId); return resolve(); }
+        if(performance.now() - start > opts.maxWaitMs){ cancelAnimationFrame(rafId); return resolve(); }
+        rafId = requestAnimationFrame(sample);
+      }
+      // also fast-path if transitions end after the section reached top
+      function onEnd(){
+        var r = el.getBoundingClientRect();
+        if(atTopEnough(r)) setTimeout(resolve, 90);
+      }
+      el.addEventListener('transitionend', onEnd, {once:true, passive:true});
+      el.addEventListener('animationend', onEnd, {once:true, passive:true});
+      sample();
+    });
+  }
+
+  // Bind: show on submit
+  (function bindSubmit(){
+    try{
+      var form = $('searchForm'); var inp = $('cityInput');
+      if(!form || !inp || form.__mlgLoadingBound) return;
+      form.addEventListener('submit', function(){
+        try{ var q = (inp.value||'').trim(); if(q){ show(); } }catch(e){}
+      }, true);
+      form.__mlgLoadingBound = true;
+    }catch(e){}
+  })();
+
+  // Hook window.run to hide only after the forecast area is populated, visible near the top and visually stable
+  (function hookRun(){
+    try{
+      var old = window.run;
+      if(typeof old === 'function' && !old.__mlgLoadingHook){
+        window.run = async function(){
+          try{ show(); }catch(e){}
+          try{
+            var r = await old.apply(this, arguments);
+            var table = await waitForecastReady(7000);
+            var sec = forecastSection() || table;
+            await waitSectionSettled(sec, { stableForMs: 650, maxWaitMs: 10000, topThresholdVH: 52 });
+            return r;
+          }finally{
+            hide();
+          }
+        };
+        window.run.__mlgLoadingHook = true;
+      }
+    }catch(e){}
+  })();
+
+  // Safety: also hide on global errors after short delay (to avoid early hide before settling)
+  window.addEventListener('error', function(){ setTimeout(hide, 300); }, {passive:true});
+  window.addEventListener('unhandledrejection', function(){ setTimeout(hide, 300); }, {passive:true});
+})();
+</script>
+
+
 </body>
 </html>
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
@@ -23907,3 +24374,129 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
 
 
 
+
+<!-- === PATCH 2025-10-06 — 7 Giorni: correzione prudente temperature dell’ULTIMO giorno === -->
+<script id="last-day-clamp-fix">
+(function(){
+  // Legge un numero "NN°" da un nodo; restituisce NaN se non trovato
+  function readTempFrom(el){
+    if(!el) return NaN;
+    var s = (el.getAttribute('aria-label') || el.textContent || '').replace(',', '.'); 
+    var m = s.match(/-?\d+(?:\.\d+)?/);
+    return m ? parseFloat(m[0]) : NaN;
+  }
+  // Trova i nodi per max/min dentro una .day generica
+  function findMinMaxNodes(day){
+    if(!day) return {min:null, max:null};
+    var maxEl = day.querySelector('.tmax, .max, .temp-hi, .hi, [data-role="tmax"]');
+    var minEl = day.querySelector('.tmin, .min, .temp-lo, .lo, [data-role="tmin"]');
+    // fallback: prova a prendere i due badge numerici più vicini all’icona
+    if(!maxEl || !minEl){
+      var nums = day.querySelectorAll('*:not(script):not(style)');
+      var cands = [];
+      nums.forEach(function(n){
+        var t = (n.textContent||'').trim();
+        if(/-?\d+\s*°/.test(t)) cands.push(n);
+      });
+      if(!maxEl && cands[0]) maxEl = cands[0];
+      if(!minEl && cands[1]) minEl = cands[1];
+    }
+    return {min:minEl, max:maxEl};
+  }
+  function setTemp(el, val){
+    if(!el || !isFinite(val)) return;
+    var s = (el.textContent||'').replace(',', '.');
+    if(/\d+\s*°/.test(s)){
+      el.textContent = String(Math.round(val)) + '°';
+    }else{
+      el.textContent = String(Math.round(val)) + '°';
+    }
+  }
+  function clampLastDay(){
+    try{
+      var strip = document.querySelector('#dailyPanel .days');
+      if(!strip) return;
+      var days = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+      if(days.length < 2) return;
+      var last  = days[days.length-1];
+      var prev  = days[days.length-2];
+      if(!last || !prev) return;
+      // evita di toccare se già applicato su questa versione del DOM
+      if(last.dataset.lastClampApplied === '1') return;
+
+      var nLast  = findMinMaxNodes(last);
+      var nPrev  = findMinMaxNodes(prev);
+      var lastMin = readTempFrom(nLast.min);
+      var lastMax = readTempFrom(nLast.max);
+      var prevMin = readTempFrom(nPrev.min);
+      var prevMax = readTempFrom(nPrev.max);
+
+      if(!isFinite(lastMin) && !isFinite(lastMax)) return; // niente da fare
+
+      // Heuristics "alla meno peggio":
+      // 1) La minima dell’ultimo giorno non deve superare di molto quella del penultimo.
+      //    Se è troppo alta, portala a (prevMin + 1). Se quasi uguale, lascia stare.
+      if(isFinite(prevMin) && isFinite(lastMin)){
+        var targetMin = lastMin;
+        var upper = prevMin + 1;     // non copiamo pari pari il valore precedente
+        if(lastMin > upper) targetMin = upper;
+        // 2) coerente con la massima del giorno stesso
+        if(isFinite(lastMax) && targetMin >= lastMax){
+          targetMin = lastMax - 2;
+        }
+        if(isFinite(targetMin) && targetMin !== lastMin){
+          setTemp(nLast.min, targetMin);
+        }
+      }
+
+      // 3) La massima dell’ultimo giorno: se è uno spike irrealistico rispetto al penultimo,
+      //    limitala a (prevMax + 2). Non abbassiamo se già simile o più bassa.
+      if(isFinite(prevMax) && isFinite(lastMax)){
+        var cap = prevMax + 2;
+        var newMax = lastMax;
+        if(lastMax > cap) newMax = cap;
+        // garanzia minima > massima coerente
+        if(isFinite(nLast.min ? readTempFrom(nLast.min) : NaN) && newMax <= readTempFrom(nLast.min)){
+          newMax = readTempFrom(nLast.min) + 2;
+        }
+        if(isFinite(newMax) && newMax !== lastMax){
+          setTemp(nLast.max, newMax);
+        }
+      }
+
+      // marca per evitare riloop su stesso DOM
+      last.dataset.lastClampApplied = '1';
+    }catch(e){/* silenzioso */}
+  }
+  function wrapRenderDaily(){
+    if(typeof window.renderDaily !== 'function' || window.renderDaily.__lastClamp) return;
+    var orig = window.renderDaily;
+    window.renderDaily = function(){
+      var html = orig.apply(this, arguments);
+      // Applica dopo l’inserimento nel DOM
+      setTimeout(clampLastDay, 0);
+      return html;
+    };
+    window.renderDaily.__lastClamp = true;
+  }
+  function boot(){
+    wrapRenderDaily();
+    clampLastDay(); // una volta subito se già renderizzato
+    // Osserva cambi al pannello 7 giorni
+    try{
+      var root = document.getElementById('dailyPanel');
+      if(root){
+        new MutationObserver(function(){
+          // appena cambia, riprova (ma senza loop grazie al data-flag)
+          setTimeout(clampLastDay, 0);
+        }).observe(root, {childList:true, subtree:true});
+      }
+    }catch(_e){}
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot, {once:true});
+  }else{
+    boot();
+  }
+})();
+</script>
