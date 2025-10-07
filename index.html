@@ -3737,6 +3737,106 @@ header.mlg-banner .mlg-search button i.fa-solid:empty + .fallback-label{
 }
 body.night #mlgNewsCard{ background:rgba(255,255,255,.09); }
 </style>
+
+<!-- === FAST MOBILE ICONS & NON-BLOCKING UI (2025-10-07) === -->
+<style>
+  /* Quick emoji placeholder for weather icons while real images load */
+  .wx-ph{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:1.2em; height:1.2em; line-height:1; font-size:1.2em;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,.25));
+    user-select:none;
+  }
+  /* Use content-visibility to keep off-screen panels cheap to render */
+  .mobile-fast #hourlyPanel,
+  .mobile-fast #dailyDetailPanel,
+  .mobile-fast #panel,
+  .mobile-fast .days,
+  .mobile-fast #narrativeBox{
+    content-visibility:auto;
+    contain-intrinsic-size: 600px 400px;
+  }
+  /* Prevent layout jank when images pop in */
+  img.weather-icon{ inline-size:1.2em; block-size:1.2em; }
+</style>
+<script>
+(function(){
+  // Marks the document as mobile-fast if on a small viewport (cheap heuristic)
+  try{
+    if (window.matchMedia && matchMedia('(max-width: 700px)').matches) {
+      document.documentElement.classList.add('mobile-fast');
+    }
+  }catch(e){}
+
+  // Cooperative scheduler to keep UI responsive during any heavy loops
+  window.yieldToMain = function(){
+    return new Promise(function(res){
+      (window.requestIdleCallback || window.requestAnimationFrame || setTimeout)(function(){ res(); }, 0);
+    });
+  };
+
+  // Make weather icons appear instantly with placeholders and load attributes tuned
+  document.addEventListener('DOMContentLoaded', function(){
+    var icons = document.querySelectorAll('img.weather-icon');
+    for (var i=0; i<icons.length; i++){
+      var img = icons[i];
+      // Load priorities: first 8 eager, then lazy
+      if (i < 8) {
+        img.setAttribute('loading', 'eager');
+        img.setAttribute('fetchpriority', 'high');
+      } else {
+        img.setAttribute('loading', 'lazy');
+        img.setAttribute('fetchpriority', 'low');
+      }
+      img.setAttribute('decoding', 'async');
+
+      // Instant placeholder if not already loaded
+      if (!img.complete) {
+        var span = document.createElement('span');
+        span.className = 'wx-ph';
+        // Try to pick an emoji from data-emoji or from filename hints
+        var hint = (img.getAttribute('data-emoji') || img.getAttribute('alt') || img.getAttribute('title') || '').toLowerCase();
+        var em = '☁️';
+        if (hint.includes('sole') || hint.includes('sun')) em = '☀️';
+        else if (hint.includes('piogg') || hint.includes('rain') || hint.includes('shower')) em = '🌧️';
+        else if (hint.includes('tempor') || hint.includes('storm') || hint.includes('bolt')) em = '⛈️';
+        else if (hint.includes('neve') || hint.includes('snow')) em = '❄️';
+        else if (hint.includes('nebb') || hint.includes('smog') || hint.includes('fos')) em = '🌫️';
+        else if (hint.includes('vento') || hint.includes('wind')) em = '🌬️';
+        span.textContent = em;
+        img.before(span);
+        img.style.visibility = 'hidden';
+        var done = function(){
+          try{ span.remove(); }catch(e){ if (span && span.parentNode) span.parentNode.removeChild(span); }
+          img.style.visibility = '';
+        };
+        img.addEventListener('load', done, { once:true });
+        img.addEventListener('error', done, { once:true });
+        // Failsafe: remove placeholder after ~2s even if image is cached but 'load' didn't fire
+        setTimeout(done, 2000);
+      }
+    }
+  });
+})();
+</script>
+<!-- === /FAST MOBILE ICONS & NON-BLOCKING UI === -->
+
+
+<!-- === Fix 7‑giorni: rimuovi spazio vuoto sopra la strip === -->
+<style id="fix-7d-gap-2025-10-07">
+  /* Compatta il card del pannello giornaliero */
+  #dailyPanel .card{ padding-top: 4px !important; }
+  /* Nessun margine extra sopra la strip */
+  #dailyPanel .card .days{ margin-top: 0 !important; }
+  /* In generale niente offset verticale sugli elementi della strip */
+  #dailyPanel .days .day{ margin-top: 0 !important; }
+  /* Su schermi piccoli togliamo ancora un pelo di padding */
+  @media (max-width:600px){
+    #dailyPanel .card{ padding-top: 2px !important; }
+  }
+</style>
+<!-- === /Fix 7‑giorni === -->
+
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
