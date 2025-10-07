@@ -3737,6 +3737,12 @@ header.mlg-banner .mlg-search button i.fa-solid:empty + .fallback-label{
 }
 body.night #mlgNewsCard{ background:rgba(255,255,255,.09); }
 </style>
+
+<style id="mlg-daily-strip-gap-fix">
+  .days .day .daily-icon { display:inline-block; margin-right:6px; margin-bottom:6px; }
+  .days .day .vals { gap:6px; }
+</style>
+
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -22867,6 +22873,204 @@ try{
   }catch(_e){}
 })();
 </script>
+
+<script id="mlg-overlay-safety-v5">
+(function(){
+  if(window.__mlgSafetyV5) return; window.__mlgSafetyV5 = true;
+
+  // --- Config: realistic clamps ---
+  var CLAMP = {
+    deltaTempMin: -30,   // °C delta allowed
+    deltaTempMax:  30,
+    tempMin:      -60,   // absolute temps allowed
+    tempMax:       60,
+    mmMin:          0,
+    mmMax:        500
+  };
+
+  function clamp(v, lo, hi){
+    v = Number(v);
+    if(!isFinite(v)) return null;
+    if(v < lo) return lo;
+    if(v > hi) return hi;
+    return v;
+  }
+  function parseTempFromNode(node){
+    if(!node) return null;
+    var s = (node.textContent || '').replace(',', '.').trim();
+    var m = s.match(/-?\d+(\.\d+)?/);
+    if(!m) return null;
+    var n = Number(m[0]);
+    return isFinite(n) ? n : null;
+  }
+
+  function getISO(){
+    var h = document.getElementById('hourlyBox');
+    if(h && h.dataset && h.dataset.iso) return h.dataset.iso;
+    var dp = document.getElementById('dayParts');
+    if(dp && dp.dataset && dp.dataset.dayIso) return dp.dataset.dayIso;
+    var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10);
+  }
+  function getOverride(){
+    try{
+      var store = (typeof window.loadStore==='function') ? window.loadStore() : null;
+      var fc = window.fc;
+      var sm = (typeof window.sectorAndMicroForLatLon==='function' && fc) ? window.sectorAndMicroForLatLon(fc.latitude, fc.longitude) : null;
+      var iso = getISO();
+      if(!store || !sm || !store.overrides) return null;
+      var per = store.overrides[iso]; if(!per) return null;
+      return per[sm.key] || per[sm.sid] || null;
+    }catch(_e){ return null; }
+  }
+
+  function bandToRange(name){
+    var k=(name||'').toLowerCase();
+    if(k==='mattina' || k==='mattino') return {start:6,end:12};
+    if(k==='pomeriggio') return {start:12,end:18};
+    if(k==='sera') return {start:18,end:24};
+    if(k==='notte') return {start:0,end:6};
+    return null;
+  }
+  function parseHourRange(str){
+    str = String(str||'').toLowerCase().trim();
+    if(str.indexOf('adesso')>=0){
+      var h = new Date().getHours(); return {start:h, end:h+1};
+    }
+    var m = str.match(/(\d{1,2})\s*:\s*\d{2}\s*[–\-]\s*(\d{1,2})\s*:\s*\d{2}/);
+    if(!m) return null;
+    var s = parseInt(m[1],10), e = parseInt(m[2],10);
+    if(e<=s) e = s+1;
+    return {start:s, end:e};
+  }
+
+  function codeFromOverride(ov, range){
+    if(!ov) return null;
+    if(ov.ranged){
+      var inBand = false;
+      if(ov.ranged.type==='band'){ var b=bandToRange(ov.ranged.band); if(b && range){ inBand = !(range.end<=b.start || range.start>=b.end); } }
+      else if(ov.ranged.type==='hours' && range){ var s=+ov.ranged.start||0, e=+ov.ranged.end||24; inBand = !(range.end<=s || range.start>=e); }
+      if(inBand && ov.ranged.code!=null) return Number(ov.ranged.code);
+    }
+    if(ov.code!=null) return Number(ov.code);
+    return null;
+  }
+
+  function applyRow(row, ov, isoVer){
+    try{
+      if(!row) return;
+      // prevent double application for this ISO (day) version
+      if(row.dataset && row.dataset.mlgver === isoVer) return;
+
+      // range detection
+      var header = row.querySelector('.time, .hour, .slot, .label, .range');
+      var range = parseHourRange(header ? header.textContent : '');
+
+      // 1) ICON + TEXT
+      var code = codeFromOverride(ov, range);
+      if(code!=null){
+        try{
+          var icon = row.querySelector('img, .icon img, .wicon img, .cond img');
+          if(icon && typeof window.iconUrlFromCode==='function'){
+            var url = window.iconUrlFromCode(code);
+            if(url){ icon.src=url; icon.removeAttribute('srcset'); }
+          }
+        }catch(_e){}
+        try{
+          var desc = row.querySelector('.cond, .desc, .text, .condition, .narr');
+          if(desc && typeof window.shortTextFromCode==='function'){
+            desc.textContent = window.shortTextFromCode(code);
+          }
+        }catch(_e){}
+      }
+
+      // 2) TEMPERATURE — only if explicit numeric delta present
+      var dUse = null;
+      if(ov){
+        // choose correct delta field
+        if(ov.ranged && (ov.ranged.delta!=null) && range){
+          var d = ov.ranged.delta;
+          // field may be object or number
+          if(typeof d === 'number'){ dUse = d; }
+          else if(d && typeof d === 'object' && typeof d.temp === 'number'){ dUse = d.temp; }
+          else if(d && typeof d === 'object'){
+            // choose by time-of-day
+            var hr = range.start;
+            if(hr>=12 && typeof d.tmax === 'number') dUse = d.tmax;
+            else if(typeof d.tmin === 'number') dUse = d.tmin;
+          }
+        } else if(ov.delta!=null){
+          var dd = ov.delta;
+          if(typeof dd === 'number'){ dUse = dd; }
+          else if(dd && typeof dd === 'object' && typeof dd.temp === 'number'){ dUse = dd.temp; }
+          else if(dd && typeof dd === 'object'){
+            var nowh = (range?range.start:new Date().getHours());
+            if(nowh>=12 && typeof dd.tmax === 'number') dUse = dd.tmax;
+            else if(typeof dd.tmin === 'number') dUse = dd.tmin;
+          }
+        }
+      }
+      if(dUse!=null && isFinite(dUse)){
+        dUse = clamp(dUse, CLAMP.deltaTempMin, CLAMP.deltaTempMax);
+        var tEl = row.querySelector('.temp, .temperature, .t, .badge-temp');
+        var base = parseTempFromNode(tEl);
+        if(base!=null){
+          var out = clamp(base + dUse, CLAMP.tempMin, CLAMP.tempMax);
+          if(out!=null && tEl){ tEl.textContent = Math.round(out) + '°'; }
+        }
+      }
+
+      // 3) PRECIP — only if explicit
+      var mmUse = null;
+      if(ov && (ov.mm!=null || (ov.ranged && ov.ranged.mm!=null))){
+        mmUse = (ov.ranged && range && ov.ranged.mm!=null) ? Number(ov.ranged.mm) : Number(ov.mm);
+        mmUse = clamp(mmUse, CLAMP.mmMin, CLAMP.mmMax);
+        var pEl = row.querySelector('.prec, .rain, .mm, .badge-mm');
+        if(pEl!=null && mmUse!=null){
+          pEl.textContent = (mmUse>0 ? (mmUse<1 ? mmUse.toFixed(1) : Math.round(mmUse)) + ' mm' : '0');
+        }
+      }
+
+      // mark as done for this day
+      if(row.dataset){ row.dataset.mlgver = isoVer; }
+    }catch(_e){}
+  }
+
+  function patchPanels(){
+    var ov = getOverride();
+    if(!ov) return;
+    var isoVer = String(getISO()||'?');
+    var roots = [];
+    var hp = document.getElementById('hourlyPanel') || document.getElementById('hourlyBox');
+    var tp = document.getElementById('triHourlyPanel') || document.getElementById('triPanel');
+    if(hp) roots.push(hp);
+    if(tp) roots.push(tp);
+    roots.forEach(function(root){
+      var rows = root.querySelectorAll('.row, .card, tr, li, .slot');
+      rows.forEach(function(r){ applyRow(r, ov, isoVer); });
+    });
+  }
+
+  // Observe and patch
+  function watch(el){
+    if(!el || el.__mlgSafeWatched) return;
+    var mo = new MutationObserver(function(){ patchPanels(); });
+    mo.observe(el, { childList:true, subtree:true });
+    el.__mlgSafeWatched = true;
+  }
+  function hook(){
+    watch(document.getElementById('hourlyPanel') || document.getElementById('hourlyBox'));
+    watch(document.getElementById('triHourlyPanel') || document.getElementById('triPanel'));
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ patchPanels(); hook(); }, 0); }, {once:true});
+  // Also after manual actions
+  ['click','change','sector:applied','forecast:icons-ready'].forEach(function(ev){
+    window.addEventListener(ev, function(){ setTimeout(patchPanels, 0); }, true);
+  });
+  setInterval(hook, 1200); // if panels remount
+})();
+</script>
+
 </body>
 </html>
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
