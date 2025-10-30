@@ -3743,6 +3743,136 @@ body.night #mlgNewsCard{ background:rgba(255,255,255,.09); }
   .days .day .vals { gap:6px; }
 </style>
 
+
+<style> .mlg-freeze-layer{ display:none !important; } </style>
+
+<!-- === 3B-style Map Skin (non-invasive, keeps markers/icons intact) === -->
+<style id="skin-3b-mappa">
+/* Container: glossy card with ocean gradient like 3B */
+#mapArea{
+  position:relative;
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(255,255,255,.18), transparent 60%),
+    linear-gradient(180deg, #5ecbff 0%, #0ea5e9 55%, #0673b7 100%);
+  border-radius: 14px !important;
+  box-shadow:
+    0 14px 28px rgba(0,0,0,.30),
+    inset 0 0 0 1px rgba(255,255,255,.18);
+  overflow:hidden;
+}
+
+/* Remove previous pale veil and use a subtle coastal haze */
+#mapArea::before{
+  content:"";
+  position:absolute; inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(65% 65% at 60% 30%, rgba(255,255,255,.10), transparent 60%),
+    radial-gradient(80% 60% at 40% 80%, rgba(255,255,255,.07), transparent 60%);
+  mix-blend-mode: screen;
+}
+
+/* Map image: recolor yellow -> green land, with coastal glow */
+#map{
+  opacity: 1 !important;
+  filter:
+    hue-rotate(110deg)      /* yellow -> green */
+    saturate(1.15)
+    brightness(.98)
+    contrast(1.05)
+    drop-shadow(0 2px 0 rgba(0,0,0,.25))
+    drop-shadow(0 8px 18px rgba(0,0,0,.35));
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* Small white coast line feeling (fake outline) */
+#map::after{ display:none; } /* guard if any previous ::after existed */
+
+/* Map header chip (top-left date/label, optional) */
+.map-date{
+  position:absolute;
+  top:10px; left:10px;
+  background:rgba(0,0,0,.45);
+  color:#fff;
+  padding:6px 10px;
+  border-radius:8px;
+  font-weight:800;
+  letter-spacing:.2px;
+  z-index:6;
+  pointer-events:none;
+  backdrop-filter:blur(4px);
+  text-shadow:0 1px 3px rgba(0,0,0,.45);
+  box-shadow:0 2px 8px rgba(0,0,0,.25);
+}
+
+/* Markers (symbols) untouched, just a gentle shadow for readability */
+.marker{
+  text-shadow: 0 1px 3px rgba(0,0,0,.45);
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+}
+
+/* Bottom spacing so the map “breathes” above the bar */
+#mapArea{ margin-bottom: 18px; }
+@media(max-width:600px){
+  #mapArea{ margin-bottom: 14px; }
+}
+
+/* Night theme adaptation */
+body.night #mapArea{
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(255,255,255,.12), transparent 60%),
+    linear-gradient(180deg, #0b2243 0%, #08274f 55%, #031834 100%);
+}
+body.night .map-date{ background:rgba(0,0,0,.55); }
+</style>
+<script>
+// Inject a non-blocking date badge if not already present
+(function(){
+  var area = document.getElementById('mapArea');
+  if(!area) return;
+  if(!area.querySelector('.map-date')){
+    var d = new Date();
+    var opts = { weekday:'long', day:'2-digit', month:'short' };
+    var label = d.toLocaleDateString('it-IT', opts);
+    var el = document.createElement('div');
+    el.className = 'map-date';
+    el.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+    area.appendChild(el);
+  }
+})();
+</script>
+
+
+<style id="mlg-watermark-css">
+:root{
+  --wm-size: 220px;
+  --wm-opacity: .07;
+  --wm-opacity-night: .09;
+}
+.mlg-wm{
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  opacity: var(--wm-opacity);
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSczMDAnIGhlaWdodD0nMjAwJyB2aWV3Qm94PScwIDAgMzAwIDIwMCc+CiAgPGcgdHJhbnNmb3JtPSdyb3RhdGUoLTI1IDE1MCAxMDApJyBmaWxsPScjZmZmZmZmJyBmaWxsLW9wYWNpdHk9JzAuNzUnPgogICAgPHRleHQgeD0nOCcgeT0nNzInIGZvbnQtZmFtaWx5PSdJbnRlcixBcmlhbCxzYW5zLXNlcmlmJyBmb250LXNpemU9JzU2JyBmb250LXdlaWdodD0nODAwJz5NTEc8L3RleHQ+CiAgICA8dGV4dCB4PScxNjInIHk9JzE2OCcgZm9udC1mYW1pbHk9J0ludGVyLEFyaWFsLHNhbnMtc2VyaWYnIGZvbnQtc2l6ZT0nNTYnIGZvbnQtd2VpZ2h0PSc4MDAnPk1MRzwvdGV4dD4KICA8L2c+Cjwvc3ZnPg==");
+  background-repeat: repeat;
+  background-size: var(--wm-size) calc(var(--wm-size) * .72);
+  background-position: 0 0;
+  background-attachment: fixed;
+}
+body.night .mlg-wm{ opacity: var(--wm-opacity-night); }
+</style>
+
+
+<style id="mlg-mapArea-taller-2025-10-30">
+/* Richiesta precisa: allungare il riquadro della mappa (non la barra, non lo spazio). */
+#mapArea{ aspect-ratio: 3 / 4.10 !important; } /* ~+2.5% in altezza, leggerissimo */
+@media(max-width:600px){
+  #mapArea{ aspect-ratio: 3 / 4.08 !important; } /* mobile quasi identico, appena più alto */
+}
+</style>
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -4056,7 +4186,7 @@ function buildUrlCandidates(file){
   function imgHTMLFromFile(file, alt){
     const urls = buildUrlCandidates(file);
     const first = urls[0];
-    return `<img class="weather-icon" src="${first}" alt="${alt||''}" loading="lazy"
+    return `<img class="weather-icon" decoding="async" loading="eager" fetchpriority="high" src="${first}" alt="${alt||''}" loading="lazy"
       data-step="0"
       onerror="${onerrorChain()}"
       style="width:calc(var(--marker-size) * 1.4);height:calc(var(--marker-size) * 1.4);vertical-align:middle;object-fit:contain;filter:drop-shadow(0 1px 3px rgba(0,0,0,.35));">`;
@@ -4070,7 +4200,7 @@ function buildUrlCandidates(file){
   }
   window.buildDirectIconHTML_NOEMOJI = function(icon){
     if(typeof icon === 'string' && /^https?:\/\//.test(icon)){
-      return `<img class="weather-icon" src="${icon}" alt="" loading="lazy"
+      return `<img class="weather-icon" decoding="async" loading="eager" fetchpriority="high" src="${icon}" alt="" loading="lazy"
         onerror="this.src='${PLACEHOLDER}'"
         style="width:calc(var(--marker-size) * 1.4);height:calc(var(--marker-size) * 1.4);vertical-align:middle;object-fit:contain;filter:drop-shadow(0 1px 3px rgba(0,0,0,.35));">`;
     }
@@ -5280,7 +5410,7 @@ try{
   }
 }catch(e){}
 dEl.innerHTML=renderDaily(fc);
-    window.renderDayParts && window.renderDayParts(window.subForecastByDay ? window.subForecastByDay(fc, 0) : fc);
+    if(window.renderDayParts){try{var __selIdx=(function(){var d=document.querySelector('#dailyPanel .days .day.sel'); if(!d) return 0; var arr=[].slice.call(d.parentNode.children); return Math.max(0, arr.indexOf(d));})(); var sub=(window.subForecastByDay)? window.subForecastByDay(fc, __selIdx) : fc; window.renderDayParts(sub);}catch(_e){ window.renderDayParts(window.subForecastByDay ? window.subForecastByDay(fc, 0) : fc); }}
 try{ document.dispatchEvent(new CustomEvent('mlg:dayparts-rendered')); }catch(e){}
     /* Double refresh per "oggi": forza un secondo aggiornamento dopo che
        eventuali override/settore sono stati applicati in background */
@@ -5309,7 +5439,8 @@ try{ document.dispatchEvent(new CustomEvent('mlg:dayparts-rendered')); }catch(e)
           window.__applyRangeOverrides(window.fc);
         }
         if(window.renderDayParts){
-          var sub = (window.subForecastByDay) ? window.subForecastByDay(window.fc, 0) : window.fc;
+          var __selIdx=(function(){try{var d=document.querySelector('#dailyPanel .days .day.sel'); if(!d) return 0; var arr=[].slice.call(d.parentNode.children); return Math.max(0, arr.indexOf(d));}catch(_e){return 0;}})();
+          var sub = (window.subForecastByDay) ? window.subForecastByDay(window.fc, __selIdx) : window.fc;
           window.renderDayParts(sub);
           try{ document.dispatchEvent(new CustomEvent('mlg:dayparts-rendered')); }catch(e){}
         }
@@ -6252,7 +6383,7 @@ function buildUrlCandidates(file){
   function imgHTMLFromFile(file, alt){
     const urls = buildUrlCandidates(file);
     const first = urls[0];
-    return `<img class="weather-icon" src="${first}" alt="${alt||''}" loading="lazy"
+    return `<img class="weather-icon" decoding="async" loading="eager" fetchpriority="high" src="${first}" alt="${alt||''}" loading="lazy"
       data-step="0"
       onerror="${onerrorChain()}"
       style="width:calc(var(--marker-size) * 1.4);height:calc(var(--marker-size) * 1.4);vertical-align:middle;object-fit:contain;filter:drop-shadow(0 1px 3px rgba(0,0,0,.35));">`;
@@ -6265,7 +6396,7 @@ function buildUrlCandidates(file){
 
   window.buildDirectIconHTML_NOEMOJI = function(icon){
     if(typeof icon === 'string' && /^https?:\/\//.test(icon)){
-      return `<img class="weather-icon" src="${icon}" alt="" loading="lazy"
+      return `<img class="weather-icon" decoding="async" loading="eager" fetchpriority="high" src="${icon}" alt="" loading="lazy"
         onerror="this.src='data:image/svg+xml;utf8,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"%3E%3Crect width="64" height="64" rx="12" fill="%23e5e7eb"/%3E%3Ccircle cx="20" cy="22" r="8" fill="%23f59e0b"/%3E%3Cellipse cx="36" cy="38" rx="18" ry="12" fill="%23d1d5db"/%3E%3C/svg%3E'"
         style="width:calc(var(--marker-size) * 1.4);height:calc(var(--marker-size) * 1.4);vertical-align:middle;object-fit:contain;filter:drop-shadow(0 1px 3px rgba(0,0,0,.35));">`;
     }
@@ -13221,7 +13352,7 @@ try{
     const d = new Date(year, mi, day);
     const wd = d.toLocaleDateString('it-IT', { weekday:'long' });
     const mon = d.toLocaleDateString('it-IT', { month:'long' });
-    return wd + ' ' + d.getDate() + ' ' + mon;
+    return d.getDate() + ' ' + mon;
   }
   function update(){
     try{
@@ -21539,7 +21670,7 @@ try{
 <style>
 .mlg-freeze-layer{position:fixed; left:0; top:0; width:0; height:0; pointer-events:none; z-index:2147483647;}
 .mlg-freeze-shot{position:absolute; box-sizing:border-box; will-change:transform;}
-.mlg-freeze-hidden{opacity:0 !important;}
+.mlg-freeze-hidden{opacity:1 !important;}
 </style>
 <script>
 /* MLG Hard Visual Freeze
@@ -21596,7 +21727,7 @@ try{
     holder.appendChild(clone);
     layer.appendChild(holder);
     // nascondi originale (resta attivo)
-    el.classList.add('mlg-freeze-hidden');
+    /* disabled by fix: el.classList.add('mlg-freeze-hidden'); */
     return {el, holder};
   }
   function clearShots(){
@@ -23070,6 +23201,498 @@ try{
   setInterval(hook, 1200); // if panels remount
 })();
 </script>
+
+
+<script>
+/* === MLG emergency runtime stabilizer (2025-10-15) === */
+(function(){
+  // Force all weather-icon images to be eager + visible
+  function tune(img){
+    try{
+      if(!img || img.__mlgFixed) return;
+      img.decoding='async'; img.loading='eager'; img.fetchPriority='high';
+      img.style.opacity='1';
+      img.__mlgFixed = true;
+    }catch(_){}
+  }
+  document.querySelectorAll('img.weather-icon').forEach(tune);
+  new MutationObserver(ms=>{
+    ms.forEach(m=>{
+      if(m.type==='attributes' && m.target && m.target.tagName==='IMG' && m.target.classList.contains('weather-icon')){
+        tune(m.target);
+      }
+      m.addedNodes && m.addedNodes.forEach(n=>{
+        if(n && n.querySelectorAll){
+          n.querySelectorAll('img.weather-icon').forEach(tune);
+        }else if(n && n.tagName==='IMG' && n.classList.contains('weather-icon')){
+          tune(n);
+        }
+      });
+    });
+  }).observe(document.documentElement,{subtree:true, childList:true, attributes:true, attributeFilter:['src','loading']});
+
+  // After dayparts render, re-apply the selection (prevents return to "oggi")
+  setTimeout(function(){
+    try{
+      var sel=document.querySelector('#dailyPanel .days .day.sel');
+      if(sel){ var ev=new Event('click',{bubbles:true}); sel.dispatchEvent(ev); }
+    }catch(_){}
+  }, 150);
+
+  // Make sure any leftover "freeze" classes are removed
+  setTimeout(function(){
+    document.querySelectorAll('.mlg-freeze-hidden').forEach(function(el){ el.classList.remove('mlg-freeze-hidden'); });
+  }, 200);
+})();
+</script>
+
+<!-- === FIX 2025-10-30 — Nearest station prioritizes MLG & true proximity === -->
+<script id="nearest-station-mlg-priority">
+(function(){
+  function hav(a,b,c,d){
+    try{
+      const R=6371, toRad = Math.PI/180;
+      const dLat=(c-a)*toRad, dLon=(d-b)*toRad;
+      const la=a*toRad, lc=c*toRad;
+      const s=Math.sin(dLat/2)**2 + Math.cos(la)*Math.cos(lc)*Math.sin(dLon/2)**2;
+      return 2*R*Math.asin(Math.min(1, Math.sqrt(s)));
+    }catch(_e){ return Infinity; }
+  }
+  function valid(s){
+    return s && isFinite(s.lat) && isFinite(s.lon);
+  }
+  // Hard override that the rest of the app will pick up (same name)
+  window.nearestStation = function(lat, lon, maxKm){
+    try{
+      const arr = Array.isArray(window.stazioni) ? window.stazioni.filter(valid) : [];
+      if(!arr.length) return null;
+      const pref = arr.filter(s => s.mlg === true);
+      const pool = pref.length ? pref : arr;
+      let best=null, bd=Infinity;
+      for(const s of pool){
+        const d = hav(lat,lon,s.lat,s.lon);
+        if(d < bd){ bd=d; best=s; }
+      }
+      if(!best) return null;
+      if(maxKm!=null && isFinite(maxKm) && bd>maxKm) return null;
+      return { st: best, dist: bd };
+    }catch(_e){ return null; }
+  };
+})();
+</script>
+
+
+<!-- === FIX 2025-10-30 — Daily strip tighter, no ugly gap === -->
+<style id="daily-strip-gap-fix">
+  #dailyPanel .days{ gap:.25rem !important; }
+  #dailyPanel .day{ padding:.36rem .24rem !important; }
+  #dailyPanel .day .daily-icon{
+    display:block !important;
+    line-height:1 !important;
+    margin:0.1rem 0 0.15rem !important;  /* micro spacing only */
+    min-height:26px !important;
+  }
+  #dailyPanel .day .daily-icon .alt-icon{ display:none !important; } /* hide FA fallback */
+  #dailyPanel .day > div:first-child{ margin-bottom:2px !important; }
+  #dailyPanel .day .tmax, 
+  #dailyPanel .day .tmin, 
+  #dailyPanel .day .min{ margin-top:0 !important; }
+</style>
+
+
+<!-- === FIX 2025-10-30 — Persist selected day & block programmatic undo === -->
+<script id="daily-selection-persist">
+(function(){
+  var KEY = 'mlg:selectedDayIdx';
+  function save(idx){
+    try{ sessionStorage.setItem(KEY, String(idx)); }catch(_e){}
+    window.__userSelDayIdx = idx;
+  }
+  function load(){
+    try{
+      var v = sessionStorage.getItem(KEY);
+      if(v==null) return null;
+      var n = parseInt(v,10);
+      return isFinite(n) ? n : null;
+    }catch(_e){ return null; }
+  }
+  // 1) When user clicks a day, remember it
+  document.addEventListener('click', function(ev){
+    var d = ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day');
+    if(!d) return;
+    if(!ev.isTrusted) return;  // ignore synthetic clicks
+    var strip = d.parentElement;
+    var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+    var idx = items.indexOf(d);
+    if(idx >= 0){ save(idx); }
+  }, true);
+
+  // 2) If something tries to auto-click while we have a selection, cancel it
+  document.addEventListener('click', function(ev){
+    var d = ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day');
+    if(!d) return;
+    if(ev.isTrusted) return;               // only block synthetic
+    if(window.__userSelDayIdx==null) return;
+    ev.stopImmediatePropagation();
+    ev.preventDefault();
+  }, true);
+
+  // 3) On renderDaily, if we have a stored index, enforce it once & refresh panels
+  (function hook(){
+    var orig = window.renderDaily;
+    if(typeof orig!=='function') return;
+    if(orig.__persistHook) return;
+    window.renderDaily = function(fc){
+      var html = orig(fc);
+      try{
+        var want = load();
+        var strip = document.querySelector('#dailyPanel .days');
+        if(strip && want!=null){
+          var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
+          if(items[want]){
+            // Apply 'sel' class
+            items.forEach(function(el,i){ el.classList.toggle('sel', i===want); });
+            // Update dependent panels without simulating a click
+            if(window.fc && window.renderDayParts && window.subForecastByDay){
+              var sub = window.subForecastByDay(window.fc, want);
+              window.renderDayParts(sub);
+              try{ document.dispatchEvent(new CustomEvent('mlg:dayparts-rendered')); }catch(_e){}
+            }
+          }
+        }
+      }catch(_e){}
+      return html;
+    };
+    window.renderDaily.__persistHook = true;
+  })();
+})();
+</script>
+
+
+<!-- === PERF 2025-10-30 — small passive-scroll listeners & idle cleanups === -->
+<script id="perf-passive-listeners">
+(function(){
+  try{
+    var opts = {passive:true};
+    window.addEventListener('scroll', function(){} , opts);
+    window.addEventListener('touchmove', function(){}, opts);
+  }catch(_e){}
+  // run some non-critical refreshes in idle
+  var rif = window.requestIdleCallback || function(fn){ return setTimeout(fn, 120); };
+  rif(function(){
+    try{ document.dispatchEvent(new Event('mlg:idle')); }catch(_e){}
+  });
+})();
+</script>
+
+<!-- === FIX 2025-10-30 — IN CORSO visibile subito sul giorno corrente === -->
+<script id="mlg-incorso-immediate">
+(function(){
+  function isTempLike(el){
+    if(!el || !el.classList) return false;
+    const cls = ["min","max","hi","lo","tmin","tmax","temp-hi","temp-lo"];
+    if(cls.some(c => el.classList.contains(c))) return True;
+    const t = (el.textContent||"").trim();
+    return /-?\d+\s*°/.test(t);
+  }
+  function pickToday(){
+    const wrap = document.querySelector("#dailyPanel .days, .days");
+    if(!wrap) return null;
+    const days = Array.prototype.slice.call(wrap.querySelectorAll(".day"));
+    if(!days.length) return null;
+    // prefer explicit markers
+    for(const d of days){
+      if(d.matches('[data-today], [data-today="1"], .today, .is-today')) return d;
+    }
+    // text "oggi"
+    for(const d of days){
+      const tx=(d.textContent||"").toLowerCase();
+      if(tx.includes("oggi")) return d;
+    }
+    // default to first item
+    return days[0];
+  }
+  function ensure(){
+    try{
+      const el = pickToday();
+      if(!el || el.dataset.mlgIncorsoImmediate==="1") return;
+      // hide known temp blocks
+      Array.prototype.forEach.call(el.querySelectorAll("*"), function(n){
+        if(isTempLike(n)){ n.style.display="none"; }
+      });
+      // add badge if not present
+      if(!el.querySelector(".mlg-incorso-badge")){
+        const b=document.createElement("div");
+        b.className="mlg-incorso-badge";
+        b.innerHTML='<span>in corso</span><span class="arrow-down" aria-hidden="true"></span>';
+        el.appendChild(b);
+      }
+      el.classList.add("mlg-current");
+      el.dataset.mlgIncorsoImmediate="1";
+    }catch(_e){}
+  }
+
+  // Run ASAP after DOM is interactive, then a couple retries
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded", ensure, {once:true});
+  }else{
+    ensure();
+  }
+  setTimeout(ensure, 60);
+  setTimeout(ensure, 140);
+
+  // If renderDaily exists, hook and call ensure right after it runs
+  try{
+    var orig = window.renderDaily;
+    if(typeof orig==="function" && !orig.__incorsoImmediate){
+      window.renderDaily = function(fc){
+        var out = orig(fc);
+        try{ ensure(); }catch(_e){}
+        return out;
+      };
+      window.renderDaily.__incorsoImmediate = true;
+    }
+  }catch(_e){}
+})();
+</script>
+
+<!-- === FIX 2025-10-30 — IN CORSO: observer per prima render === -->
+<script id="mlg-incorso-observer">
+(function(){
+  // Reuse ensure() from previous script if present; otherwise define a fallback
+  function hasEnsure(){
+    return typeof window.__mlgEnsureInCorso === 'function';
+  }
+  function defineEnsureIfMissing(){
+    if(hasEnsure()) return;
+    window.__mlgEnsureInCorso = function(){
+      var wrap = document.querySelector("#dailyPanel .days, .days");
+      if(!wrap) return false;
+      var days = Array.prototype.slice.call(wrap.querySelectorAll(".day"));
+      if(!days.length) return false;
+      // find today element
+      var today = null;
+      for(const d of days){
+        if(d.matches('[data-today], [data-today="1"], .today, .is-today')){ today = d; break; }
+      }
+      if(!today){
+        for(const d of days){
+          var tx=(d.textContent||"").toLowerCase();
+          if(tx.includes("oggi")){ today = d; break; }
+        }
+      }
+      if(!today) today = days[0];
+      // prefer an existing "incorso" badge if present
+      var badge = today.querySelector('.incorso, .in-corso, .inCorso, .badge-incorso, .stato-incorso, .inCorsoBox');
+      if(badge){
+        badge.style.display = '';
+      }else{
+        // fallback to our custom badge
+        if(!today.querySelector(".mlg-incorso-badge")){
+          const b=document.createElement("div");
+          b.className="mlg-incorso-badge";
+          b.innerHTML='<span>in corso</span><span class="arrow-down" aria-hidden="true"></span>';
+          today.appendChild(b);
+        }
+      }
+      // hide temp-like blocks
+      Array.prototype.forEach.call(today.querySelectorAll("*"), function(n){
+        var txt=(n.textContent||"").trim();
+        if(/-?\d+\s*°/.test(txt)){ n.style.display="none"; }
+      });
+      today.classList.add("mlg-current");
+      return true;
+    }
+  }
+
+  defineEnsureIfMissing();
+
+  // Run immediately if possible
+  try{ window.__mlgEnsureInCorso(); }catch(_e){}
+
+  // Observe DOM until ensure succeeds once
+  var done = false;
+  var observer = new MutationObserver(function(){
+    if(done) return;
+    try{
+      if(window.__mlgEnsureInCorso && window.__mlgEnsureInCorso()){
+        done = true;
+        observer.disconnect();
+      }
+    }catch(_e){}
+  });
+  try{
+    observer.observe(document.documentElement, {childList:true, subtree:true});
+  }catch(_e){}
+
+  // Safety timeout disconnect after a while even if not done
+  setTimeout(function(){ try{ observer.disconnect(); }catch(_e){} }, 5000);
+
+  // Also hook renderDaily again just to be safe
+  try{
+    var orig = window.renderDaily;
+    if(typeof orig==="function" && !orig.__incorsoObserver){
+      window.renderDaily = function(fc){
+        var out = orig(fc);
+        try{ window.__mlgEnsureInCorso(); }catch(_e){}
+        return out;
+      };
+      window.renderDaily.__incorsoObserver = true;
+    }
+  }catch(_e){}
+})();
+</script>
+
+<!-- === Final 3B-style overrides (ensure they win the cascade) === -->
+<style id="skin-3b-final" data-origin="chatgpt">
+  /* Map container card + ocean gradient */
+  body #mapArea{
+    background:
+      radial-gradient(120% 90% at 50% -10%, rgba(255,255,255,.18), transparent 60%),
+      linear-gradient(180deg, #5ecbff 0%, #0ea5e9 55%, #0673b7 100%) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 14px 28px rgba(0,0,0,.30), inset 0 0 0 1px rgba(255,255,255,.18) !important;
+    overflow:hidden !important;
+  }
+  body #mapArea::before{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:
+      radial-gradient(65% 65% at 60% 30%, rgba(255,255,255,.10), transparent 60%),
+      radial-gradient(80% 60% at 40% 80%, rgba(255,255,255,.07), transparent 60%);
+    mix-blend-mode: screen;
+    display:block !important;
+  }
+
+  /* Land to green, keep markers intact */
+  body #map{
+    opacity: 1 !important;
+    filter: hue-rotate(110deg) saturate(1.15) brightness(.98) contrast(1.05)
+            drop-shadow(0 2px 0 rgba(0,0,0,.25))
+            drop-shadow(0 8px 18px rgba(0,0,0,.35)) !important;
+    mix-blend-mode: normal !important;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+
+  /* Markers untouched, just readability improvement */
+  body .marker{
+    text-shadow: 0 1px 3px rgba(0,0,0,.45) !important;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)) !important;
+  }
+</style>
+
+
+<!-- === FINAL CSS PATCH: Map box same width as bottom bar, date to right === -->
+<style id="mlg-final-fix">
+  /* Remove inner overlay to avoid box-inside-box */
+  #mapArea::before { background: transparent !important; }
+  /* Make map box as wide as bottom bar on small screens */
+  @media (max-width: 600px){
+    body #widget > #mapArea,
+    #widget #mapArea{
+      margin-left: 8px !important;
+      margin-right: 8px !important;
+      width: calc(100% - 16px) !important;
+      max-width: calc(100% - 16px) !important;
+      border-radius: 12px !important;
+    }
+    #mlgTopDate{
+      left: auto !important;
+      right: 12px !important;
+      top: 8px !important;
+    }
+  }
+</style>
+
+
+<!-- === MOBILE FINAL PATCH: narrow date chip with ellipsis ================== -->
+<style id="mlg-mobile-final-v7">
+  /* uniforma il box mappa (niente overlay chiaro) */
+  #mapArea::before { background: transparent !important; }
+  @media (max-width: 600px){
+    /* mappa larga come il bottom bar */
+    #mapArea{
+      position: relative !important;
+      margin: 0 8px 20px 8px !important;
+      border-radius: 12px !important;
+    }
+    /* chip data più stretto, ancorato a destra */
+    #mlgTopDate{
+      position: absolute !important;
+      right: 12px !important;
+      left: auto !important;
+      top: 8px !important;
+      font-size: 11px !important;
+      padding: 3px 7px !important;
+      border-radius: 7px !important;
+      box-sizing: border-box !important;
+      white-space: nowrap !important;
+      max-width: 52vw !important;        /* <<< restringe la larghezza */
+      overflow: hidden !important;
+      text-overflow: ellipsis !important; /* tronca con … se necessario */
+    }
+  }
+</style>
+
+
+<div class="mlg-wm" aria-hidden="true" role="presentation"></div>
+
+<style id="force-map-night-skin-v3">
+/* Taller map panel so Calabria + marker padding fully fit */
+html body #widget.skin-night #mapArea{ aspect-ratio: 2/3 !important; } /* height = 1.5 × width */
+</style>
+
+
+<style id="force-map-night-skin-v4">
+/* Extra height for the map panel; keeps everything responsive */
+html body #widget.skin-night #mapArea{
+  aspect-ratio: 1/2 !important;   /* height = 2 × width */
+  min-height: 640px !important;   /* safety floor on large screens */
+}
+</style>
+
+
+<style id="force-map-night-skin-v5">
+/* Responsive: just a few extra mm of height, without overshooting on narrow screens */
+html body #widget.skin-night #mapArea{ min-height: 0 !important; } /* neutralize v4's 640px */
+@media (max-width: 360px){
+  /* phones molto stretti: +~3% di altezza rispetto al 3/4 */
+  html body #widget.skin-night #mapArea{ aspect-ratio: 77/100 !important; } /* 0.77 */
+}
+@media (min-width: 361px) and (max-width: 767px){
+  /* telefoni comuni: +~2.5% */
+  html body #widget.skin-night #mapArea{ aspect-ratio: 10/13 !important; } /* ~0.769 */
+}
+@media (min-width: 768px){
+  /* tablet/desktop: un filo più alto, ma sempre moderato */
+  html body #widget.skin-night #mapArea{ aspect-ratio: 4/5 !important; } /* 0.8 */
+}
+</style>
+
+
+<style id="force-map-night-skin-v6">
+/* Give just a bit more vertical room on wider screens so the south markers never clip */
+@media (min-width: 768px) and (max-width: 1023px){
+  /* tablet piccolo: +6% circa */
+  html body #widget.skin-night #mapArea{ aspect-ratio: 41/50 !important; } /* 0.82 */
+}
+@media (min-width: 1024px){
+  /* desktop/laptop: +10-12% di altezza */
+  html body #widget.skin-night #mapArea{ aspect-ratio: 21/25 !important; } /* 0.84 */
+}
+</style>
+
+
+<style id="force-map-night-skin-v7">
+/* Final pass — make the map box slightly TALLER everywhere (smaller aspect-ratio values). */
+html body #widget.skin-night #mapArea{ aspect-ratio: 73/100 !important; } /* ~0.73 (vs 0.75): +~2.7% height */
+@media (min-width: 768px){
+  html body #widget.skin-night #mapArea{ aspect-ratio: 7/10 !important; } /* 0.70: +~9% height vs 0.75 */
+}
+@media (min-width: 1024px){
+  html body #widget.skin-night #mapArea{ aspect-ratio: 2/3 !important; } /* 0.666…: +~13% height vs 0.75 */
+}
+</style>
 
 </body>
 </html>
@@ -25609,5 +26232,42 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
   }else{
     boot();
   }
+})();
+</script>
+
+<style id="force-map-night-skin-v2">
+/* === NIGHT SKIN FOR MAP BOX (non-destructive) ===
+   Applies only to visuals (#widget and #mapArea). Does NOT toggle global night mode nor markers. */
+html body #widget.skin-night{ 
+  background: radial-gradient(circle at 50% 15%, var(--clr-night) 0%, var(--clr-night-2) 100%) !important;
+}
+html body #widget.skin-night #mapArea{
+  background: radial-gradient(circle at 50% 15%, var(--clr-night) 0%, var(--clr-night-2) 100%) !important;
+}
+/* keep subtle glass overlay for the night look */
+html body #widget.skin-night #mapArea::before{
+  content: ""; /* ensure the pseudo remains present if other CSS removed it */
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,.10) !important;
+  pointer-events: none;
+}
+/* keep bottom bar/buttons readable on dark background */
+html body #widget.skin-night #bottomBar{ background: rgba(255,255,255,.10) !important; }
+html body #widget.skin-night #themeBtn{ background: #ffffff33 !important; color: #fff !important; }
+</style>
+
+<script id="force-map-night-skin-v2-js">
+(function(){
+  function apply(){
+    var w = document.getElementById('widget');
+    if(w && !w.classList.contains('skin-night')) w.classList.add('skin-night');
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', apply, { once:true });
+  } else { apply(); }
+  // re-apply if the widget gets re-rendered
+  try{
+    new MutationObserver(apply).observe(document.getElementById('widget')||document.documentElement,{childList:true,subtree:true});
+  }catch(e){}
 })();
 </script>
