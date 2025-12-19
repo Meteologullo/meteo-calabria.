@@ -3873,6 +3873,40 @@ body.night .mlg-wm{ opacity: var(--wm-opacity-night); }
   #mapArea{ aspect-ratio: 3 / 4.08 !important; } /* mobile quasi identico, appena più alto */
 }
 </style>
+
+<style id="forecast-mode-hide-widget-2025-12-19">
+/* Quando si cerca una località: il box mappa deve sparire e la sezione previsioni deve salire su */
+#goBackForecast{ display:none; }
+body.mlg-forecast-active #widget{ display:none !important; }
+body.mlg-forecast-active #mlgNewsCard{ display:none !important; }
+
+/* Bottone "Indietro" anche su desktop (su mobile resta quello già definito) */
+@media (min-width: 861px){
+  body.mlg-forecast-active #goBackForecast{
+    display: inline-flex !important;
+    position: fixed !important;
+    top: calc(env(safe-area-inset-top, 0px) + 86px) !important;
+    left: 14px !important;
+    z-index: 10000 !important;
+
+    padding: 10px 14px !important;
+    border-radius: 9999px !important;
+    border: 1px solid rgba(255,255,255,.28) !important;
+    background: rgba(0,0,0,.28) !important;
+    color: #fff !important;
+    box-shadow: 0 6px 14px rgba(0,0,0,.28) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    touch-action: manipulation;
+  }
+  body.mlg-forecast-active #goBackForecast .label{ display:none !important; }
+  body.mlg-forecast-active #goBackForecast .arrow{ font-size: 20px !important; font-weight: 900 !important; line-height: 1 !important; }
+}
+</style>
 </head>
 <script>
 // --- Safe fallbacks (non-breaking) ---
@@ -3974,7 +4008,7 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
     <img src="https://meteologullo.github.io/mappamlg/logo.png" alt="MLG logo" loading="lazy">
   </div>
 
-<img alt="Mappa Calabria" id="map" loading="lazy" src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Map_of_region_of_Calabria%2C_Italy.svg/565px-Map_of_region_of_Calabria%2C_Italy.svg.png"/>
+<img alt="Mappa Calabria" id="map" loading="lazy" src="https://meteologullo.github.io/mappamlg/mapparegionale.png"/>
 </div>
 <!-- === AI Meteo Lo Gullo — Chat box sotto la mappa (iniettato) === -->
 <section aria-label="Assistente Meteo Lo Gullo" id="mlgAiBox" style="visibility:hidden">
@@ -5326,12 +5360,41 @@ try{ if(window.applySectorCondMiniToForecast) window.applySectorCondMiniToForeca
          rain: fc.hourly?.precipitation?.[idx] };
 let live=LIVE;
 
-    try{
-      const obs = await wuObs(st);
-      live = obs;
-    LIVE = live;
-}catch(e){ console.warn(e); }
-    
+/* ⚡ Performance: WU live obs in background (non blocca il rendering) */
+try{
+  const __token = (window.__mlgSearchToken = (window.__mlgSearchToken||0) + 1);
+  const __st = st;
+  const __place = (g && g.name) ? g.name : '';
+  const __dist = __st && (__st.distance||0);
+
+  (function(){
+    if(typeof wuObs !== 'function') return;
+    const timeoutMs = 3200;
+    const timeoutP = new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), timeoutMs));
+    Promise.race([wuObs(__st), timeoutP]).then(function(obs){
+      if(window.__mlgSearchToken !== __token) return;
+      if(obs && (Number.isFinite(obs.t) || Number.isFinite(obs.wind))){
+        live = obs;
+        LIVE = obs;
+      }
+      try{ sEl.innerHTML = renderStation(LIVE, (__st && __st.nome) || __place, __dist); }catch(e){}
+      try{
+        if(LIVE && (Number.isFinite(LIVE.t) || Number.isFinite(LIVE.wind))){
+          const table = hEl && hEl.querySelector ? hEl.querySelector('tbody') : null;
+          const rows = table ? table.querySelectorAll('tr') : [];
+          if(rows && rows.length){
+            const firstRow = rows[0];
+            const tempCell = firstRow && firstRow.children ? firstRow.children[3] : null;
+            if(tempCell && Number.isFinite(LIVE.t)) tempCell.innerHTML = Math.round(LIVE.t) + "°";
+            const windCell = firstRow && firstRow.children ? firstRow.children[7] : null;
+            if(windCell && Number.isFinite(LIVE.wind)) windCell.innerHTML = Math.round(LIVE.wind) + ' km/h';
+          }
+        }
+      }catch(e){}
+      try{ aEl.innerHTML = renderAdvice(LIVE, window.fc || fc, idx); }catch(e){}
+    }).catch(function(){ /* ignore */ });
+  })();
+}catch(e){}
 if(live && Number.isFinite(live.t)){ try{ LIVE = live; }catch(e){} }
 try{
   if(live && Number.isFinite(live.t) && fc && fc.daily && Array.isArray(fc.daily.temperature_2m_max)){
@@ -5448,8 +5511,43 @@ try{ document.dispatchEvent(new CustomEvent('mlg:dayparts-rendered')); }catch(e)
     }, 80);
 
 aEl.innerHTML=renderAdvice(live,fc,idx);
-    $('#radarFrame').src=`https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&detailLat=${lat}&detailLon=${lon}&width=650&height=450&zoom=6&level=surface&overlay=radar&product=ecmwf`;
-  }catch(e){
+    /* ⚡ Performance: carica il radar SOLO quando entra in viewport (lazy) */
+    try{
+      const fr = document.getElementById('radarFrame');
+      if(fr){
+        const src = `https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&detailLat=${lat}&detailLon=${lon}&width=650&height=450&zoom=6&level=surface&overlay=radar&product=ecmwf`;
+        fr.removeAttribute('src');
+        fr.dataset.src = src;
+        fr.loading = 'lazy';
+
+        // IntersectionObserver (riusabile)
+        if(!window.__mlgRadarIO && 'IntersectionObserver' in window){
+          window.__mlgRadarIO = new IntersectionObserver(function(entries, obs){
+            entries.forEach(function(en){
+              if(!en.isIntersecting) return;
+              const el = en.target;
+              if(el && el.dataset && el.dataset.src && !el.src){
+                el.src = el.dataset.src;
+              }
+              obs.unobserve(el);
+            });
+          }, {root:null, threshold:0.12});
+        }
+
+        if(window.__mlgRadarIO){
+          window.__mlgRadarIO.observe(fr);
+        }else{
+          // fallback: ritarda un po' su browser vecchi
+          setTimeout(()=>{ if(!fr.src && fr.dataset.src) fr.src = fr.dataset.src; }, 2500);
+        }
+
+        // Desktop: se vuoi, dopo 3s lo carichiamo comunque (senza bloccare subito)
+        if(window.innerWidth > 900){
+          setTimeout(()=>{ if(!fr.src && fr.dataset.src) fr.src = fr.dataset.src; }, 3000);
+        }
+      }
+    }catch(e){}
+}catch(e){
     console.error(e);
     alert(e.message || e);
   }
@@ -5482,8 +5580,42 @@ document.getElementById('searchForm').addEventListener('submit', e => {
   e.preventDefault();
   const q = $('#cityInput').value.trim();
   if(!q) return;
-  if (typeof window._mlgSearch === 'function') window._mlgSearch(q);
-  else run(q);
+
+  // Entra subito in modalità "previsioni" (la mappa sparisce e tutto sale su)
+  try{
+    const w = document.getElementById('widget');
+    if(w) w.classList.add('forecast-only');
+  }catch(_e){}
+
+  // Mostra subito l'area previsioni (loading) e annulla appena possibile se la ricerca fallisce.
+  document.body.classList.add('mlg-forecast-pending');
+  document.body.classList.add('mlg-forecast-active');
+  try{ if (typeof window.__mlgSyncForecastActive === 'function') window.__mlgSyncForecastActive(); }catch(e){}
+
+  const p = (typeof window._mlgSearch === 'function') ? window._mlgSearch(q) : run(q);
+
+  function scrollToForecast(){
+    try{
+      const t = document.getElementById('searchHeadline') || document.getElementById('dailyPanel') || document.getElementById('hourlyPanel');
+      if(t) t.scrollIntoView({behavior:'smooth', block:'start'});
+      else window.scrollTo({top: 0, behavior:'smooth'});
+    }catch(_e){}
+  }
+
+  Promise.resolve(p)
+    .then(()=>{ scrollToForecast(); })
+    .catch(()=>{ 
+      // errore: torna alla home pulita
+      document.body.classList.remove('mlg-forecast-active');
+      try{
+        const w = document.getElementById('widget');
+        if(w) w.classList.remove('forecast-only');
+      }catch(_e){}
+    })
+    .finally(()=>{ 
+      document.body.classList.remove('mlg-forecast-pending');
+      try{ if (typeof window.__mlgSyncForecastActive === 'function') window.__mlgSyncForecastActive(); }catch(e){} 
+    });
 });
 document.addEventListener('DOMContentLoaded',()=>{
   loadCalabria();
@@ -14569,12 +14701,11 @@ try{
 }
 #dailyDetailPanel .hour-row:active{ filter: brightness(0.98); }
 </style>
+<style id="subhours-fix-2025-09-15">
 /* === FIX 2025-09-15 — forza sub-ore sotto alla riga, desktop & mobile === */
 #dailyDetailPanel .hour-row{ flex-wrap: wrap !important; align-items: center !important; }
 #dailyDetailPanel .hour-row .subhours{ flex: 1 1 100% !important; width: 100% !important; }
-
-
-
+</style>
 <script id="tri-hourly-expand-js-2025-09-10">
 (function(){
   function parseRange(txt){
@@ -23694,6 +23825,167 @@ html body #widget.skin-night #mapArea{ aspect-ratio: 73/100 !important; } /* ~0.
 }
 </style>
 
+<style id="mlg-regional-map-override">
+/* ===== MLG: OVERRIDE FINALE MAPPA REGIONALE (NO FILTRI + BOX ORIZZONTALE) ===== */
+
+/* Niente filtri/effetti sulla mappa */
+/* Niente filtri/effetti sulla mappa (override anche di regole più specifiche tipo `body #map`) */
+html body #map,
+body #map,
+#widget #map,
+#widget.skin-night #map,
+html body #widget.skin-night #map{
+  opacity: 1 !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+  mix-blend-mode: normal !important;
+  transform: none !important;
+}
+
+/* Niente velature/overlay sopra la mappa */
+#mapArea::before,
+#mapArea::after{
+  content: none !important;
+  display: none !important;
+}
+
+/* Box mappa: proporzioni reali dell'immagine (4160x2341 ≈ 16:9) + niente altezza minima verticale */
+#mapArea,
+body.night #mapArea,
+#widget.skin-night #mapArea,
+html body #widget.skin-night #mapArea{
+  aspect-ratio: 4160 / 2341 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+
+  /* evita che la griglia “stiri” il box in verticale */
+  align-self: start !important;
+  justify-self: stretch !important;
+
+  /* riduce lo spazio sotto per far “salire” la mappa */
+  margin-bottom: 18px !important;
+}
+
+/* Evita che il container principale allinei/stiri i figli verso il centro */
+#widget{
+  align-items: start !important;
+  align-content: start !important;
+}
+</style>
+
+
+<!-- === MLG: HIDE SECTIONS BELOW NEWS (non distruttivo) === -->
+<style id="mlg-hide-below-news">
+  /* Home pulita: nasconde le sezioni sotto NEWS senza eliminare nulla.
+     Importante: le sezioni di previsione restano disponibili quando una ricerca è attiva. */
+
+  /* Sempre nascosti (finché ridisegni la home) */
+  #mlgAiBox,
+  #mlg-home-ux,
+  footer{
+    display: none !important;
+  }
+
+  /* Nascosti SOLO quando NON stai guardando una previsione (ricerca non attiva) */
+  body:not(.mlg-forecast-active) #dailyPanel,
+  body:not(.mlg-forecast-active) #dailyDetailPanel,
+  body:not(.mlg-forecast-active) #forecastBack,
+  body:not(.mlg-forecast-active) #triModal,
+  body:not(.mlg-forecast-active) #triModalBackdrop,
+  body:not(.mlg-forecast-active) #triModalOverlay,
+  body:not(.mlg-forecast-active) #nearestStation,
+  body:not(.mlg-forecast-active) #dayParts,
+  body:not(.mlg-forecast-active) #narrativeBox,
+  body:not(.mlg-forecast-active) #hourlyPanel,
+  body:not(.mlg-forecast-active) #adviceBox,
+  body:not(.mlg-forecast-active) #radarFrame{
+    display: none !important;
+  }
+</style>
+
+<script id="mlg-forecast-active-sync">
+(function(){
+  function getWidget(){ return document.getElementById('widget'); }
+  function computeOn(){
+    var w = getWidget();
+    var focus = !!(w && w.classList && w.classList.contains('forecast-only'));
+    var pending = document.body.classList.contains('mlg-forecast-pending');
+    return focus || pending;
+  }
+  function sync(){
+    document.body.classList.toggle('mlg-forecast-active', computeOn());
+    if(!computeOn()){
+      document.body.classList.remove('mlg-forecast-pending');
+    }
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    var w = getWidget();
+    if(!w) return;
+    sync();
+    try{
+      new MutationObserver(sync).observe(w, {attributes:true, attributeFilter:['class']});
+    }catch(e){}
+  });
+  // Expose for small hooks
+  window.__mlgSyncForecastActive = sync;
+})();
+</script>
+
+
+
+<script id="mlg-search-btn-mobile-fix">
+/* === FIX: tasto giallo "Vai" deve funzionare sempre anche al primo tap su mobile ===
+   In alcuni browser mobile il primo tap fuori dall'input viene "mangiato" per chiudere la tastiera.
+   Intercettiamo touch/pointerdown sul bottone e forziamo la submit del form. */
+(function(){
+  const form = document.getElementById('searchForm');
+  if(!form) return;
+  const btn = form.querySelector('button[type="submit"], button:not([type])');
+  if(!btn) return;
+
+  let guard = 0;
+  function triggerSubmit(){
+    const now = Date.now();
+    if(now - guard < 350) return; // evita doppie submit (touchstart + click)
+    guard = now;
+
+    try{
+      // requestSubmit è la via "pulita" (trigghera submit handler)
+      if(typeof form.requestSubmit === 'function'){
+        form.requestSubmit(btn);
+      }else{
+        // fallback robusto
+        const ev = new Event('submit', { bubbles:true, cancelable:true });
+        form.dispatchEvent(ev);
+      }
+    }catch(e){
+      try{
+        const ev = new Event('submit', { bubbles:true, cancelable:true });
+        form.dispatchEvent(ev);
+      }catch(_e){}
+    }
+  }
+
+  // Touch: usare touchstart per non perdere il primo tap (quando la tastiera si chiude)
+  btn.addEventListener('touchstart', function(e){
+    e.preventDefault();
+    triggerSubmit();
+  }, {passive:false});
+
+  // Pointer events (Android Chrome/Edge)
+  btn.addEventListener('pointerdown', function(e){
+    if(e.pointerType && e.pointerType !== 'mouse'){
+      e.preventDefault();
+      triggerSubmit();
+    }
+  }, {passive:false});
+
+  // Sicurezza: se click arriva comunque, non bloccarlo (il guard evita doppioni)
+  btn.addEventListener('click', function(){ /* no-op */ }, true);
+})();
+</script>
+
 </body>
 </html>
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
@@ -26271,3 +26563,176 @@ html body #widget.skin-night #themeBtn{ background: #ffffff33 !important; color:
   }catch(e){}
 })();
 </script>
+
+<!-- === FINAL PATCH • Hide extra logo + place date INSIDE built‑in white box on map PNG (2025‑12‑18) === -->
+<style id="mlg-final-logo-hide-and-date-in-mapbox">
+  /* 1) Nascondi il logo HTML (la mappa PNG ha già il suo logo in basso a destra) */
+  html body #mapArea #mlgLogoBadge{ display:none !important; }
+
+  /* 2) Data: niente chip grafico (il riquadro bianco è già nella PNG) */
+  html body #mapArea #mlgTopDate{
+    position:absolute !important;
+
+    /* Coordinate del riquadro bianco dentro la PNG (4160×2341):
+       box ≈ x 3426–4073, y 97–237  → top ~4.1%, right ~2.1%, width ~15.6%, height ~6.0% */
+    top: 4.15% !important;
+    right: 2.10% !important;
+    left: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+
+    width: 15.6% !important;
+    height: 6.0% !important;
+
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+
+    color: rgba(30,30,30,.85) !important;
+    font-weight: 700 !important;
+    letter-spacing: .2px !important;
+    text-shadow: none !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+
+    pointer-events:none !important;
+    z-index: 20 !important;
+
+    /* dimensione leggibile e stabile */
+    font-size: clamp(11px, 1.15vw, 20px) !important;
+    line-height: 1 !important;
+  }
+
+  /* Se qualche script aggiunge classi/posizioni, le ignoriamo */
+  html body #mapArea #mlgTopDate.outside,
+  html body #mapArea #mlgTopDate.clamp-right{ }
+
+  /* Su telefoni: evita che diventi microscopica */
+  @media (max-width: 600px){
+    /* In mobile: mantieni il riquadro bianco della PNG (stesse coordinate),
+       riducendo SOLO il font per restare sempre dentro il box. */
+    html body #mapArea #mlgTopDate{
+      font-size: clamp(8px, 2.2vw, 13px) !important;
+      letter-spacing: 0 !important;
+    }
+  }
+  @media (max-width: 380px){
+    html body #mapArea #mlgTopDate{ font-size: clamp(7px, 2.6vw, 11px) !important; }
+  }
+</style>
+
+<!-- === PATCH • Desktop top gap so widget doesn't sit under fixed search bar (2025‑12‑19) === -->
+<style id="mlg-desktop-top-gap">
+  /* Aggiunge un piccolo margine SOLO su desktop, senza toccare pannelli/icone/logica. */
+  @media (min-width: 701px){
+    :root{ --mlg-content-top-gap: 14px; }
+
+    /* Lo spacer sotto l'header fisso deve includere anche un po' di respiro */
+    html body #mlg-spacer{
+      height: calc(var(--mlg-header-h-base) + env(safe-area-inset-top) + var(--mlg-content-top-gap)) !important;
+    }
+
+    /* Anche lo scroll-padding-top deve seguire, per ancore/scrollIntoView */
+    html{
+      scroll-padding-top: calc(var(--mlg-header-h-base) + env(safe-area-inset-top) + var(--mlg-content-top-gap)) !important;
+    }
+  }
+</style>
+
+
+<!-- === FINAL PATCH • Auto-fit date text inside the white box (works on very narrow screens) === -->
+<style id="mlg-date-autofit-final-css">
+  /* Niente '...' : se serve riduciamo automaticamente */
+  html body #mapArea #mlgTopDate{ text-overflow: clip !important; }
+  html body #mapArea #mlgTopDate .mlg-date-fit{ display:inline-block; transform-origin:center center; will-change:transform; }
+</style>
+<script id="mlg-date-autofit-final-js">
+(function(){
+  function fit(){
+    var badge = document.getElementById('mlgTopDate');
+    if(!badge) return;
+
+    // Se uno script ha riscritto textContent, ricreiamo il wrapper.
+    var span = badge.querySelector('.mlg-date-fit');
+    if(!span){
+      var txt = (badge.textContent || '').trim();
+      badge.textContent = '';
+      span = document.createElement('span');
+      span.className = 'mlg-date-fit';
+      span.textContent = txt;
+      badge.appendChild(span);
+    }
+
+    // reset
+    span.style.transform = 'none';
+
+    // misure
+    var maxW = Math.max(0, badge.clientWidth - 2);
+    var maxH = Math.max(0, badge.clientHeight - 2);
+    if(!maxW || !maxH) return;
+
+    // scrollWidth/Height senza trasformazioni
+    var w = span.scrollWidth || span.getBoundingClientRect().width;
+    var h = span.scrollHeight || span.getBoundingClientRect().height;
+    if(!w || !h) return;
+
+    var scale = Math.min(1, maxW / w, maxH / h);
+    // consenti di scendere un po' di più su schermi stretti
+    if(scale < 0.45) scale = 0.45;
+
+    span.style.transform = 'scale(' + scale.toFixed(3) + ')';
+  }
+
+  function boot(){
+    var badge = document.getElementById('mlgTopDate');
+    if(!badge) return;
+    fit();
+
+    // Riadatta quando cambia la data
+    try{ new MutationObserver(function(){ requestAnimationFrame(fit); }).observe(badge, {childList:true, characterData:true, subtree:true}); }catch(e){}
+
+    // Riadatta quando cambia la viewport (resize/orientamento)
+    window.addEventListener('resize', function(){ requestAnimationFrame(fit); }, {passive:true});
+    window.addEventListener('orientationchange', function(){ setTimeout(fit, 60); }, {passive:true});
+
+    // Dopo il caricamento font
+    if(document.fonts && document.fonts.ready){
+      try{ document.fonts.ready.then(function(){ setTimeout(fit, 0); }); }catch(e){}
+    }
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
+  else boot();
+})();
+</script>
+
+<style id="map-icons-pulse-2025-12-19">
+/* Pulse leggero SOLO per le icone meteo sulla mappa (IMG dentro i marker).
+   Nota: usiamo transform sull'IMG (non sul marker) per non toccare il posizionamento/rotazione del marker.
+*/
+@keyframes mlgIconPulse {
+  0%, 100% { transform: scale(0.96); }
+  50%      { transform: scale(1.04); }
+}
+
+/* Applica solo alle icone meteo della mappa */
+#mapArea .marker img.weather-icon{
+  transform-origin: center center;
+  will-change: transform;
+  animation: mlgIconPulse 2.2s ease-in-out infinite;
+}
+
+/* Rispetta chi ha riduzione animazioni */
+@media (prefers-reduced-motion: reduce){
+  #mapArea .marker img.weather-icon{ animation: none !important; transform: none !important; }
+}
+</style>
+
