@@ -5343,7 +5343,15 @@ if (typeof window._mlgSearch !== 'function') {
 }
 
   try{
-    sEl.innerHTML=hEl.innerHTML=dEl.innerHTML=aEl.innerHTML="⏳";
+        // UI: mostra subito loading e libera il main-thread prima di partire con fetch/render pesanti
+    sEl.innerHTML="⏳";
+    hEl.innerHTML="⏳";
+    aEl.innerHTML="⏳";
+    // Non svuotare dailyPanel: evita flicker dei blocchi temperatura e mantiene UI stabile
+    try{ dEl.classList.add("mlg-loading"); }catch(_e){}
+    try{ if(typeof window.__mlgStartTask === "function") window.__mlgStartTask(); }catch(e){}
+    const __nextFrame = ()=>new Promise(r=>requestAnimationFrame(()=>r()));
+    try{ await __nextFrame(); }catch(e){}
     const g = await geocode(q);
     const lat=g.latitude, lon=g.longitude;
     const fc = await forecastDetailed(lat,lon);
@@ -5447,7 +5455,9 @@ try{
     }
   }
 }catch(_e){}
-hEl.innerHTML=renderHourly(window.fc,idx);
+const __hourlyHTML = renderHourly(window.fc,idx);
+    try{ await __nextFrame(); }catch(e){}
+    hEl.innerHTML = __hourlyHTML;
     
 try{
   if(LIVE && (Number.isFinite(LIVE.t) || Number.isFinite(LIVE.wind))){
@@ -5472,7 +5482,10 @@ try{
     }
   }
 }catch(e){}
-dEl.innerHTML=renderDaily(fc);
+const __dailyHTML = renderDaily(fc);
+    try{ await __nextFrame(); }catch(e){}
+    dEl.innerHTML = __dailyHTML;
+    try{ await __nextFrame(); }catch(e){}
     if(window.renderDayParts){try{var __selIdx=(function(){var d=document.querySelector('#dailyPanel .days .day.sel'); if(!d) return 0; var arr=[].slice.call(d.parentNode.children); return Math.max(0, arr.indexOf(d));})(); var sub=(window.subForecastByDay)? window.subForecastByDay(fc, __selIdx) : fc; window.renderDayParts(sub);}catch(_e){ window.renderDayParts(window.subForecastByDay ? window.subForecastByDay(fc, 0) : fc); }}
 try{ document.dispatchEvent(new CustomEvent('mlg:dayparts-rendered')); }catch(e){}
     /* Double refresh per "oggi": forza un secondo aggiornamento dopo che
@@ -5547,7 +5560,12 @@ aEl.innerHTML=renderAdvice(live,fc,idx);
         }
       }
     }catch(e){}
+
+    // Sync finale UI (etichette 7 giorni, stabilizzazione temperature, icone fasce)
+    try{ if(typeof window.__mlgSyncForecastUI==="function") window.__mlgSyncForecastUI(); }catch(_e){}
+    try{ dEl.classList.remove("mlg-loading"); }catch(_e){}
 }catch(e){
+    try{ dEl.classList.remove("mlg-loading"); }catch(_e){}
     console.error(e);
     alert(e.message || e);
   }
@@ -5805,7 +5823,7 @@ const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
             lat = parseFloat(latlon[0]); lon = parseFloat(latlon[1]); display = query;
           }else{
             try{
-              const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`, { signal: (new AbortController()).signal,  signal: (new AbortController()).signal });
+              const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`, { signal: (new AbortController()).signal });
               const arr = await res.json();
               if(!arr.length){ toast('Località non trovata'); return; }
               lat = parseFloat(arr[0].lat);
@@ -8058,85 +8076,10 @@ html += `
   const t = setInterval(()=>{ apply(); if(++tries>30) clearInterval(t); }, 100);
 })();
 </script>
-<!-- === HOTFIX 2025‑08‑04 c: icone corrette Giorno/Notte per Mattina‑Sera === -->
+<!-- === HOTFIX 2025‑08‑04 c: icone corrette Giorno/Notte per Mattina‑Sera (ALLINEA ANCHE DESCRIZIONE) === -->
 <script id="dayparts-icon-fix">
-(function(){
-
-  function positionBackButton(){
-    try{
-      const holder = document.getElementById('forecastBack');
-      if(!holder) return;
-      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
-      if(sf){
-        const rect = sf.getBoundingClientRect();
-        const top = rect.top + window.scrollY + 8;
-        const left = Math.max(rect.left + window.scrollX - 48, 12);
-        holder.style.top = top + 'px';
-        holder.style.left = left + 'px';
-      }else{
-        holder.style.top = '16px';
-        holder.style.left = '16px';
-      }
-    }catch(e){}
-  }
-
-  function between(h,start,end){ return start<end ? (h>=start && h<end) : (h>=start || h<end); }
-  const partRanges = [
-    {start:6,end:12},   // Mattina
-    {start:12,end:18},  // Pomeriggio
-    {start:18,end:24},  // Sera
-    {start:0,end:6}     // Notte
-  ];
-
-  function fixIcons(fc){
-    if(!fc||!fc.hourly||!fc.hourly.is_day) return;
-    const parts = document.querySelectorAll('#dayParts .parts > details.part');
-    if(!parts.length) return;
-
-    parts.forEach((det, idx)=>{
-      const {start,end} = partRanges[idx] || {};
-      if(start===undefined) return;
-
-      const rows = [];
-      for(let i=0;i<fc.hourly.time.length;i++){
-        const h = new Date(fc.hourly.time[i]).getHours();
-        if(between(h,start,end)) rows.push(i);
-      }
-      if(!rows.length) return;
-
-      const dayCnt = rows.reduce((s,i)=> s + (fc.hourly.is_day[i] ? 1:0), 0);
-      const isNight = dayCnt < rows.length/2;
-
-      const code = fc.hourly.weathercode[rows[0]];
-      if(typeof window.iconHTML_NOEMOJI!=='function') return;
-      const html = window.iconHTML_NOEMOJI(code, isNight);
-
-      const summary = det.querySelector('summary');
-      if(summary){
-        const iconEl = summary.querySelector('svg, img, i');
-        if(iconEl){
-          iconEl.outerHTML = html;
-        }else{
-          summary.insertAdjacentHTML('beforeend', html);
-        }
-      }
-    });
-  }
-
-  function apply(){
-    if(typeof window.renderDayParts!=='function') return;
-    if(window.renderDayParts._synced3) return;
-    const orig = window.renderDayParts;
-    window.renderDayParts = function(fc){
-      const res = orig(fc);
-      try{ fixIcons(fc);}catch(e){}
-      return res;
-    };
-    window.renderDayParts._synced3 = true;
-  }
-  apply();
-  let t=0, timer=setInterval(()=>{ apply(); if(++t>30) clearInterval(timer); },100);
-})();
+/* Disabled: previous version contained a syntax error and could stop this hotfix from running.
+   A correct, lightweight dayparts sync runs at the end of the document (mlg:final-dayparts-fix). */
 </script>
 <!-- === HOTFIX 2025‑08‑04 d: trioraria & icona sera === -->
 <script id="trihourly-fix">
@@ -9209,7 +9152,7 @@ function normalizePlaceName(name){
       const g = await geocode(q);
       if(g) return {lat:g.latitude, lon:g.longitude, label: (g.name + (g.admin1? ', '+g.admin1:''))};
     }
-    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=it&format=json`, { signal: (new AbortController()).signal,  signal: (new AbortController()).signal });
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=it&format=json`, { signal: (new AbortController()).signal });
     const j = await r.json();
     const g = j.results?.[0]; if(!g) return null;
     return {lat:g.latitude, lon:g.longitude, label: g.name + (g.admin1? ', '+g.admin1:'')};
@@ -9728,7 +9671,7 @@ pushMsg(`${text}${body}`, "ai");
       if(l && inCalabria(l.lat,l.lon)) return {lat:l.lat, lon:l.lon, label:l.label||l.nome||name};
     }
     // Open-Meteo geocoding (no key needed)
-    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=5&language=it&format=json`, { signal: (new AbortController()).signal,  signal: (new AbortController()).signal });
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=5&language=it&format=json`, { signal: (new AbortController()).signal });
     const j = await r.json();
     const cand = (j.results||[]).find(x => (x.country_code==='IT') && (/(^|\s)Calabria$/i.test(x.admin1||'')));
     if(cand && inCalabria(cand.latitude, cand.longitude)) {
@@ -13797,7 +13740,10 @@ try{
   }
   // Re-alleghiamo i listener se il DOM cambia
   try{
-    const mo = new MutationObserver(boot);
+    const mo = new MutationObserver(function(){
+      try{ clearTimeout(window.__mlgMoT_pro_weather_override); }catch(_e){}
+      window.__mlgMoT_pro_weather_override = setTimeout(pro_weather_override, 120);
+    });
     mo.observe(document.documentElement, { childList:true, subtree:true });
     Object.freeze(mo);
   }catch(_e){}
@@ -14438,7 +14384,7 @@ try{
   var obs = new MutationObserver(function(){
     ensureHeader();
   });
-  obs.observe(document.documentElement, {childList:true, subtree:true});
+  obs.observe((document.getElementById('triModal') || document.getElementById('hourlyPanel')) || document.body, {childList:true, subtree:true});
 })();
 </script>
 
@@ -15113,10 +15059,12 @@ try{
 </style>
 <script id="seven-day-today-autoselect-2025-09-11">
 (function(){
+  // NOTE 2025-12-22: disabilitato l'auto-selezione/auto-click di OGGI.
+  // Manteniamo SOLO la classe .today per l'evidenza grafica.
   function todayMMDD(){
     try{ return new Date().toISOString().slice(5,10); }catch(_e){ return ""; }
   }
-  function markAndMaybeClickToday(strip){
+  function markToday(strip){
     try{
       if(!strip) return;
       var items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
@@ -15124,80 +15072,53 @@ try{
       var key = todayMMDD();
       var todayEl = null;
       for(var i=0;i<items.length;i++){
-        var t = items[i].querySelector('div'); // first inner div contains "MM-DD"
-        var txt = (t && t.textContent) ? t.textContent.trim() : "";
-        if(txt === key){
-          todayEl = items[i];
-          break;
+        var it = items[i];
+        // prova prima il dato normalizzato
+        var mmdd = (it.getAttribute('data-mmdd')||'').trim();
+        if(!mmdd){
+          // fallback: prova a ricavare MM-DD da data-date / aria-label / testo
+          var src = (it.getAttribute('data-date')||it.getAttribute('aria-label')||'');
+          if(!src){
+            var t = it.querySelector('div,span');
+            src = (t && t.textContent) ? t.textContent.trim() : "";
+          }
+          var m1 = String(src).match(/(\d{4}-\d{2}-\d{2})/);
+          if(m1) mmdd = m1[1].slice(5,10);
+          else{
+            var m2 = String(src).match(/(\d{2}-\d{2})/);
+            if(m2) mmdd = m2[1];
+          }
         }
+        if(mmdd === key){ todayEl = it; break; }
       }
-      if(!todayEl){
-        // Fallback: assume first is today (common case)
-        todayEl = items[0];
-      }
+      if(!todayEl) todayEl = items[0] || null;
       if(!todayEl) return;
       todayEl.classList.add('today');
-
-      // If it's already selected, still "re-press" it after a short delay to refresh dependent panels.
-      if(!todayEl.dataset.autoreclicked){
-        todayEl.dataset.autoreclicked = "1";
-        // Try a couple of times in case other async code overrides selection
-        var delays = [220, 600, 1200];
-        delays.forEach(function(ms, idx){
-          setTimeout(function(){
-            try{
-              // Make sure element is still in DOM
-              if(!document.body.contains(todayEl)) return;
-              todayEl.dispatchEvent(new MouseEvent('click', {bubbles:true}));
-            }catch(_e){}
-          }, ms);
-        });
-      }
     }catch(_e){}
   }
 
-  function tryFindAndApply(){
-    try{
-      var strip = document.querySelector('#dailyPanel .days');
-      if(strip) markAndMaybeClickToday(strip);
-    }catch(_e){}
+  function apply(){
+    var strip = document.querySelector('#dailyPanel .days');
+    if(strip) markToday(strip);
   }
 
-  // Observe mutations to #dailyPanel to run when the 7-day strip appears/refreshes
   function setupObserver(){
     try{
       var panel = document.getElementById('dailyPanel');
-      if(!panel || panel.__todayObserverSetup) return;
-      panel.__todayObserverSetup = true;
-      var mo = new MutationObserver(function(muts){
-        for(var i=0;i<muts.length;i++){
-          var m = muts[i];
-          if(m.type === 'childList'){
-            // If any new .days or .day nodes appeared, apply
-            if(panel.querySelector('.days .day')){
-              markAndMaybeClickToday(panel.querySelector('.days'));
-            }
-          }
-        }
+      if(!panel || panel.__todayObserverSetup2) return;
+      panel.__todayObserverSetup2 = true;
+      var mo = new MutationObserver(function(){
+        clearTimeout(panel.__todayMarkT2);
+        panel.__todayMarkT2 = setTimeout(apply, 60);
       });
       mo.observe(panel, {childList:true, subtree:true});
     }catch(_e){}
   }
 
   if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', function(){
-      setupObserver();
-      // Initial attempt (in case content is already there)
-      tryFindAndApply();
-      // A couple more attempts to be resilient to async rendering
-      setTimeout(tryFindAndApply, 150);
-      setTimeout(tryFindAndApply, 500);
-    }, {once:true});
+    document.addEventListener('DOMContentLoaded', function(){ setupObserver(); apply(); }, {once:true});
   }else{
-    setupObserver();
-    tryFindAndApply();
-    setTimeout(tryFindAndApply, 150);
-    setTimeout(tryFindAndApply, 500);
+    setupObserver(); apply();
   }
 })();
 </script>
@@ -15215,10 +15136,27 @@ try{
 <script id="seven-day-labels-it-2025-09-11">
 (function(){
   var IT_MONTHS = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
-  function fmtDDMon(mm, dd){
+  function fmtWDay(mm, dd){
     var m = parseInt(mm,10); var d = parseInt(dd,10);
     if(!(m>=1 && m<=12) || !(d>=1 && d<=31)) return null;
-    return d + " " + IT_MONTHS[m-1];
+
+    var now = new Date();
+    var y = now.getFullYear();
+    // Gestione semplice passaggio anno (fine dicembre -> gennaio)
+    var curM = now.getMonth()+1;
+    if(curM===12 && m===1) y = y+1;
+    var dt = new Date(y, m-1, d);
+
+    var w = '';
+    try{
+      w = dt.toLocaleDateString('it-IT', { weekday: 'short' });
+    }catch(_e){
+      var ws = ['dom','lun','mar','mer','gio','ven','sab'];
+      w = ws[dt.getDay()];
+    }
+    w = String(w).toLowerCase().replace(/\./g,'').trim();
+    if(w.length>3) w = w.slice(0,3);
+    return w + ' ' + d;
   }
   function extractMMDDFromText(txt){
     if(!txt) return null;
@@ -15232,9 +15170,35 @@ try{
   }
   function isAlreadyItalian(txt){
     if(!txt) return false;
-    return /(\bGen\b|\bFeb\b|\bMar\b|\bApr\b|\bMag\b|\bGiu\b|\bLug\b|\bAgo\b|\bSet\b|\bOtt\b|\bNov\b|\bDic\b)/.test(txt);
+    txt = String(txt).trim().toLowerCase();
+    if(txt === 'in corso' || txt === 'oggi') return true;
+    // e.g. "mar 23", "mer 24" (con o senza punto)
+    txt = txt.replace(/\.+/g,' ').replace(/\s+/g,' ').trim();
+    return /^(lun|mar|mer|gio|ven|sab|dom)\s+\d{1,2}$/.test(txt);
   }
   function todayMMDD(){ try{ return new Date().toISOString().slice(5,10);}catch(_e){return "";} }
+
+  function pickLabelEl(dayEl){
+    try{
+      var candidates = Array.prototype.slice.call(dayEl.querySelectorAll(':scope > div, :scope > span, :scope > p'));
+      for(var i=0;i<candidates.length;i++){
+        var el = candidates[i];
+        if(!el) continue;
+        var cls = (el.className||'');
+        if(/\btmax\b|\btmin\b/.test(cls)) continue;
+        var t = (el.textContent||'').trim();
+        if(!t) continue;
+        if(t.indexOf('°')>=0) continue;
+        if(/\d{4}-\d{2}-\d{2}/.test(t) || /\b\d{1,2}[-\/]\d{1,2}\b/.test(t) || /\b\d{1,2}\b/.test(t)){
+          return el;
+        }
+      }
+      var any = dayEl.querySelector(':scope > div:not(.tmax):not(.tmin), :scope > span:not(.tmax):not(.tmin)');
+      return any || null;
+    }catch(_e){
+      return null;
+    }
+  }
 
   function reformatStrip(strip){
     try{
@@ -15242,7 +15206,7 @@ try{
       if(!items.length) return;
       items.forEach(function(dayEl, idx){
         // Choose a label container: the first direct child div or span with text
-        var labelEl = dayEl.querySelector('div,span');
+        var labelEl = pickLabelEl(dayEl);
         if(!labelEl) return;
         var current = (labelEl.textContent || "").trim();
         // If already in Italian short format, skip (idempotent)
@@ -15262,20 +15226,14 @@ try{
         dayEl.setAttribute('data-mmdd', mmdd);
 
         var mm = mmdd.slice(0,2), dd = mmdd.slice(3,5);
-        var pretty = fmtDDMon(mm, dd);
+        var pretty = fmtWDay(mm, dd);
         if(pretty){
           labelEl.textContent = pretty;
         }
 
-        // If this item is today, and no one marked it yet, mark and (optionally) re-click
+        // Se questo elemento è "oggi", marca soltanto (nessun auto-click)
         if(mmdd === todayMMDD()){
           dayEl.classList.add('today');
-          if(!dayEl.dataset.autoreclicked){
-            dayEl.dataset.autoreclicked = "1";
-            setTimeout(function(){
-              try{ if(document.body.contains(dayEl)) dayEl.dispatchEvent(new MouseEvent('click', {bubbles:true})); }catch(_e){}
-            }, 240);
-          }
         }
       });
     }catch(_e){}
@@ -15432,7 +15390,7 @@ try{
 
     try{ 
       var mo = new MutationObserver(ensureAssistantPlacement);
-      mo.observe(document.documentElement, { childList:true, subtree:true });
+      mo.observe((document.getElementById('forecast') || document.getElementById('widget') || document.body), {subtree:true, childList:true});
     }catch(_e){}
   }
 
@@ -15708,129 +15666,68 @@ try{
 <!-- === PATCH 2025-09-11 — Auto-reclick TODAY after search; cancel on user selection (non-destructive) === -->
 <script id="today-auto-reclick-after-search-2025-09-11">
 (function(){
+  // NOTE 2025-12-22: disabilitato l'auto-"reclick" (era la causa principale del ritorno forzato su OGGI e di micro-freeze su mobile).
+  // Manteniamo SOLO l'evidenza grafica del giorno corrente (classe .today) senza simulare click.
   if(window.__todayAutoReclickInstalled__) return;
   window.__todayAutoReclickInstalled__ = true;
 
-  function $(s){ return document.querySelector(s); }
-  function $all(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); }
-
-  function getStrip(){ return $('#dailyPanel .days'); }
+  function $(s, root){ return (root||document).querySelector(s); }
+  function $all(s, root){ return Array.prototype.slice.call((root||document).querySelectorAll(s)); }
 
   function todayMMDD(){
     try{ return new Date().toISOString().slice(5,10); }catch(e){ return ""; }
   }
-
   function extractMMDDFromText(t){
     if(!t) return "";
-    var m = String(t).match(/(\d{2})[-\/\.](\d{2})/); // "MM-DD" or "MM/DD"
+    var m = String(t).match(/(\d{2})[-\/\.](\d{2})/);
     return m ? (m[1] + "-" + m[2]) : "";
   }
+  function getStrip(){ return $('#dailyPanel .days'); }
 
   function getTodayEl(strip){
     if(!strip) return null;
     var items = $all('.day', strip);
-    if(!items.length){
-      items = Array.prototype.slice.call(strip.querySelectorAll('.day'));
-    }
+    if(!items.length) items = $all('#dailyPanel .day', strip);
     if(!items.length) return null;
-    // 1) Try via standardized data-mmdd (set by other patches)
+
     var key = todayMMDD();
     for(var i=0;i<items.length;i++){
-      var mmdd = items[i].getAttribute('data-mmdd') || extractMMDDFromText(items[i].querySelector('div') && items[i].querySelector('div').textContent);
-      if(mmdd === key){ return items[i]; }
+      var mmdd = items[i].getAttribute('data-mmdd') ||
+                 extractMMDDFromText(items[i].querySelector('div') && items[i].querySelector('div').textContent);
+      if(mmdd === key) return items[i];
     }
-    // 2) Fallback: assume first tile is "today"
-    return items[0];
+    return items[0] || null; // fallback prudente
   }
 
-  var AutoClicker = {
-    timers: [],
-    active: false,
-    target: null,
-    start: function(){
-      try{
-        this.stop();
-        var strip = getStrip();
-        if(!strip) return;
-        var todayEl = getTodayEl(strip);
-        if(!todayEl) return;
-        this.active = true;
-        this.target = todayEl;
-        todayEl.classList.add('today');
-        // Multiple re-clicks to ensure all dependent panels refresh,
-        // spaced to survive async re-renders.
-        var delays = [150, 320, 650, 1000, 1500, 2100, 2800];
-        for(var i=0;i<delays.length;i++){
-          (function(ms, el, self){
-            self.timers.push(setTimeout(function(){
-              if(!self.active) return;
-              if(!document.body.contains(el)){ self.stop(); return; }
-              try{ el.dispatchEvent(new MouseEvent('click', {bubbles:true})); }catch(_e){}
-            }, ms));
-          })(delays[i], todayEl, this);
-        }
-      }catch(e){ /* swallow */ }
-    },
-    stop: function(){
-      this.active = false;
-      while(this.timers.length){ try{ clearTimeout(this.timers.pop()); }catch(_e){} }
-      this.target = null;
-    }
-  };
-
-  // Cancel auto-clicks if the user selects a different day.
-  document.addEventListener('click', function(ev){
+  function mark(){
     try{
-      var day = ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day');
-      if(!day) return;
-      if(!ev.isTrusted) return;          // ignore our programmatic clicks
-      if(!AutoClicker.active) return;
-      if(AutoClicker.target && day !== AutoClicker.target){
-        AutoClicker.stop();
-      }
+      var strip = getStrip();
+      if(!strip) return;
+      var todayEl = getTodayEl(strip);
+      if(!todayEl) return;
+      todayEl.classList.add('today');
     }catch(_e){}
-  }, true);
+  }
 
-  // Start the auto-click cycle when forecasts are (re)rendered after a search.
-  (function hookRun(){
-    try{
-      var old = window.run;
-      if(typeof old === 'function' && !old.__todayAutoReclickHook){
-        window.run = async function(){
-          var r = await old.apply(this, arguments);
-          try{ AutoClicker.start(); }catch(_e){}
-          return r;
-        };
-        window.run.__todayAutoReclickHook = true;
-      }
-    }catch(_e){}
-  })();
-
-  // Fallback: observe #dailyPanel for the 7-day strip appearing/refreshed.
-  (function setupObserver(){
+  // Applica su load + quando viene ricalcolata la strip (observer LIMITATO al pannello)
+  function boot(){
+    mark();
     try{
       var panel = document.getElementById('dailyPanel');
-      if(!panel || panel.__todayAutoReclickObserver__) return;
-      panel.__todayAutoReclickObserver__ = true;
-      var mo = new MutationObserver(function(muts){
-        for(var i=0;i<muts.length;i++){
-          var m = muts[i];
-          if(m.type === 'childList' && panel.querySelector('.days .day')){
-            AutoClicker.start();
-            break;
-          }
-        }
-      });
-      mo.observe(panel, {childList:true, subtree:true});
+      if(panel && !panel.__todayMarkObserver){
+        panel.__todayMarkObserver = true;
+        var mo = new MutationObserver(function(){
+          // debounce leggero
+          clearTimeout(panel.__todayMarkT);
+          panel.__todayMarkT = setTimeout(mark, 60);
+        });
+        mo.observe(panel, {childList:true, subtree:true});
+      }
     }catch(_e){}
-  })();
-
-  // Boot: try once on DOM ready as well.
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', function(){ try{ AutoClicker.start(); }catch(_e){} }, {once:true});
-  }else{
-    try{ AutoClicker.start(); }catch(_e){}
   }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
+  else boot();
 })();
 </script>
 <script>
@@ -15966,7 +15863,7 @@ try{
     document.addEventListener('DOMContentLoaded', apply);
   } else { apply(); }
   const mo = new MutationObserver(apply);
-  mo.observe(document.documentElement, {subtree:true, childList:true});
+  mo.observe((document.getElementById('mapArea') || document.getElementById('widget') || document.body), {subtree:true, childList:true});
   // Also re-apply on orientation changes / resize
   window.addEventListener('resize', apply, {passive:true});
   window.addEventListener('orientationchange', apply);
@@ -17254,7 +17151,7 @@ function vaneHTML(kmh, wantKMH){
   }
   // react to dynamic table rebuilds
   var mo = new MutationObserver(function(m){ shortenOnce(document); });
-  mo.observe(document.documentElement, {subtree:true, childList:true});
+  mo.observe((document.getElementById('hourlyPanel') || document.body), {subtree:true, childList:true});
   // also on resize back to small screens
   window.addEventListener('resize', function(){ shortenOnce(document); }, {passive:true});
   // custom events already used elsewhere in this page
@@ -21477,7 +21374,7 @@ try{
     try{
       if(el.scrollWidth > el.clientWidth * 1.02){
         var t = (el.textContent||'').trim().toLowerCase();
-        var key = Object.keys(ABBR).find(k => t.indexOf(k) !== -1)!==-1);
+        var key = Object.keys(ABBR).find(k => t.indexOf(k) !== -1);
         if(key){
           el.textContent = ABBR[key];
           el.classList.add('rg-abbrev');
@@ -21600,7 +21497,7 @@ try{
     // secondo: abbreviazioni
     if(label.scrollWidth > badge.clientWidth - 4){
       var t = (label.textContent||'').trim().toLowerCase();
-      var key = Object.keys(ABBR).find(k => t.indexOf(k) !== -1)!==-1);
+      var key = Object.keys(ABBR).find(k => t.indexOf(k) !== -1);
       if(key){ label.textContent = ABBR[key]; }
     }
     // terzo: ellissi è già attiva via CSS
@@ -21683,7 +21580,7 @@ try{
     // 2) Abbrevia se ancora non entra
     if(el.scrollWidth > el.clientWidth * 1.02){
       var t = (el.textContent||'').trim().toLowerCase();
-      var key = Object.keys(ABBR).find(k => t.indexOf(k) !== -1)!==-1);
+      var key = Object.keys(ABBR).find(k => t.indexOf(k) !== -1);
       if(key){ el.textContent = ABBR[key]; }
     }
   }
@@ -21739,60 +21636,99 @@ try{
 })();
 </script>
 
-<script>
+<script id="mlg-abbrev-expander-light-2025-12-22">
 (function(){
-  function ellipsizeToFit(container, label, full){
-    if(!container || !label) return;
-    label.textContent = full;
-    var pad = 8;
-    if(label.scrollWidth <= container.clientWidth - pad) return;
-    var t = full;
-    while(t.length > 3 && label.scrollWidth > container.clientWidth - pad){
-      t = t.slice(0, -1);
-      label.textContent = t.trim() + '..';
+  "use strict";
+  // Replaces the old document-wide MutationObserver that scanned *every* node (cause of freeze on mobile).
+  // Scope is limited to forecast containers; work runs in idle time and is debounced.
+
+  var FULL = { "abb.":"abbondanti", "molto":"molto forte" };
+  var ROOT_SELECTORS = ['#hourlyPanel', '#dailyDetailPanel', '#dayParts', '#dailyPanel', '#forecast'];
+
+  var ric = window.requestIdleCallback || function(fn){ return setTimeout(fn, 120); };
+
+  var scheduled = false;
+  function schedule(){
+    if(scheduled) return;
+    scheduled = true;
+    ric(function(){
+      scheduled = false;
+      try{ apply(); }catch(_e){}
+    }, { timeout: 800 });
+  }
+
+  function ellipsizeBinary(container, el, full){
+    if(!container || !el) return;
+    var maxW = (container.clientWidth || el.clientWidth || 0) - 8;
+    if(maxW <= 0) return;
+    // full already assigned before calling this
+    if(el.scrollWidth <= maxW) return;
+
+    var s = String(full);
+    var lo = 0, hi = s.length;
+    // binary search for max fitting length
+    while(lo < hi){
+      var mid = Math.ceil((lo + hi) / 2);
+      el.textContent = s.slice(0, mid).trim() + '..';
+      if(el.scrollWidth <= maxW) lo = mid;
+      else hi = mid - 1;
+    }
+    el.textContent = s.slice(0, lo).trim() + '..';
+  }
+
+  function apply(){
+    for(var r=0;r<ROOT_SELECTORS.length;r++){
+      var root = document.querySelector(ROOT_SELECTORS[r]);
+      if(!root) continue;
+
+      // Walk ONLY text nodes (cheap) instead of querySelectorAll('*')
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+      var node;
+      while((node = walker.nextNode())){
+        var raw = (node.nodeValue || "").trim();
+        if(!raw) continue;
+        var key = raw.toLowerCase();
+        var full = FULL[key];
+        if(!full) continue;
+
+        var el = node.parentElement;
+        if(!el || el.nodeType !== 1) continue;
+
+        // Safety: avoid touching inputs/buttons
+        var tag = el.tagName;
+        if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON') continue;
+
+        // Container where width matters
+        var container = (el.closest && el.closest('.badge, .tag, .pill, .chip, .rg-badge, .rain-gauge')) || el.parentElement || el;
+
+        // Preserve original full label once
+        if(!el.getAttribute('data-full')) el.setAttribute('data-full', full);
+
+        // Expand to full; if it doesn't fit, cut with '..'
+        el.textContent = full;
+        if(container && (el.scrollWidth > (container.clientWidth - 8))){
+          ellipsizeBinary(container, el, full);
+        }
+      }
     }
   }
 
-  function process() {
-    // pills that previously show fixed abbreviations
-    var candidates = Array.from(document.querySelectorAll('*'))
-      .filter(function(el){
-        var txt = (el.textContent || '').trim().toLowerCase();
-        return txt === 'abb.' || txt === 'molto';
-      });
-    candidates.forEach(function(el){
-      // try to find the "badge container": the nearest rounded pill
-      var container = el.closest('.badge, .tag, .pill, .chip') || el.parentElement;
-      var full = el.getAttribute('data-full');
-      if(!full){
-        full = (el.textContent || '').trim().toLowerCase() === 'abb.' ? 'abbondanti' : 'molto forte';
-        el.setAttribute('data-full', full);
-      }
-      // Only change if the full string would overflow
-      // Temporarily set to full to measure
-      var prev = el.textContent;
-      el.textContent = full;
-      var fits = container && el.scrollWidth <= container.clientWidth - 8;
-      if(!fits){
-        ellipsizeToFit(container || el, el, full);
-      } else {
-        el.textContent = full; // show full if it fits
-      }
-    });
-  }
+  // Triggers (low cost): after forecast render & on user interactions that update panels
+  document.addEventListener('DOMContentLoaded', schedule, {once:true});
+  document.addEventListener('mlg:dayparts-rendered', schedule, true);
+  document.addEventListener('forceHourlyRerender', schedule, true);
+  document.addEventListener('click', function(ev){
+    if(ev && ev.target && ev.target.closest && ev.target.closest('#dailyPanel .day')) schedule();
+  }, true);
 
-  // Run on load and whenever the DOM updates (forecast opens, etc.)
-  if(document.readyState === 'complete'){
-    process();
-  } else {
-    window.addEventListener('load', process);
-  }
-  // Observe DOM changes to re-apply when forecast content renders
-  var mo = new MutationObserver(function(){ process(); });
-  mo.observe(document.documentElement || document.body, {childList:true, subtree:true});
-  // Also retry after small delays in case of async rendering
-  setTimeout(process, 400);
-  setTimeout(process, 1200);
+  // Observe ONLY forecast containers (not the whole document)
+  try{
+    var mo = new MutationObserver(function(){ schedule(); });
+    ROOT_SELECTORS.forEach(function(sel){
+      var n = document.querySelector(sel);
+      if(n) mo.observe(n, {childList:true, subtree:true});
+    });
+  }catch(_e){}
 })();
 </script>
 
@@ -21950,144 +21886,8 @@ try{
 </style>
 
 <script id="mlg-freeze-js">
-/* === Freeze Manager v2 — stabilizza 24h, tri‑orari e 7 giorni ===
-   - Blocca subito i pannelli che lampeggiano durante gli update iniziali
-   - Li sblocca SOLO quando i contenuti sono stabili (nessuna mutazione per 350ms)
-   - Dopo lo sblocco resta in HARD‑FREEZE: niente lampeggiamenti da aggiornamenti live
-   - Se l'utente seleziona un altro giorno, usa uno swap atomico (senza flicker)
-*/
-(function(){
-  const SEL = {
-    hourly:    '#hourlyPanel',
-    tri:       '#dayParts',
-    dailyRow:  '.days'
-  };
-
-  // 1) Applica subito il freeze
-  function applyInitialFreeze(){
-    [SEL.hourly, SEL.tri, SEL.dailyRow].forEach(s => {
-      document.querySelectorAll(s).forEach(el => {
-        if(!el.dataset.frozen){ el.dataset.frozen = 'hard'; }
-      });
-    });
-  }
-
-  // 2) Heuristics per deduplica e pulizia
-  function dedupeAndClean(root){
-    if(!root) return;
-    try{
-      // Doppia bandierina del vento: rimuovi duplicati adiacenti di icone "vento"
-      const windIcons = root.querySelectorAll('i.fa-flag, i.fa-flag-wind, .wind-flag, [data-wind-flag="1"]');
-      const seen = new Set();
-      windIcons.forEach(icon => {
-        const key = icon.closest('tr, .row, .slot')?.innerText?.slice(0,80) || icon.outerHTML.slice(0,120);
-        if(seen.has(key)){ icon.classList.add('mlg-hide'); }
-        else{ seen.add(key); }
-      });
-
-      // Gauge senza precipitazioni: se nella stessa riga/cella c'è "assente", "—", "0 mm" -> nascondi gauge
-      const gauges = root.querySelectorAll('.gauge, .precip-gauge, [data-role="precip-gauge"]');
-      gauges.forEach(g => {
-        const scope = g.closest('tr, .row, .hour-row, .cell, .slot') || g.parentElement;
-        const txt = (scope?.innerText || '').toLowerCase();
-        if(/assente|—|0\s*mm|0\.0\s*mm|nessuna/i.test(txt)){
-          g.classList.add('mlg-hide');
-        }
-      });
-
-      // Icone meteo immagini: evita raddoppi (img.weather-icon immediatamente duplicati)
-      root.querySelectorAll('img.weather-icon + img.weather-icon').forEach(el => el.classList.add('mlg-hide'));
-    }catch(e){ /* silent */ }
-  }
-
-  // 3) Observer che aspetta la quiete (no mutazioni per quietMs) prima dello sblocco
-  function makeStabilizer(target){
-    if(!target) return;
-    let timer = null;
-    const quietMs = 350;
-    const observer = new MutationObserver(() => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        // Una volta quieto, pulisci dedupe e sblocca ma mantieni hard-freeze (niente future animazioni)
-        dedupeAndClean(target);
-        revealOnce(target);
-        observer.disconnect();
-        // Mantieni lo stato in hard-freeze logico: impedisci future transizioni visibili
-        target.dataset.frozen = 'hard';  // flag rimane, ma visivamente è già revealed
-      }, quietMs);
-    });
-    observer.observe(target, {childList:true, subtree:true, attributes:true, characterData:true});
-  }
-
-  function revealOnce(el){
-    // Rimuove l'opacità e rende interattivo
-    el.classList.add('mlg-freeze-revealed');
-  }
-
-  // 4) Swap atomico quando si clicca un altro giorno della riga a 7 giorni
-  function setupDailySwap(){
-    const row = document.querySelector(SEL.dailyRow);
-    if(!row) return;
-    row.addEventListener('click', (ev) => {
-      const day = ev.target.closest('.day');
-      if(!day) return;
-      // Blocca pannelli che possono lampeggiare
-      const hourly = document.querySelector(SEL.hourly);
-      const tri    = document.querySelector(SEL.tri);
-      [hourly, tri].forEach(el => el && el.classList.add('mlg-swap-building'));
-      // Mini debounce: lascia all'app aggiornare il DOM, poi pulisci e mostra in un colpo
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          [hourly, tri].forEach(el => {
-            if(!el) return;
-            dedupeAndClean(el);
-            el.classList.remove('mlg-swap-building');
-            el.classList.add('mlg-freeze-revealed');
-            el.dataset.frozen = 'hard';
-          });
-        }, 120); // tempo sufficiente a completare il re-render interno
-      });
-    }, {passive:true});
-  }
-
-  // 5) Impedisci che aggiornamenti successivi rendano visibili intermediate states
-  function blockFutureFlicker(){
-    const guard = (el) => {
-      if(!el) return;
-      const obs = new MutationObserver((mutList) => {
-        // Applica dedupe "al volo" ma non togliere mai la classe revealed
-        dedupeAndClean(el);
-      });
-      obs.observe(el, {childList:true, subtree:true});
-    };
-    [document.querySelector(SEL.hourly),
-     document.querySelector(SEL.tri),
-     document.querySelector(SEL.dailyRow)].forEach(guard);
-  }
-
-  // 6) Avvio
-  function init(){
-    applyInitialFreeze();
-    // attacca stabilizer ai pannelli principali
-    [SEL.hourly, SEL.tri, SEL.dailyRow].forEach(s => {
-      document.querySelectorAll(s).forEach(makeStabilizer);
-    });
-    setupDailySwap();
-    blockFutureFlicker();
-    // sblocco di sicurezza se qualcosa resta vuoto ma stabile
-    setTimeout(() => {
-      [SEL.hourly, SEL.tri, SEL.dailyRow].forEach(s => {
-        document.querySelectorAll(s).forEach(revealOnce);
-      });
-    }, 2000);
-  }
-
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', init, {once:true});
-  }else{
-    init();
-  }
-})();
+/* Freeze Manager DISABILITATO: causava jank/blocchi su mobile e flicker. */
+(function(){/* no-op */})();
 </script>
 
 <!-- === MLG Loading Banner (2025-10-06) === -->
@@ -22398,30 +22198,19 @@ try{
   }
 
   (function wireSearch(){
-    const { form, input, goBtn } = getSearchElements();
-    if(!form) return;
-    const handler = debounce(function(ev){
-      if(ev) ev.preventDefault();
-      const q = (input && input.value || "").trim();
-      if(!q) return;
-      doSearch(q);
-    }, 250);
-    form.addEventListener("submit", handler, { passive:false });
-    if(input){
-      input.addEventListener("keydown", function(e){
-        if(e.key==="Enter"){ e.preventDefault(); handler(e); }
-      }, { passive:false });
+    // IMPORTANT: non agganciare submit/click qui per evitare doppie ricerche (freeze su mobile).
+    // La logica search nativa della pagina resta l'unica a gestire l'azione.
+    const { input } = getSearchElements();
+    if(input && !input.__mlgHintBound){
+      input.__mlgHintBound = true;
       input.addEventListener("input", debounce(()=>{
-        // optional: live suggestions without blocking main thread
-        doc.dispatchEvent(new CustomEvent("mlg:search:hint", { detail:{ q: input.value } }));
+        try{
+          doc.dispatchEvent(new CustomEvent("mlg:search:hint", { detail:{ q: input.value } }));
+        }catch(e){}
       }, 250), { passive:true });
     }
-    if(goBtn){
-      goBtn.addEventListener("click", function(e){ e.preventDefault(); handler(e); }, { passive:false });
-    }
   })();
-
-  // ---- 7) Make the 7-days strip non-blocking + abort previous
+// ---- 7) Make the 7-days strip non-blocking + abort previous
   (function wireDays(){
     const nav = doc.querySelector("#nav") || doc.querySelector(".days");
     if(!nav) return;
@@ -23334,46 +23123,33 @@ try{
 </script>
 
 
-<script>
-/* === MLG emergency runtime stabilizer (2025-10-15) === */
+<script id="mlg-runtime-stabilizer-lite-2025-12-22">
+/* Stabilizzatore leggero: evita observer globali e click sintetici (causavano freeze e ritorni su OGGI). */
 (function(){
-  // Force all weather-icon images to be eager + visible
+  "use strict";
   function tune(img){
     try{
       if(!img || img.__mlgFixed) return;
-      img.decoding='async'; img.loading='eager'; img.fetchPriority='high';
-      img.style.opacity='1';
       img.__mlgFixed = true;
-    }catch(_){}
+      // hint al browser: decodifica async e priorità bassa
+      if(!img.decoding) img.decoding = "async";
+      if(!img.loading) img.loading = "lazy";
+      try{ img.setAttribute("fetchpriority","low"); }catch(_e){}
+    }catch(_e){}
   }
-  document.querySelectorAll('img.weather-icon').forEach(tune);
-  new MutationObserver(ms=>{
-    ms.forEach(m=>{
-      if(m.type==='attributes' && m.target && m.target.tagName==='IMG' && m.target.classList.contains('weather-icon')){
-        tune(m.target);
-      }
-      m.addedNodes && m.addedNodes.forEach(n=>{
-        if(n && n.querySelectorAll){
-          n.querySelectorAll('img.weather-icon').forEach(tune);
-        }else if(n && n.tagName==='IMG' && n.classList.contains('weather-icon')){
-          tune(n);
-        }
-      });
-    });
-  }).observe(document.documentElement,{subtree:true, childList:true, attributes:true, attributeFilter:['src','loading']});
-
-  // After dayparts render, re-apply the selection (prevents return to "oggi")
-  setTimeout(function(){
+  function apply(root){
     try{
-      var sel=document.querySelector('#dailyPanel .days .day.sel');
-      if(sel){ var ev=new Event('click',{bubbles:true}); sel.dispatchEvent(ev); }
-    }catch(_){}
-  }, 150);
+      (root||document).querySelectorAll('img.weather-icon').forEach(tune);
+    }catch(_e){}
+  }
+  function onRender(){
+    apply(document.getElementById('forecast') || document);
+    apply(document.getElementById('mapArea') || document);
+  }
 
-  // Make sure any leftover "freeze" classes are removed
-  setTimeout(function(){
-    document.querySelectorAll('.mlg-freeze-hidden').forEach(function(el){ el.classList.remove('mlg-freeze-hidden'); });
-  }, 200);
+  document.addEventListener('DOMContentLoaded', onRender, {once:true});
+  document.addEventListener('mlg:dayparts-rendered', onRender, true);
+  document.addEventListener('forceHourlyRerender', onRender, true);
 })();
 </script>
 
@@ -23522,7 +23298,7 @@ try{
   function isTempLike(el){
     if(!el || !el.classList) return false;
     const cls = ["min","max","hi","lo","tmin","tmax","temp-hi","temp-lo"];
-    if(cls.some(c => el.classList.contains(c))) return True;
+    if(cls.some(c => el.classList.contains(c))) return true;
     const t = (el.textContent||"").trim();
     return /-?\d+\s*°/.test(t);
   }
@@ -23983,6 +23759,257 @@ html body #widget.skin-night #mapArea{
 
   // Sicurezza: se click arriva comunque, non bloccarlo (il guard evita doppioni)
   btn.addEventListener('click', function(){ /* no-op */ }, true);
+})();
+</script>
+
+
+<style id="mlg-friendly-daily-label-css">
+  /* Keep internal MM-DD text for existing scripts, but show a friendly label via ::after (no flicker). */
+  #dailyPanel .days .day > div:first-child[data-label]{
+    position: relative;
+    color: transparent !important; /* hide MM-DD */
+  }
+  #dailyPanel .days .day > div:first-child[data-label]::after{
+    content: attr(data-label);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,.95); /* visible label */
+    pointer-events: none;
+  }
+
+  /* Loading overlay: mantiene contenuto visibile ma evita interazioni durante refresh, senza flicker */
+  #dailyPanel.mlg-loading{ position: relative; }
+  #dailyPanel.mlg-loading::after{
+    content: "⏳ Aggiornamento…";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    background: rgba(0,0,0,0.15);
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+    pointer-events: none;
+  }
+  #dailyPanel.mlg-loading{ pointer-events:none; }
+</style>
+
+
+<script id="mlg-final-dayparts-fix">
+(function(){
+  // ---------- helpers ----------
+  const PARTS = {
+    "Mattina": {start:6, end:12},
+    "Pomeriggio": {start:12, end:18},
+    "Sera": {start:18, end:24},
+    "Notte": {start:0, end:6}
+  };
+
+  function between(h, start, end){
+    return start < end ? (h >= start && h < end) : (h >= start || h < end);
+  }
+
+  function weight(c){
+    c = Number(c);
+    if(c >= 95) return 200;
+    if([75,85,86].includes(c)) return 170;
+    if([71,73,77].includes(c)) return 150;
+    if([65,67,82].includes(c)) return 140;
+    if([61,63,80,81].includes(c)) return 120;
+    if([51,53,55,56,57].includes(c)) return 100;
+    if([45,48].includes(c)) return 40;
+    if(c >= 1 && c <= 3) return 20;
+    if(c === 0) return 10;
+    return 0;
+  }
+
+  function getFc(){
+    return window.__fullFc || window.fc;
+  }
+
+  function selectedDayIndex(){
+    try{
+      if(typeof window.selectedDayIndex === 'function'){
+        const v = window.selectedDayIndex();
+        if(Number.isFinite(v)) return v;
+      }
+    }catch(e){}
+    try{
+      const strip = document.querySelector('#dailyPanel .days');
+      if(strip){
+        const items = Array.from(strip.querySelectorAll('.day'));
+        const sel = items.findIndex(el => el.classList && (el.classList.contains('sel') || el.classList.contains('selected') || el.getAttribute('aria-selected')==='true'));
+        if(sel >= 0) return sel;
+      }
+    }catch(e){}
+    return Number(window.curDay || 0) || 0;
+  }
+
+  function selectedISO(fc){
+    try{
+      const idx = selectedDayIndex();
+      const d = fc && fc.daily && fc.daily.time && fc.daily.time[idx];
+      if(d) return String(d).slice(0,10);
+    }catch(e){}
+    // fallback: read from selected element dataset
+    try{
+      const sel = document.querySelector('#dailyPanel .days .day.sel, #dailyPanel .days .day.selected, #dailyPanel .days .day[aria-selected="true"]');
+      if(sel){
+        const iso = sel.getAttribute('data-date') || sel.getAttribute('data-iso') || (sel.dataset && sel.dataset.iso);
+        if(iso) return String(iso).slice(0,10);
+      }
+    }catch(e){}
+    return null;
+  }
+
+  // ---------- Daily strip labels + temp stabilization ----------
+  function fmtDowDay(dateStr){
+    const d = new Date(dateStr + "T12:00:00"); // avoid timezone midnight edge
+    if(isNaN(d.getTime())) return null;
+    let dow = "";
+    try{
+      dow = new Intl.DateTimeFormat('it-IT',{weekday:'short'}).format(d);
+    }catch(e){
+      const arr = ["dom","lun","mar","mer","gio","ven","sab"];
+      dow = arr[d.getDay()];
+    }
+    dow = String(dow).toLowerCase().replace(/\.$/,'');
+    if(!dow.endsWith('.')) dow = dow + '.';
+    const day = String(d.getDate()).padStart(2,'0');
+    return dow + " " + day;
+  }
+
+  function applyDailyStrip(){
+    const fc = getFc();
+    const strip = document.querySelector('#dailyPanel .days');
+    if(!strip || !fc || !fc.daily || !Array.isArray(fc.daily.time)) return;
+
+    const items = Array.from(strip.querySelectorAll('.day'));
+    items.forEach((dayEl, i) => {
+      const iso = String(fc.daily.time[i] || '').slice(0,10);
+      if(!iso) return;
+
+      // keep machine-friendly attrs
+      try{ dayEl.dataset.iso = iso; }catch(e){}
+      try{ dayEl.dataset.mmdd = iso.slice(5,10); }catch(e){}
+
+      // set friendly label on the date div (shown via CSS ::after)
+      const dateDiv = dayEl.querySelector(':scope > div:first-child');
+      if(dateDiv){
+        const label = fmtDowDay(iso);
+        if(label) dateDiv.setAttribute('data-label', label);
+      }
+
+      // stabilize temps (store once, restore if some other patch blanks them)
+      const kids = dayEl.children || [];
+      const tmaxEl = (kids.length >= 3 && kids[2] && kids[2].tagName === 'DIV') ? kids[2] : null;
+      const tminEl = dayEl.querySelector(':scope > div.min');
+      if(tmaxEl && !dayEl.dataset.tmax) dayEl.dataset.tmax = tmaxEl.textContent || '';
+      if(tminEl && !dayEl.dataset.tmin) dayEl.dataset.tmin = tminEl.textContent || '';
+      if(tmaxEl && (!tmaxEl.textContent || !String(tmaxEl.textContent).includes('°')) && dayEl.dataset.tmax){
+        tmaxEl.textContent = dayEl.dataset.tmax;
+      }
+      if(tminEl && (!tminEl.textContent || !String(tminEl.textContent).includes('°')) && dayEl.dataset.tmin){
+        tminEl.textContent = dayEl.dataset.tmin;
+      }
+    });
+  }
+
+  let dailyObs;
+  function watchDailyStrip(){
+    // Niente MutationObserver profondo: era la causa principale dei blocchi.
+    // Usiamo solo sincronizzazioni esplicite (scheduleFix) sui punti di lifecycle.
+    return;
+  }
+
+  // ---------- Dayparts: force "worst of the time range for the selected day" ----------
+  function fixDayPartsTiles(){
+    const fc = getFc();
+    if(!fc || !fc.hourly || !Array.isArray(fc.hourly.time)) return;
+    if(typeof window.iconHTML_NOEMOJI !== 'function') return;
+
+    const iso = selectedISO(fc);
+    if(!iso) return;
+
+    const tiles = document.querySelectorAll('#dayParts details.part, #dayParts .part');
+    if(!tiles || !tiles.length) return;
+
+    tiles.forEach((tile) => {
+      const titleEl = tile.querySelector('summary h4, h4');
+      const name = titleEl ? titleEl.textContent.trim() : "";
+      const rng = PARTS[name];
+      if(!rng) return;
+
+      const rows = [];
+      for(let i=0;i<fc.hourly.time.length;i++){
+        const t = String(fc.hourly.time[i]);
+        if(!t.startsWith(iso)) continue;
+        const h = Number(t.slice(11,13));
+        if(between(h, rng.start, rng.end)) rows.push(i);
+      }
+      if(!rows.length) return;
+
+      let bestIdx = rows[0], bestW = -1;
+      for(const i of rows){
+        const w = weight(fc.hourly.weathercode && fc.hourly.weathercode[i]);
+        if(w > bestW){ bestW = w; bestIdx = i; }
+      }
+      const code = Number(fc.hourly.weathercode && fc.hourly.weathercode[bestIdx]);
+
+      // day/night choice
+      let isNight = (name === 'Notte');
+      if(!isNight && fc.hourly.is_day){
+        let dayCnt = 0;
+        for(const i of rows) dayCnt += (fc.hourly.is_day[i] ? 1 : 0);
+        isNight = dayCnt < rows.length/2;
+      }
+
+      const iconHTML = window.iconHTML_NOEMOJI(code, isNight) || '';
+      if(!iconHTML) return;
+
+      const summary = tile.querySelector('summary') || tile;
+      const iconEl = summary.querySelector('svg, img, i');
+      if(iconEl) iconEl.outerHTML = iconHTML;
+      else summary.insertAdjacentHTML('beforeend', iconHTML);
+
+      // keep phen (description) aligned with the chosen code
+      try{
+        const phenText = (typeof window.wmoDesc === 'function') ? (window.wmoDesc(code) || '') : '';
+        const phenEl = tile.querySelector('.phen');
+        if(phenEl && phenText) phenEl.textContent = phenText;
+      }catch(e){}
+    });
+  }
+
+  let fixRaf = 0;
+  function scheduleFix(){
+    if(fixRaf) return;
+    fixRaf = requestAnimationFrame(() => {
+      fixRaf = 0;
+      try{ applyDailyStrip(); }catch(e){}
+
+  window.__mlgSyncForecastUI = scheduleFix;
+      try{ fixDayPartsTiles(); }catch(e){}
+    });
+  }
+
+  // Hook on existing lifecycle points
+  document.addEventListener('mlg:dayparts-rendered', scheduleFix, true);
+  document.addEventListener('DOMContentLoaded', function(){
+    watchDailyStrip();
+    scheduleFix();
+  }, {once:true});
+
+  // Also: when user clicks a day in the 7-day strip
+  document.addEventListener('click', function(e){
+    const d = e.target && e.target.closest ? e.target.closest('#dailyPanel .day') : null;
+    if(d) setTimeout(scheduleFix, 30);
+  }, true);
+
 })();
 </script>
 
