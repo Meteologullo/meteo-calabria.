@@ -10248,6 +10248,72 @@ pushMsg(`${text}${body}`, "ai");
   }
 })();
 </script>
+<script id="mlg-datekey-fallback-v1">
+(function(){
+  // Fix urgente: chiavi giorno (YYYY-MM-DD) coerenti tra dispositivi/timezone.
+  // Se un device salva con una chiave diversa di 1 giorno (effetto toISOString/UTC),
+  // qui proviamo automaticamente anche ±1 giorno in lettura.
+  function shiftKey(key, delta){
+    try{
+      if(typeof key!=='string' || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
+      var p = key.split('-').map(function(x){ return parseInt(x,10); });
+      var dt = new Date(Date.UTC(p[0], p[1]-1, p[2], 12, 0, 0));
+      dt.setUTCDate(dt.getUTCDate() + (delta||0));
+      var y = dt.getUTCFullYear();
+      var m = String(dt.getUTCMonth()+1).padStart(2,'0');
+      var d = String(dt.getUTCDate()).padStart(2,'0');
+      return y + "-" + m + "-" + d;
+    }catch(e){ return null; }
+  }
+  function altKeys(key){
+    var out = [];
+    if(key) out.push(key);
+    var k1 = shiftKey(key, -1); if(k1 && out.indexOf(k1)===-1) out.push(k1);
+    var k2 = shiftKey(key,  1); if(k2 && out.indexOf(k2)===-1) out.push(k2);
+    return out;
+  }
+
+  // Wrap getDailyOverrideV2 (dopo eventuali wrapper precedenti)
+  try{
+    if(typeof window.getDailyOverrideV2 === 'function' && !window.getDailyOverrideV2.__mlgKeyFallback){
+      var _get = window.getDailyOverrideV2;
+      window.getDailyOverrideV2 = function(key, uid){
+        var o = _get(key, uid);
+        if(o) return o;
+        var keys = altKeys(key);
+        for(var i=1;i<keys.length;i++){
+          o = _get(keys[i], uid);
+          if(o) return o;
+        }
+        return null;
+      };
+      window.getDailyOverrideV2.__mlgKeyFallback = true;
+    }
+  }catch(e){}
+
+  // Wrap getDailyIconOverrideV3
+  try{
+    if(typeof window.getDailyIconOverrideV3 === 'function' && !window.getDailyIconOverrideV3.__mlgKeyFallback){
+      var _g = window.getDailyIconOverrideV3;
+      window.getDailyIconOverrideV3 = function(key, uid, seg){
+        var o = _g(key, uid, seg);
+        if(o) return o;
+        var keys = altKeys(key);
+        for(var i=1;i<keys.length;i++){
+          o = _g(keys[i], uid, seg);
+          if(o) return o;
+        }
+        return null;
+      };
+      window.getDailyIconOverrideV3.__mlgKeyFallback = true;
+    }
+  }catch(e){}
+
+  // Re-applica override e ridisegna (per vedere subito le modifiche salvate su GitHub)
+  try{ if(typeof window.applyDailyOverridesV2==='function') window.applyDailyOverridesV2(); }catch(e){}
+  try{ if(typeof window.render==='function') window.render(); }catch(e){}
+})();
+</script>
 <script id="helpers-custom-icon">
 (function(){
 
@@ -10930,7 +10996,7 @@ document.addEventListener('DOMContentLoaded', function(){
       document.getElementById('proUseFcDays').onclick=function(e){ e.preventDefault(); fillDaysFromFc(); };
       document.getElementById('proGridApply').onclick=function(){ var r=+document.getElementById('proRows').value; var c=+document.getElementById('proCols').value; if(!(r>0 && c>0)){ alert('La griglia deve avere almeno 1×1'); return; } setGrid(r,c); showOverlay(); };
       document.getElementById('proScan').onclick=async function(e){ e.preventDefault(); await waitDays(5000); var idx=Math.max(0, Math.min(6, daySel.selectedIndex)); var list=collectIconsForDay(idx); if(!list.length) list=collectIconsAll(); renderIcons(list); };
-      document.getElementById('proFind').onclick=async function(){ try{ var q=document.getElementById('proQuery').value.trim(); var lbl=document.getElementById('proSector'); lbl.textContent='...'; var g= (typeof window.geocode==='function') ? await window.geocode(q) : null; if(!g){ lbl.textContent='Non trovato'; return; } var sid=sectorIdForLatLon(g.latitude, g.longitude); lbl.textContent='Settore: '+sid; lbl.setAttribute('data-sid', sid); }catch(e){ document.getElementById('proSector').textContent='Errore'; } };
+      document.getElementById('proFind').onclick=async function(){ try{ var q=document.getElementById('proQuery').value.trim(); var lbl=document.getElementById('proSector'); lbl.textContent='...'; var g= (typeof window.geocode==='function') ? await window.geocode(q) : null; if(!g){ lbl.textContent='Non trovato'; return; } var sid=sectorIdForLatLon(g.latitude, g.longitude); lbl.textContent='Settore: '+sid; lbl.setAttribute('data-sid', sid); try{ lbl.setAttribute('data-lat', g.latitude); lbl.setAttribute('data-lon', g.longitude); }catch(_e){} try{ var xy=xyForLatLon(g.latitude, g.longitude); if(xy){ var st=loadStore(); var rows=(st.grid&&st.grid.rows)||8, cols=(st.grid&&st.grid.cols)||6; function c(v,min,max){ return Math.max(min, Math.min(max, v)); } var cellW=100/cols, cellH=100/rows; var ccol=c(Math.floor(xy.x/cellW),0,cols-1); var crow=c(Math.floor(xy.y/cellH),0,rows-1); var rx=xy.x-ccol*cellW, ry=xy.y-crow*cellH; var mw=cellW/4, mh=cellH/4; var mcol=c(Math.floor(rx/mw),0,3); var mrow=c(Math.floor(ry/mh),0,3); var mid=mrow+'x'+mcol; lbl.setAttribute('data-micro', mid); var ml=document.getElementById('proMicroLbl'); if(ml) ml.textContent='Micro: '+mid; } }catch(_e){} }catch(e){ document.getElementById('proSector').textContent='Errore'; } };
       document.getElementById('proClear').onclick=function(){ var iso=daySel.value; var sid=document.getElementById('proSector').getAttribute('data-sid'); if(!sid){ alert('Prima usa "Trova settore".'); return; } var s=loadStore(); var mid=(document.getElementById("proSector")||{}).getAttribute&&document.getElementById("proSector").getAttribute("data-micro"); var useMicro=(document.getElementById("proUseMicro")||{}).checked; var key=(useMicro&&mid)?(sid+"@"+mid):sid; if(s.overrides[iso]){ delete s.overrides[iso][key]; saveStore(s); } alert('Override rimosso per '+iso+', '+key); };
       document.getElementById('proSave').onclick=function(){ var iso=daySel.value; var sid=document.getElementById('proSector').getAttribute('data-sid'); if(!sid){ alert('Prima usa "Trova settore".'); return; } var code=currentSelectedCode(); var s=loadStore(); if(!s.overrides[iso]) s.overrides[iso]={}; var mid=(document.getElementById("proSector")||{}).getAttribute&&document.getElementById("proSector").getAttribute("data-micro"); var useMicro=(document.getElementById("proUseMicro")||{}).checked; var key=(useMicro&&mid)?(sid+"@"+mid):sid; s.overrides[iso][key] = (code===''||code==null) ? {code:null} : {code:+code}; saveStore(s); alert('Salvato '+(code===''?'(pulito)':'WMO '+code)+' per '+iso+', '+sid); };
       document.getElementById('proApplyNow').onclick=function(){ try{ if(window.fc){ applyToForecast(window.fc); if(typeof window.render==='function') window.render(); } }catch(e){} };
@@ -24336,6 +24402,192 @@ html body #widget.skin-night #mapArea{
 })();
 </script>
 
+
+<!-- === Sector PRO • Fix definitivo salvataggio/applicazione/sync (v1.1, chirurgico) === -->
+<script id="sector-pro-hardfix-v11">
+(function(){
+  if(window.__sectorProHardfixV11) return; window.__sectorProHardfixV11 = true;
+
+  var LSKEY = "sectorCondMiniV1";
+  function loadStore(){ try{ return JSON.parse(localStorage.getItem(LSKEY)) || {overrides:{}, grid:{rows:8, cols:6}}; }catch(e){ return {overrides:{}, grid:{rows:8, cols:6}}; } }
+  function saveStore(s){ try{ localStorage.setItem(LSKEY, JSON.stringify(s)); }catch(e){} }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  // ---- Lettura codice selezionato nel pannello PRO (come le icone) ----
+  function getSelectedCode(panel){
+    try{
+      var manual = (panel.querySelector('#proManual')||{}).value;
+      if(manual!=null && String(manual).trim()!=="") return Number(manual);
+      var sel = panel.querySelector('#proIcons .proIcon.selected');
+      if(sel){
+        var dc = sel.getAttribute('data-code');
+        if(dc==="" || dc==null) return null;
+        var n = Number(dc); return isFinite(n) ? n : null;
+      }
+    }catch(e){}
+    return null;
+  }
+
+  // ---- Applica quanto scelto in UI allo STORE, senza toccare altri campi (delta/mm già gestiti altrove) ----
+  function persistFromUi(){
+    var panel = document.getElementById('sector-pro-panel');
+    if(!panel) return;
+
+    var iso = (panel.querySelector('#proDay')||{}).value;
+    var sectorEl = panel.querySelector('#proSector');
+    var sid = sectorEl && sectorEl.getAttribute('data-sid');
+    if(!iso || !sid) return;
+
+    var useMicro = !!(panel.querySelector('#proUseMicro') && panel.querySelector('#proUseMicro').checked);
+    var mid = sectorEl && sectorEl.getAttribute('data-micro');
+    var key = (useMicro && mid) ? (sid + "@" + mid) : sid;
+
+    var s = loadStore();
+    if(!s.overrides) s.overrides = {};
+    if(!s.overrides[iso]) s.overrides[iso] = {};
+    var ov = s.overrides[iso][key] || {};
+
+    var code = getSelectedCode(panel);
+
+    // fascia (se presente)
+    var bandSel = panel.querySelector('#proBand');
+    var mode = bandSel ? (bandSel.value || 'full') : 'full';
+
+    if(mode === 'full'){
+      // Giorno intero
+      ov.code = (code==null ? null : Number(code));
+      if(ov.ranged) delete ov.ranged;
+    }else{
+      // Fascia / ore: salva dentro ranged e forza code=null (per evitare reset al render)
+      var ranged = (ov.ranged && typeof ov.ranged === 'object') ? ov.ranged : {};
+      if(mode === 'custom'){
+        var hs = panel.querySelector('#proHourStart');
+        var he = panel.querySelector('#proHourEnd');
+        var start = hs ? clamp(parseInt(hs.value,10)||0, 0, 23) : 0;
+        var end   = he ? clamp(parseInt(he.value,10)||24, 1, 24) : 24;
+        ranged.type = 'hours'; ranged.start = start; ranged.end = end;
+        delete ranged.band;
+      }else{
+        ranged.type = 'band'; ranged.band = mode;
+        delete ranged.start; delete ranged.end;
+      }
+      ranged.code = (code==null ? null : Number(code));
+      ov.ranged = ranged;
+      ov.code = null;
+    }
+
+    s.overrides[iso][key] = ov;
+    saveStore(s);
+
+    // Sync verso GitHub (auto) + refresh UI
+    try{
+      if(typeof window.scheduleSync === "function"){
+        window.scheduleSync("sector_cond_mini_v1.json", s, "sector conditions update");
+      }
+    }catch(e){}
+
+    try{
+      // Applica subito alla previsione corrente (se presente)
+      if(typeof window.applySectorOverrides === "function" && window.fc){
+        window.applySectorOverrides(window.fc);
+      }
+    }catch(e){}
+  }
+
+  // ---- Assicura sync anche alla modifica griglia ----
+  function persistGridFromUi(){
+    try{
+      var panel = document.getElementById('sector-pro-panel'); if(!panel) return;
+      var rEl = panel.querySelector('#proRows'), cEl = panel.querySelector('#proCols');
+      if(!rEl || !cEl) return;
+      var r = parseInt(rEl.value,10), c = parseInt(cEl.value,10);
+      if(!(r>0 && c>0)) return;
+      var s = loadStore(); s.grid = {rows:r, cols:c}; saveStore(s);
+      if(typeof window.scheduleSync === "function"){
+        window.scheduleSync("sector_cond_mini_v1.json", s, "sector grid update");
+      }
+    }catch(e){}
+  }
+
+  // ---- Eventi: dopo il click su "Salva" (bubble) rifacciamo la persistenza corretta ----
+  document.addEventListener('click', function(ev){
+    var t = ev && ev.target;
+    if(!t) return;
+    if(t.id === 'proSave'){
+      // dopo handler originali + patch, così prendiamo il valore finale
+      setTimeout(function(){ try{ persistFromUi(); }catch(e){} }, 80);
+    }
+    if(t.id === 'proGridApply'){
+      setTimeout(function(){ try{ persistGridFromUi(); }catch(e){} }, 80);
+    }
+  }, false);
+
+  // ---- Resilienza: alcuni script riassegnano run/render; ripatchiamo periodicamente ----
+  function ensureApplyWrap(){
+    var apply = window.applySectorOverrides;
+    if(typeof apply !== 'function') return;
+
+    function wrap(name){
+      var fn = window[name];
+      if(typeof fn !== 'function' || fn.__sectorHardfixWrapped) return;
+      window[name] = (name === 'run')
+        ? (async function(){
+            var r = await fn.apply(this, arguments);
+            try{ if(window.fc) apply(window.fc); }catch(e){}
+            return r;
+          })
+        : (async function(){
+            try{ if(window.fc) apply(window.fc); }catch(e){}
+            return fn.apply(this, arguments);
+          });
+      window[name].__sectorHardfixWrapped = true;
+    }
+    wrap('render'); wrap('run');
+  }
+  ensureApplyWrap();
+  setInterval(ensureApplyWrap, 900);
+})();
+</script>
+
+<script id="mlg-autosync-state-v1">
+(function(){
+  // Fix urgente: le modifiche GLOBALI (posizioni/rotazioni/dimensioni in state.json)
+  // devono programmare l'auto-sync su GitHub come gli override giornalieri.
+  function hook(){
+    try{
+      if(!window.SYNC_AUTOSAVE) return;
+      if(typeof window.saveState !== 'function') return;
+      if(window.saveState.__mlgAutoSyncState) return;
+      var _orig = window.saveState;
+      window.saveState = function(){
+        var out = _orig.apply(this, arguments);
+        try{
+          if(typeof window.scheduleSync === 'function'){
+            var st = {};
+            try{
+              if(typeof PERSIST !== 'undefined' && PERSIST){
+                st = {
+                  positions: PERSIST.positions || {},
+                  markerSize: PERSIST.markerSize || null,
+                  custom: PERSIST.custom || []
+                };
+              }
+            }catch(e){}
+            window.scheduleSync("state.json", st, "state autosave");
+          }
+        }catch(e){}
+        return out;
+      };
+      window.saveState.__mlgAutoSyncState = true;
+    }catch(e){}
+  }
+
+  // prova subito e riprova dopo che scheduleSync è disponibile
+  hook();
+  setTimeout(hook, 600);
+  setTimeout(hook, 1600);
+})();
+</script>
 </body>
 </html>
 <!-- === FIX 2025‑08‑15: PRO panel — allow applying to "oggi" even when fc is a 1‑day sub‑forecast === -->
