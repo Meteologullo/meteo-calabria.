@@ -2152,6 +2152,45 @@ details.part summary h4{ text-shadow: 0 1px 2px rgba(0,0,0,.26); }
 }
 </style>
 
+<style id="mlg-prov-temps-css">
+/* === NUMERI T° capoluoghi (MIN/MAX) INSERITI NELLA TABELLA GIA' DI SFONDO (immagine) ===
+   Coordinate in % rispetto all'immagine mappa (960x540). Non crea una nuova tabella: scrive solo i numeri. */
+#mapArea{ position:relative; } /* già presente, ma lo ribadiamo senza effetti collaterali */
+#mlgProvNums{
+  position:absolute;
+  inset:0;
+  z-index:8;
+  pointer-events:none;
+  user-select:none;
+}
+#mlgProvNums .pt-num{
+  position:absolute;
+  left: calc(var(--x) * 1%);
+  top:  calc(var(--y) * 1%);
+  width:  calc(var(--w) * 1%);
+  height: calc(var(--h) * 1%);
+  transform: translate(-50%, -50%);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:auto;
+  cursor:pointer;
+  font-family: 'Baloo 2', cursive;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .2px;
+  /* si adatta bene sia desktop che mobile */
+  font-size: clamp(11px, 1.35vw, 16px);
+  line-height: 1;
+  text-shadow: 0 1px 3px rgba(0,0,0,.45);
+}
+#mlgProvNums .tmin{ color:#73d5ff; } /* blu/azzurro leggibile */
+#mlgProvNums .tmax{ color:#ffb22e; } /* arancio/rosso leggibile */
+
+@media (max-width:600px){
+  #mlgProvNums .pt-num{ font-size: clamp(10px, 2.6vw, 14px); }
+}
+</style>
 
 <style id="narrative-empty-hide-2025-09">
 /* Nascondi la sintesi finché è vuota */
@@ -4007,8 +4046,26 @@ window.KNOWN = Array.isArray(window.KNOWN) ? window.KNOWN : [];
   <div id="mlgLogoBadge" aria-hidden="true">
     <img src="https://meteologullo.github.io/mappamlg/logo.png" alt="MLG logo" loading="lazy">
   </div>
+  <!-- === MLG | Temperature capoluoghi (NUMERI dentro la tabella già disegnata nell'immagine) === -->
+  <div id="mlgProvNums" aria-label="Temperature capoluoghi">
+    <!-- Colonna MIN (x≈8.44%) | Colonna MAS (x≈12.97%) — coordinate rispetto all'immagine 960x540 -->
+    <span class="pt-num tmin" id="mlgProvCSMin" data-city="Cosenza" data-field="tmin" style="--x:8.4375;--y:12.9630;--w:4.6;--h:5.2;">—</span>
+    <span class="pt-num tmax" id="mlgProvCSMax" data-city="Cosenza" data-field="tmax" style="--x:12.9688;--y:12.9630;--w:4.7;--h:5.2;">—</span>
 
-<img alt="Mappa Calabria" id="map" loading="lazy" src="https://meteologullo.github.io/mappamlg/mapparegionale.png"/>
+    <span class="pt-num tmin" id="mlgProvCZMin" data-city="Catanzaro" data-field="tmin" style="--x:8.4375;--y:18.2407;--w:4.6;--h:5.3;">—</span>
+    <span class="pt-num tmax" id="mlgProvCZMax" data-city="Catanzaro" data-field="tmax" style="--x:12.9688;--y:18.2407;--w:4.7;--h:5.3;">—</span>
+
+    <span class="pt-num tmin" id="mlgProvKRMin" data-city="Crotone" data-field="tmin" style="--x:8.4375;--y:23.6111;--w:4.6;--h:5.3;">—</span>
+    <span class="pt-num tmax" id="mlgProvKRMax" data-city="Crotone" data-field="tmax" style="--x:12.9688;--y:23.6111;--w:4.7;--h:5.3;">—</span>
+
+    <span class="pt-num tmin" id="mlgProvRCMin" data-city="Reggio Calabria" data-field="tmin" style="--x:8.4375;--y:28.8889;--w:4.6;--h:5.2;">—</span>
+    <span class="pt-num tmax" id="mlgProvRCMax" data-city="Reggio Calabria" data-field="tmax" style="--x:12.9688;--y:28.8889;--w:4.7;--h:5.2;">—</span>
+
+    <span class="pt-num tmin" id="mlgProvVVMin" data-city="Vibo Valentia" data-field="tmin" style="--x:8.4375;--y:34.2593;--w:4.6;--h:5.6;">—</span>
+    <span class="pt-num tmax" id="mlgProvVVMax" data-city="Vibo Valentia" data-field="tmax" style="--x:12.9688;--y:34.2593;--w:4.7;--h:5.6;">—</span>
+  </div>
+
+<img alt="Mappa Calabria" id="map" loading="lazy" src="https://meteologullo.github.io/mappamlg/regionecalabria.jpg"/>
 </div>
 <!-- === AI Meteo Lo Gullo — Chat box sotto la mappa (iniettato) === -->
 <section aria-label="Assistente Meteo Lo Gullo" id="mlgAiBox" style="visibility:hidden">
@@ -4292,6 +4349,10 @@ function buildUrlCandidates(file){
           if(!o) return;
           if(o.tmax !== undefined) pt.tmax = o.tmax;
           if(o.tmin !== undefined) pt.tmin = o.tmin;
+          if(o.rot !== undefined) pt.rot = o.rot;
+          if(o.x   !== undefined) pt.x   = o.x;
+          if(o.y   !== undefined) pt.y   = o.y;
+          if(o.size!== undefined) pt._size = o.size; // reserved (render uses CSS var)
 });
       });
     }catch(e){ console.warn("applyDailyOverridesV2 error", e); }
@@ -4355,6 +4416,25 @@ function buildUrlCandidates(file){
 let PROVINCES = JSON.parse(localStorage.getItem('calabriaMarkers') || '[{"city":"Cosenza","lat":39.299,"lon":16.253},{"city":"Catanzaro","lat":38.909,"lon":16.587},{"city":"Reggio Calabria","lat":38.114,"lon":15.65},{"city":"Crotone","lat":39.083,"lon":17.125},{"city":"Vibo Valentia","lat":38.673,"lon":16.104}]');
 let DAYS = [];               // Popolato dopo fetch
 let curDay = 0, night = false;
+// --- MLG PATCH: keep window.curDay/window.night in sync (used by control-panel patches) ---
+try{
+  const dCur = Object.getOwnPropertyDescriptor(window,'curDay');
+  if(!dCur || dCur.configurable){
+    Object.defineProperty(window,'curDay',{
+      get: ()=> curDay,
+      set: (v)=>{ curDay = Number(v); if(!Number.isFinite(curDay)) curDay = 0; },
+      configurable: true
+    });
+  }
+  const dNight = Object.getOwnPropertyDescriptor(window,'night');
+  if(!dNight || dNight.configurable){
+    Object.defineProperty(window,'night',{
+      get: ()=> night,
+      set: (v)=>{ night = !!v; },
+      configurable: true
+    });
+  }
+}catch(e){}
 const $ = q => document.querySelector(q);
 
 /* —— Bounding box Calabria —— */
@@ -4579,6 +4659,185 @@ function buildNav(){
 }
 function updateNav(){ $('#nav').querySelectorAll('button').forEach((b,i)=>b.classList.toggle('active',i===curDay)); }
 
+/* === Tabella capoluoghi (MIN/MAX) — auto da logica esistente + override pannello === */
+const __MLG_CAPOLUOGHI = [
+  { code:'CS', city:'Cosenza' },
+  { code:'CZ', city:'Catanzaro' },
+  { code:'KR', city:'Crotone' },
+  { code:'RC', city:'Reggio Calabria' },
+  { code:'VV', city:'Vibo Valentia' }
+];
+function __mlgNormCity(s){
+  return (s||'')
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/\s+/g,' ');
+}
+function __mlgFindPoint(points, city){
+  const target = __mlgNormCity(city);
+  return (points||[]).find(p => __mlgNormCity(p.city) === target) || null;
+}
+function updateProvTemps(){
+  try{
+    const box = document.getElementById('mlgProvNums') || document.getElementById('mlgProvTemps');
+    if(!box) return;
+    if(!Array.isArray(DAYS) || !DAYS.length) return;
+    const pts = (DAYS[curDay] && Array.isArray(DAYS[curDay].points)) ? DAYS[curDay].points : [];
+    __MLG_CAPOLUOGHI.forEach(it=>{
+      const p = __mlgFindPoint(pts, it.city);
+      const tminRaw = p && p.tmin!=null ? Number(p.tmin) : NaN;
+      const tmaxRaw = p && p.tmax!=null ? Number(p.tmax) : NaN;
+      const tmin = Number.isFinite(tminRaw) ? Math.round(tminRaw) : null;
+      const tmax = Number.isFinite(tmaxRaw) ? Math.round(tmaxRaw) : null;
+      const elMin = document.getElementById('mlgProv'+it.code+'Min');
+      const elMax = document.getElementById('mlgProv'+it.code+'Max');
+      if(elMin) elMin.textContent = (tmin==null) ? '—' : String(tmin);
+      if(elMax) elMax.textContent = (tmax==null) ? '—' : String(tmax);
+    });
+  }catch(e){}
+}
+
+/* === PATCH (MLG): click sui numeri MIN/MAX (tabella nell'immagine) -> apre pannello e permette modifica === */
+(function mlgProvTempsClick(){
+  const onReady = (fn)=> (document.readyState === 'loading')
+    ? document.addEventListener('DOMContentLoaded', fn, {once:true})
+    : fn();
+
+  onReady(function(){
+    const root = document.getElementById('mlgProvNums');
+    const panel = document.getElementById('panel');
+    if(!root || !panel) return;
+
+    const selCity = document.getElementById('selCity');
+    const selDay  = document.getElementById('selDay');
+    const inpTmin = document.getElementById('inpTmin');
+    const inpTmax = document.getElementById('inpTmax');
+
+    function openFor(el){
+      // Password: chiedila SOLO quando il pannello è chiuso (non ad ogni click)
+      try{
+        const alreadyOpen = panel.classList.contains('open') && !panel.classList.contains('peek');
+        if(!alreadyOpen){
+          if(typeof ensureAuth === 'function'){
+            if(!ensureAuth()) return;
+          }else{
+            var pw = window.prompt("Inserisci la password (MAP):");
+            if(!(pw === "Angelo1" || pw === "Giuseppe1")){
+              if(pw !== null) alert("Password errata");
+              return;
+            }
+          }
+        }
+      }catch(_e){ /* non bloccare */ }
+
+      const city = (el && el.dataset) ? (el.dataset.city || "") : "";
+      const field = (el && el.dataset) ? (el.dataset.field || "") : "";
+
+      // 1) Apri pannello
+      panel.classList.add('open');
+      panel.classList.remove('peek');
+
+      // 2) Assicura che le select abbiano le opzioni (robusto)
+      try{
+        if(selDay && selDay.options.length === 0 && Array.isArray(window.DAYS)){
+          selDay.innerHTML = '';
+          window.DAYS.forEach((d,i)=> selDay.add(new Option(d.label || ('Giorno '+(i+1)), String(i))));
+        }
+        if(selDay && typeof window.curDay !== 'undefined'){
+          selDay.value = String(window.curDay);
+        }
+      }catch(_e){}
+
+      try{
+        if(selCity && selCity.options.length === 0){
+          selCity.innerHTML = '';
+          const list = (Array.isArray(window.CITIES) && window.CITIES.length)
+            ? window.CITIES
+            : (__MLG_CAPOLUOGHI || []).map(x=>({city:x.city}));
+          list.forEach(c=> selCity.add(new Option(c.city || c, c.city || c)));
+        }
+      }catch(_e){}
+
+      // 3) Seleziona città
+      try{
+        if(selCity && city){
+          selCity.value = city;
+          if(selCity.value !== city){
+            const opt = Array.from(selCity.options||[]).find(o =>
+              __mlgNormCity(o.value) === __mlgNormCity(city) || __mlgNormCity(o.textContent) === __mlgNormCity(city)
+            );
+            if(opt) selCity.value = opt.value;
+          }
+        }
+      }catch(_e){}
+
+      // 4) Pre-compila MIN/MAX con i valori correnti (considera override V2 se presente)
+      try{
+        const pts = (window.DAYS && window.DAYS[window.curDay] && Array.isArray(window.DAYS[window.curDay].points))
+          ? window.DAYS[window.curDay].points
+          : [];
+        const p = __mlgFindPoint(pts, city);
+        let tmin = (p && p.tmin != null) ? p.tmin : '';
+        let tmax = (p && p.tmax != null) ? p.tmax : '';
+
+        try{
+          const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + Number(window.curDay||0));
+          const key = d.toISOString().slice(0,10);
+          const uid = p ? (p.uid || (typeof uidForCity === 'function' ? uidForCity(p.city) : null))
+                        : (typeof uidForCity === 'function' ? uidForCity(city) : null);
+          if(uid && typeof getDailyOverrideV2 === 'function'){
+            const ov = getDailyOverrideV2(key, uid);
+            if(ov){
+              if(ov.tmin != null) tmin = ov.tmin;
+              if(ov.tmax != null) tmax = ov.tmax;
+            }
+          }
+        }catch(_e2){}
+
+        if(inpTmin) inpTmin.value = (tmin === '' || tmin == null || Number.isNaN(Number(tmin))) ? '' : String(Math.round(Number(tmin)));
+        if(inpTmax) inpTmax.value = (tmax === '' || tmax == null || Number.isNaN(Number(tmax))) ? '' : String(Math.round(Number(tmax)));
+      }catch(_e){}
+
+      // 5) Focus sul campo cliccato
+      setTimeout(()=>{
+        try{
+          if(field === 'tmin' && inpTmin) inpTmin.focus();
+          if(field === 'tmax' && inpTmax) inpTmax.focus();
+        }catch(_e){}
+      }, 50);
+    }
+
+    root.querySelectorAll('.pt-num').forEach(el=>{
+      // accessibilità / tastiera
+      el.setAttribute('role','button');
+      el.setAttribute('tabindex','0');
+      try{
+        const f = el.dataset.field === 'tmin' ? 'minima' : 'massima';
+        const c = el.dataset.city || '';
+        el.setAttribute('aria-label', ('Modifica temperatura ' + f + ' ' + c).trim());
+      }catch(_e){}
+
+      el.addEventListener('click', (e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        openFor(el);
+      }, {passive:false});
+
+      el.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter' || e.key === ' '){
+          e.preventDefault();
+          openFor(el);
+        }
+      });
+    });
+  });
+})();
+
+
+window.updateProvTemps = updateProvTemps;
+
 /******************** RENDER MAIN WIDGET *************************/
 function render(){
   if(!DAYS.length) return;
@@ -4664,6 +4923,7 @@ function render(){
   const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+data.offset);
   const key=d.toISOString().slice(0,10);
   const uid = p.uid || (typeof uidForCity==="function"? uidForCity(p.city): (p.city||""));
+  const ovrV2All = (window.getDailyOverrideV2) ? window.getDailyOverrideV2(key, uid) : null;
   const seg = night ? 'night' : 'day';
   const ovr3 = (window.getDailyIconOverrideV3) ? window.getDailyIconOverrideV3(key, uid, seg) : null;
   // Legacy fallback: old V2 applies only by day
@@ -4679,6 +4939,29 @@ function render(){
     mk.innerHTML = (p.code_day!==undefined || p.code_night!==undefined) ? buildIconHTML_NOEMOJI((night ? (p.code_night ?? p.code) : (p.code_day ?? p.code)), night) : (p.code!==undefined ? buildIconHTML_NOEMOJI(p.code, night) : mk.innerHTML);
   }
 })();
+    // --- APPLY SAVED ROTATION & LOCAL SIZE (fix: keep per-marker edits after "Salva previsione") ---
+    try{
+      const rotDay = (ovrV2All && typeof ovrV2All.rot === 'number') ? ovrV2All.rot : null;
+      const rotGlobal = (typeof PERSIST!=='undefined' && PERSIST.positions && PERSIST.positions[uid] && typeof PERSIST.positions[uid].rot === 'number')
+        ? PERSIST.positions[uid].rot : null;
+      const rotBase = (typeof p.rot === 'number') ? p.rot : 0;
+      const rotFinal = (rotDay !== null) ? rotDay : ((rotGlobal !== null) ? rotGlobal : rotBase);
+      mk.style.setProperty('--rot', 'rotate(' + (rotFinal || 0) + 'deg)');
+      mk.style.transform = 'translate(-50%, -50%) rotate(' + (rotFinal || 0) + 'deg)';
+    }catch(_e){}
+
+    try{
+      const szDay = (ovrV2All && typeof ovrV2All.size === 'number') ? ovrV2All.size : null;
+      const szGlobal = (typeof PERSIST!=='undefined' && PERSIST.positions && PERSIST.positions[uid] && typeof PERSIST.positions[uid].size === 'number')
+        ? PERSIST.positions[uid].size : null;
+      const szFinal = (szDay !== null) ? szDay : szGlobal;
+      if(typeof szFinal === 'number' && !isNaN(szFinal)){
+        mk.style.setProperty('--marker-size', szFinal + 'px');
+      }else{
+        mk.style.removeProperty('--marker-size');
+      }
+    }catch(_e){}
+
     mk.title=`${p.city}: ${p.tmax}° / ${p.tmin}°`;
     mapA.appendChild(mk);
   });
@@ -4690,6 +4973,9 @@ function render(){
     tr.innerHTML=`<td>${r.city}</td><td>${r.tmax}°</td><td>${r.tmin}°</td>`;
     tbl.appendChild(tr);
   });
+  // aggiorna tabella capoluoghi (overlay in alto a sinistra)
+  updateProvTemps();
+
 }
 
 /******************** OPEN‑METEO *************************/
@@ -5895,24 +6181,50 @@ const selDay=$('#selDay'), inpDayName=$('#inpDayName'), inpIcon=$('#inpIcon'),
 const inpMarkerSizeOne=$('#inpMarkerSizeOne'), btnResetSize=$('#btnResetSize'), chkPin=$('#chkPin'), btnPeek=$('#btnPeek'), inpRotateOne=$('#inpRotateOne'), btnResetRotate=$('#btnResetRotate'), chkGlobal=$('#chkGlobal');
 
 // ——— Persist per-day tmax/tmin (V2) ———
-btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist */
+btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist + update immediato UI */
   try{
     const city = selCity && selCity.value;
+    if(!city){ try{ toast("Seleziona una città"); }catch(_e){} return; }
+
+    const tmaxVal = parseFloat(inpTmax && inpTmax.value);
+    const tminVal = parseFloat(inpTmin && inpTmin.value);
+    const obj = {};
+    if(!isNaN(tmaxVal)) obj.tmax = tmaxVal;
+    if(!isNaN(tminVal)) obj.tmin = tminVal;
+
+    if(!Object.keys(obj).length){ try{ toast("Inserisci almeno un valore"); }catch(_e){} return; }
+
     const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + curDay);
     const key = d.toISOString().slice(0,10);
-    DAYS[curDay].points.forEach(p=>{
-      if(city && p.city===city){
-        const uid = p.uid || uidForCity(p.city);
-        const tmaxVal = parseFloat(inpTmax.value);
-        const tminVal = parseFloat(inpTmin.value);
-        const obj = {};
-        if(!isNaN(tmaxVal)) obj.tmax = tmaxVal;
-        if(!isNaN(tminVal)) obj.tmin = tminVal;
-        if(Object.keys(obj).length){ saveDailyOverrideV2(key, uid, obj); }
+
+    // trova il punto del giorno corrente (match robusto)
+    const norm = s => (s||"").toString().trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu,"");
+    const pts = (DAYS && DAYS[curDay] && Array.isArray(DAYS[curDay].points)) ? DAYS[curDay].points : [];
+    let p = pts.find(x => norm(x.city) === norm(city)) || pts.find(x => norm(x.city).includes(norm(city)) || norm(city).includes(norm(x.city)));
+
+    // aggiorna subito UI (tabella + marker title) aggiornando il dato in memoria
+    if(p){
+      if(obj.tmax !== undefined) p.tmax = obj.tmax;
+      if(obj.tmin !== undefined) p.tmin = obj.tmin;
+    }
+
+    // persiste override V2 (per sync GitHub)
+    try{
+      const uid = (p && (p.uid || (typeof uidForCity === "function" ? uidForCity(p.city) : null)))
+               || (typeof uidForCity === "function" ? uidForCity(city) : city);
+      if(uid && typeof saveDailyOverrideV2 === "function"){
+        saveDailyOverrideV2(key, uid, obj);
       }
-    });
+    }catch(_e){}
+
+    // refresh immediato
+    try{ if(typeof updateProvTemps === "function") updateProvTemps(); }catch(_e){}
+    try{ if(typeof render === "function") render(); }catch(_e){}
+
+    try{ toast("Previsione salvata"); }catch(_e){}
   }catch(e){ console.warn(e); }
 });
+
 
 
   /* Clono il FAB per eliminare vecchi listener */
@@ -6039,13 +6351,14 @@ const up=e=>{
 if(editIdx===null) return toast('Nessun marker selezionato');
     const pt=DAYS[curDay].points[editIdx];
     const uid = pt.uid || uidForCity(pt.city);
-    // Salva override dimensione singola
+    // Salva dimensione singola (PER-GIORNO: non deve propagare ad altri giorni)
     try{
       const val = parseInt(inpMarkerSizeOne && inpMarkerSizeOne.value, 10);
       if(!isNaN(val)){
-        if(!PERSIST.positions) PERSIST.positions = {};
-        if(!PERSIST.positions[uid]) PERSIST.positions[uid] = {};
-        PERSIST.positions[uid].size = val;
+        const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+Number(curDay||0));
+        const key=d.toISOString().slice(0,10);
+        if(typeof saveDailyOverrideV2==='function'){ saveDailyOverrideV2(key, uid, { size: val }); }
+        pt._size = val;
       }
     }catch(e){}
 
@@ -6183,8 +6496,24 @@ if(editIdx===null) return toast('Nessun marker selezionato');
   if (typeof inpMarkerSizeOne !== "undefined" && inpMarkerSizeOne){
     inpMarkerSizeOne.addEventListener('input', e=>{
       if(editIdx===null) return;
+      const val = parseInt(e.target.value, 10);
       const mk = document.querySelector('#mapArea .marker[data-idx="'+editIdx+'"]');
-      if(mk){ mk.style.setProperty('--marker-size', e.target.value+'px'); }
+      if(mk && !isNaN(val)){ mk.style.setProperty('--marker-size', val+'px'); }
+
+      // Persist PER-GIORNO (così non si resetta su "Salva previsione" e non sporca altri giorni)
+      try{
+        const pt = (DAYS && DAYS[curDay] && Array.isArray(DAYS[curDay].points)) ? DAYS[curDay].points[editIdx] : null;
+        if(pt){
+          pt._size = (!isNaN(val) ? val : undefined);
+          const uid = pt.uid || (typeof uidForCity==='function' ? uidForCity(pt.city) : (pt.city||""));
+          const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + Number(curDay||0));
+          const key=d.toISOString().slice(0,10);
+          if(uid && typeof saveDailyOverrideV2==='function' && !isNaN(val)){
+            clearTimeout(window.__mlgSizeDebounce);
+            window.__mlgSizeDebounce = setTimeout(()=>{ try{ saveDailyOverrideV2(key, uid, { size: val }); }catch(_){ } }, 120);
+          }
+        }
+      }catch(_e){}
     });
   }
   /* —— Reset dimensione solo per il marker selezionato —— */
@@ -6194,7 +6523,25 @@ if(editIdx===null) return toast('Nessun marker selezionato');
       if(editIdx===null) return;
       const deg = parseInt(inpRotateOne.value, 10) || 0;
       const mk = document.querySelector('#mapArea .marker[data-idx="'+editIdx+'"]');
-      if(mk){ mk.style.transform = 'translate(-50%, -50%) rotate('+deg+'deg)'; }
+      if(mk){
+        mk.style.transform = 'translate(-50%, -50%) rotate('+deg+'deg)';
+        mk.style.setProperty('--rot', 'rotate('+deg+'deg)');
+      }
+
+      // Persist PER-GIORNO (così non si resetta su "Salva previsione" e non sporca altri giorni)
+      try{
+        const pt = (DAYS && DAYS[curDay] && Array.isArray(DAYS[curDay].points)) ? DAYS[curDay].points[editIdx] : null;
+        if(pt){
+          pt.rot = deg;
+          const uid = pt.uid || (typeof uidForCity==='function' ? uidForCity(pt.city) : (pt.city||""));
+          const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + Number(curDay||0));
+          const key=d.toISOString().slice(0,10);
+          if(uid && typeof saveDailyOverrideV2==='function'){
+            clearTimeout(window.__mlgRotDebounce);
+            window.__mlgRotDebounce = setTimeout(()=>{ try{ saveDailyOverrideV2(key, uid, { rot: deg }); }catch(_){ } }, 120);
+          }
+        }
+      }catch(_e){}
     });
   }
   /* —— Reset rotazione —— */
@@ -6412,50 +6759,7 @@ window.renderHourly = function(data, idx){
 };
 
 // === Daily regional override ===
-let DAILY_OVERRIDE = JSON.parse(localStorage.getItem("dailyOverride")||"{}");
 
-function saveDailyOverride(dateKey, city, obj){
-    if(!DAILY_OVERRIDE[dateKey]) DAILY_OVERRIDE[dateKey] = {};
-    DAILY_OVERRIDE[dateKey][city] = { ...(DAILY_OVERRIDE[dateKey][city]||{}), ...obj };
-    localStorage.setItem("dailyOverride", JSON.stringify(DAILY_OVERRIDE));
-}
-
-function applyDailyOverride(dateKey, city, field, original){
-    const o = DAILY_OVERRIDE?.[dateKey]?.[city];
-    return (o && o[field] !== undefined) ? o[field] : original;
-}
-
-// Patch loadCalabria to inject overrides
-const originalLoadCalabria = (typeof window.loadCalabria==='function') ? window.loadCalabria : null;
-window.loadCalabria = async function() {
-    if(originalLoadCalabria) { await originalLoadCalabria(); }
-    try{
-        DAYS.forEach(dayObj => {
-            const baseDate = new Date(); baseDate.setHours(0,0,0,0);
-            baseDate.setDate(baseDate.getDate() + (dayObj.offset||0));
-            const keyStr = baseDate.toISOString().slice(0,10);
-            dayObj.points.forEach(pt => {
-                pt.tmax = applyDailyOverride(keyStr, pt.city, "tmax", pt.tmax);
-                pt.tmin = applyDailyOverride(keyStr, pt.city, "tmin", pt.tmin);
-            });
-        });
-    }catch(e){ console.warn('applyDailyOverride error', e); }
-};
-
-// Extend existing 'Salva previsione' button to persist override
-if(typeof btnSaveForecast !== "undefined" && btnSaveForecast){
-    btnSaveForecast.addEventListener("click", () => {
-        const city = selCity.value;
-        const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + curDay);
-        const key = d.toISOString().slice(0,10);
-        const obj = {
-            tmax: inpTmax.value ? parseFloat(inpTmax.value) : undefined,
-            tmin: inpTmin.value ? parseFloat(inpTmin.value) : undefined
-        };
-        saveDailyOverride(key, city, obj);
-    });
-}
-</script>
 <!-- icon override removed -->
 <!-- Clean icon renderer (NO EMOJI FALLBACK) -->
 <script>
