@@ -2188,7 +2188,7 @@ details.part summary h4{ text-shadow: 0 1px 2px rgba(0,0,0,.26); }
 #mlgProvNums .tmax{ color:#ffb22e; } /* arancio/rosso leggibile */
 
 @media (max-width:600px){
-  #mlgProvNums .pt-num{ font-size: clamp(10px, 2.6vw, 14px); }
+  #mlgProvNums .pt-num{ font-size: clamp(9px, 2.1vw, 12px); transform: translate(-50%, -50%) scale(.78); }
 }
 </style>
 
@@ -6869,7 +6869,7 @@ function buildUrlCandidates(file){
 const SYNC = {
   // Sostituisci OWNER, REPO, BRANCH (es: "https://raw.githubusercontent.com/MioUser/MioRepo/main/data/")
   readBase: "https://raw.githubusercontent.com/Meteologullo/meteo-calabria./main/data/",
-  // URL dell'endpoint serverless che ti preparo qui sotto (Cloudflare/Vercel/Netlify)
+// URL dell'endpoint serverless che ti preparo qui sotto (Cloudflare/Vercel/Netlify)
   writeEndpoint: "https://shrill-queen-a96d.agn19278.workers.dev"
 };
 window.SYNC = SYNC;
@@ -6926,36 +6926,45 @@ function deepMerge(a,b){
 // Lettura globale (pull)
 // =========================
 async function loadGlobalStoresFromRemote(){
-  if(!SYNC.readBase || SYNC.readBase.indexOf("OWNER/REPO/BRANCH")>=0){
-    toast("Configura SYNC.readBase prima di usare 'Carica da remoto'", false);
-    return;
-  }
-  const bases = (function(){
+  // readBase è opzionale: se non configurato usa ./data/ sullo stesso host
+const bases = (function(){
+    const uniq = [];
+    const add = (u)=>{
+      if(!u) return;
+      try{
+        u = String(u).trim();
+        if(!u) return;
+        if(!u.endsWith('/')) u += '/';
+      }catch(e){ return; }
+      if(!uniq.includes(u)) uniq.push(u);
+    };
 
-  function positionBackButton(){
-    try{
-      const holder = document.getElementById('forecastBack');
-      if(!holder) return;
-      const sf = document.getElementById('searchForm') || document.getElementById('cityInput');
-      if(sf){
-        const rect = sf.getBoundingClientRect();
-        const top = rect.top + window.scrollY + 8;
-        const left = Math.max(rect.left + window.scrollX - 48, 12);
-        holder.style.top = top + 'px';
-        holder.style.left = left + 'px';
-      }else{
-        holder.style.top = '16px';
-        holder.style.left = '16px';
-      }
-    }catch(e){}
-  }
+    // 1) base configurata (GitHub/raw) — prioritaria
+    add(SYNC && SYNC.readBase ? SYNC.readBase : "");
 
-    const b = SYNC.readBase;
-    // toggle presence of trailing dot in repo name
-    const toggled = b.replace(/\/([^\/]+?)(\.?)(\/main\/data\/?)/, (m, name, dot, tail)=> {
-      return dot ? `/${name}${tail}` : `/${name}.${tail}`;
-    });
-    return b===toggled ? [b] : [b, toggled];
+    // 2) same-origin data/ (fallback: se il sito ospita anche i JSON)
+    try{ add(new URL("./data/", location.href).href); }catch(e){}
+    try{ add(new URL("./data/data/", location.href).href); }catch(e){} // compat: repo con cartella data/data
+// 3) fallback noti (GitHub Pages + raw)
+    //    (il repo in uso è "meteo-calabria." — includo sia con dot che senza)
+    add("https://meteologullo.github.io/meteo-calabria./data/");
+    add("https://meteologullo.github.io/meteo-calabria/data/");
+    add("https://raw.githubusercontent.com/Meteologullo/meteo-calabria./main/data/");
+    add("https://raw.githubusercontent.com/Meteologullo/meteo-calabria/main/data/");
+    //    fallback legacy (mappamlg)
+    add("https://meteologullo.github.io/mappamlg/data/");
+    add("https://raw.githubusercontent.com/Meteologullo/mappamlg/main/data/");
+// 4) toggle dot in repo name (compatibilità)
+    const extra = [];
+    for(const b of uniq.slice()){
+      const toggled = b.replace(/\/([^\/]+?)(\.?)(\/main\/data\/?)/, (m, name, dot, tail)=> {
+        return dot ? `/${name}${tail}` : `/${name}.${tail}`;
+      });
+      if(toggled && toggled !== b) extra.push(toggled);
+    }
+    extra.forEach(add);
+
+    return uniq;
   })();
   let parsed = null, lastErr = null;
   for (const base of bases){
@@ -7031,6 +7040,7 @@ async function pushAllToRemote(){
     await pushOne("daily_icon_v3.json", v3, "sync: v3 overrides");
     await pushOne("daily_override_v2.json", v2, "sync: v2 overrides");
     await pushOne("state.json", st, "sync: state");
+    try{ await loadGlobalStoresFromRemote(); }catch(e){}
     toast("Sincronizzazione completata ✔");
   }catch(e){
     console.error(e); toast("Errore in sincronizzazione: "+(e && e.message ? e.message : e), false);
