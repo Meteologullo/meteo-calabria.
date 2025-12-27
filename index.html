@@ -4,6 +4,97 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
+<script id="mlg-local-datekey-v1">
+(function(){
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  // YYYY-MM-DD in *local* timezone (no UTC/toISOString pitfalls)
+  window.mlgLocalISODate = function(d){
+    try{
+      d = (d instanceof Date) ? d : (d ? new Date(d) : new Date());
+      return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+    }catch(e){ return ""; }
+  };
+
+  // Local day key for an offset from today. Uses midday to avoid DST edge cases.
+  window.mlgLocalISOFromOffset = function(offset){
+    try{
+      var dt = new Date();
+      dt.setHours(12,0,0,0);
+      dt.setDate(dt.getDate() + (Number(offset)||0));
+      return window.mlgLocalISODate(dt);
+    }catch(e){ return window.mlgLocalISODate(new Date()); }
+  };
+
+  // Legacy (buggy) key previously used in this project (UTC slice at local midnight).
+  // Kept only for one-time migration of stored data.
+  window.mlgLegacyISOFromOffset = function(offset){
+    try{
+      var dt = new Date();
+      dt.setHours(0,0,0,0);
+      dt.setDate(dt.getDate() + (Number(offset)||0));
+      // Use UTC fields explicitly to mimic old behaviour deterministically
+      var y = dt.getUTCFullYear();
+      var m = pad(dt.getUTCMonth()+1);
+      var d = pad(dt.getUTCDate());
+      return y + "-" + m + "-" + d;
+    }catch(e){ return ""; }
+  };
+
+  function isPlainObj(o){
+    return o && typeof o === "object" && !Array.isArray(o);
+  }
+  function deepMerge(a,b){
+    if(!isPlainObj(a)) return (isPlainObj(b) ? Object.assign({}, b) : b);
+    var out = Object.assign({}, a);
+    if(!isPlainObj(b)) return out;
+    Object.keys(b).forEach(function(k){
+      if(isPlainObj(b[k]) && isPlainObj(out[k])) out[k] = deepMerge(out[k], b[k]);
+      else out[k] = b[k];
+    });
+    return out;
+  }
+
+  // Migrate daily stores (V2/V3) from legacy UTC keys to local keys,
+  // but ONLY for the currently visible day offsets (so we never “sposta” roba storica a caso).
+  window.mlgMigrateStoresDateKeys = function(){
+    try{
+      var offsets = [];
+      if(Array.isArray(window.DAYS) && window.DAYS.length){
+        offsets = window.DAYS.map(function(d){ return Number(d.offset)||0; });
+      }else{
+        for(var i=0;i<8;i++) offsets.push(i);
+      }
+
+      function migrateStore(store){
+        if(!isPlainObj(store)) return store;
+        offsets.forEach(function(off){
+          var localK  = window.mlgLocalISOFromOffset(off);
+          var legacyK = window.mlgLegacyISOFromOffset(off);
+          if(!localK || !legacyK || localK === legacyK) return;
+          if(store[legacyK] !== undefined){
+            if(store[localK] === undefined) store[localK] = store[legacyK];
+            else if(isPlainObj(store[legacyK]) && isPlainObj(store[localK])) store[localK] = deepMerge(store[localK], store[legacyK]);
+            // remove legacy key so it can't “spill” on other days
+            try{ delete store[legacyK]; }catch(_e){}
+          }
+        });
+        return store;
+      }
+
+      if(isPlainObj(window.DAILY_OVERRIDE_V2)){
+        window.DAILY_OVERRIDE_V2 = migrateStore(window.DAILY_OVERRIDE_V2);
+        try{ localStorage.setItem("dailyOverrideV2", JSON.stringify(window.DAILY_OVERRIDE_V2||{})); }catch(_e){}
+      }
+      if(isPlainObj(window.DAILY_ICON_OVERRIDE_V3)){
+        window.DAILY_ICON_OVERRIDE_V3 = migrateStore(window.DAILY_ICON_OVERRIDE_V3);
+        try{ localStorage.setItem("dailyIconOverrideV3", JSON.stringify(window.DAILY_ICON_OVERRIDE_V3||{})); }catch(_e){}
+      }
+    }catch(e){ console.warn("mlgMigrateStoresDateKeys error", e); }
+  };
+})();
+</script>
+
 <title>Meteo Calabria – Dashboard Unificata</title>
 <!-- Google Fonts & FontAwesome -->
 <link crossorigin="" href="https://fonts.googleapis.com" rel="preconnect"/>
@@ -4351,7 +4442,7 @@ function buildUrlCandidates(file){
       window.DAYS.forEach(dayObj=>{
         const baseDate = new Date(); baseDate.setHours(0,0,0,0);
         baseDate.setDate(baseDate.getDate() + (dayObj.offset||0));
-        const key = baseDate.toISOString().slice(0,10);
+        const key = mlgLocalISODate(baseDate);
         dayObj.points.forEach(pt=>{
           const uid = pt.uid || (typeof uidForCity==="function"? uidForCity(pt.city): (pt.city||""));
           const o = window.getDailyOverrideV2(key, uid);
@@ -4793,7 +4884,7 @@ function updateProvTemps(){
 
         try{
           const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + Number(window.curDay||0));
-          const key = d.toISOString().slice(0,10);
+          const key = mlgLocalISODate(d);
           const uid = p ? (p.uid || (typeof uidForCity === 'function' ? uidForCity(p.city) : null))
                         : (typeof uidForCity === 'function' ? uidForCity(city) : null);
           if(uid && typeof getDailyOverrideV2 === 'function'){
@@ -4930,7 +5021,7 @@ function render(){
   }
 
   const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+data.offset);
-  const key=d.toISOString().slice(0,10);
+  const key=mlgLocalISODate(d);
   const uid = p.uid || (typeof uidForCity==="function"? uidForCity(p.city): (p.city||""));
   const ovrV2All = (window.getDailyOverrideV2) ? window.getDailyOverrideV2(key, uid) : null;
   const seg = night ? 'night' : 'day';
@@ -5419,7 +5510,7 @@ function renderHourly(data,idx){
 const rows=[];
   // Determine the base day for this slice
   var baseISO = (data && data.hourly && data.hourly.time && data.hourly.time[idx]) ? String(data.hourly.time[idx]).slice(0,10) : '';
-  var todayISO = (function(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); })();
+  var todayISO = (function(){ var d=new Date(); d.setHours(0,0,0,0); return mlgLocalISODate(d); })();
   var applyLive = (baseISO === todayISO);
 
   for(let i=idx;i<idx+24&&i<data.hourly.time.length;i++){
@@ -6092,7 +6183,7 @@ document.getElementById('fab').addEventListener('contextmenu',e=>{
   if(_g){ pt.icon = ic; pt.code = undefined; }
 })();
 const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
-                const _key=_d.toISOString().slice(0,10);
+                const _key=mlgLocalISODate(_d);
                 const seg = night ? 'night' : 'day';
                 if (typeof saveDailyIconOverrideV3 === 'function') {
                   saveDailyIconOverrideV3(_key, uid, seg, { icon: ic });
@@ -6204,7 +6295,7 @@ btnSaveForecast && btnSaveForecast.addEventListener("click", ()=>{ /* v2 persist
     if(!Object.keys(obj).length){ try{ toast("Inserisci almeno un valore"); }catch(_e){} return; }
 
     const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + curDay);
-    const key = d.toISOString().slice(0,10);
+    const key = mlgLocalISODate(d);
 
     // trova il punto del giorno corrente (match robusto)
     const norm = s => (s||"").toString().trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu,"");
@@ -6365,7 +6456,7 @@ if(editIdx===null) return toast('Nessun marker selezionato');
       const val = parseInt(inpMarkerSizeOne && inpMarkerSizeOne.value, 10);
       if(!isNaN(val)){
         const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+Number(curDay||0));
-        const key=d.toISOString().slice(0,10);
+        const key=mlgLocalISODate(d);
         if(typeof saveDailyOverrideV2==='function'){ saveDailyOverrideV2(key, uid, { size: val }); }
         pt._size = val;
       }
@@ -6400,7 +6491,7 @@ if(editIdx===null) return toast('Nessun marker selezionato');
 })();
 // aggiorna dati tabella
     const _d=new Date(); _d.setHours(0,0,0,0); _d.setDate(_d.getDate()+curDay);
-    const _key=_d.toISOString().slice(0,10);
+    const _key=mlgLocalISODate(_d);
         const seg = night ? 'night' : 'day';
     if (typeof saveDailyIconOverrideV3 === 'function') {
       if(window.isValidIconString(newIcon)){ saveDailyIconOverrideV3(_key, uid, seg, { icon: newIcon }); }
@@ -6430,7 +6521,7 @@ if(editIdx===null) return toast('Nessun marker selezionato');
           saveState();
         }else{
           const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+curDay);
-          const key=d.toISOString().slice(0,10);
+          const key=mlgLocalISODate(d);
           if(typeof saveDailyOverrideV2==='function'){ saveDailyOverrideV2(key, uid, { rot: rotVal }); }
         }
       }
@@ -6516,7 +6607,7 @@ if(editIdx===null) return toast('Nessun marker selezionato');
           pt._size = (!isNaN(val) ? val : undefined);
           const uid = pt.uid || (typeof uidForCity==='function' ? uidForCity(pt.city) : (pt.city||""));
           const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + Number(curDay||0));
-          const key=d.toISOString().slice(0,10);
+          const key=mlgLocalISODate(d);
           if(uid && typeof saveDailyOverrideV2==='function' && !isNaN(val)){
             clearTimeout(window.__mlgSizeDebounce);
             window.__mlgSizeDebounce = setTimeout(()=>{ try{ saveDailyOverrideV2(key, uid, { size: val }); }catch(_){ } }, 120);
@@ -6544,7 +6635,7 @@ if(editIdx===null) return toast('Nessun marker selezionato');
           pt.rot = deg;
           const uid = pt.uid || (typeof uidForCity==='function' ? uidForCity(pt.city) : (pt.city||""));
           const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() + Number(curDay||0));
-          const key=d.toISOString().slice(0,10);
+          const key=mlgLocalISODate(d);
           if(uid && typeof saveDailyOverrideV2==='function'){
             clearTimeout(window.__mlgRotDebounce);
             window.__mlgRotDebounce = setTimeout(()=>{ try{ saveDailyOverrideV2(key, uid, { rot: deg }); }catch(_){ } }, 120);
@@ -6567,7 +6658,7 @@ if(editIdx===null) return toast('Nessun marker selezionato');
         }
       }else{
         const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+curDay);
-        const key=d.toISOString().slice(0,10);
+        const key=mlgLocalISODate(d);
         if(typeof saveDailyOverrideV2==='function'){ saveDailyOverrideV2(key, uid, { rot: 0 }); }
       }
       if(inpRotateOne) inpRotateOne.value = 0;
@@ -6678,7 +6769,7 @@ if(typeof editIdx==='undefined' || editIdx===null || isNaN(editIdx)){
 
     // 1) Chiave data = oggi + curDay
     const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+curDay);
-    const key = d.toISOString().slice(0,10);
+    const key = mlgLocalISODate(d);
 
     // 2) Pulisci override V3 (day+night) + V2 (icon/code)
     const uid = pt.uid || (typeof uidForCity==='function' ? uidForCity(pt.city) : pt.city);
@@ -6999,6 +7090,7 @@ const bases = (function(){
   const {v3, v2, st} = parsed;
   window.DAILY_ICON_OVERRIDE_V3 = deepMerge(window.DAILY_ICON_OVERRIDE_V3||{}, v3||{});
   window.DAILY_OVERRIDE_V2      = deepMerge(window.DAILY_OVERRIDE_V2||{}, v2||{});
+  try{ if(typeof window.mlgMigrateStoresDateKeys==='function') window.mlgMigrateStoresDateKeys(); }catch(e){}
   if(typeof PERSIST!=='undefined'){
     PERSIST.positions = deepMerge(PERSIST.positions||{}, st.positions||{});
     if(typeof st.markerSize==='number'){
@@ -7089,7 +7181,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
     }catch(e){}
   }
 
-    const fmt = d=> d.toISOString().slice(0,10);
+    const fmt = d=> mlgLocalISODate(d);
     let lastDay = fmt(new Date());
     setInterval(()=>{
       const nowDay = fmt(new Date());
@@ -7323,7 +7415,7 @@ html, body { overscroll-behavior: contain; }
     var baseISO = (fc.daily && fc.daily.time && fc.daily.time[0]) ? String(fc.daily.time[0]).slice(0,10)
                  : (fc.hourly.time && fc.hourly.time[0] ? String(fc.hourly.time[0]).slice(0,10) : '');
     function addDaysISO(iso, d){
-      try{ var dt = new Date(iso + "T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }catch(e){ return iso; }
+      try{ var dt = new Date(iso + "T00:00:00"); dt.setDate(dt.getDate()+d); return mlgLocalISODate(dt); }catch(e){ return iso; }
     }
     var nextISO = addDaysISO(baseISO, 1);
     var full = window.fc || fc; // use full forecast so we can access next day's hours for 'Notte'
@@ -7360,7 +7452,7 @@ html, body { overscroll-behavior: contain; }
 
       // LIVE clamp only if the panel's base day is TODAY and the band is the current one
       try{
-        var todayISO = (function(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); })();
+        var todayISO = (function(){ var d=new Date(); d.setHours(0,0,0,0); return mlgLocalISODate(d); })();
         if(baseISO===todayISO && window.LIVE && Number.isFinite(Number(window.LIVE.t))){
           var nowH = new Date().getHours();
           var inBand = (part.name==='Mattina' && nowH>=6 && nowH<12) ||
@@ -7424,7 +7516,7 @@ html += `
     var el = document.getElementById('dayParts');
     var baseISO = el && el.dataset ? el.dataset.dayIso : '';
     function addDaysISO(iso, d){
-      try{ var dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }catch(e){ return iso; }
+      try{ var dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return mlgLocalISODate(dt); }catch(e){ return iso; }
     }
     var nextISO = addDaysISO(baseISO, 1);
     var defs = [
@@ -8954,7 +9046,7 @@ html += `
       const off = (typeof window.curDay==='number' && isFinite(window.curDay)) ? window.curDay : 0;
       d.setDate(d.getDate()+off);
     }catch(e){}
-    return d.toISOString().slice(0,10);
+    return mlgLocalISODate(d);
   }
 
   function getIconOverride(dateKey, uid, seg){
@@ -9170,7 +9262,7 @@ html += `
       const off=(typeof window.curDay==='number' && isFinite(window.curDay))? window.curDay:0;
       d.setDate(d.getDate()+off);
     }catch(e){}
-    return d.toISOString().slice(0,10);
+    return mlgLocalISODate(d);
   }
   function findPointByCity(city){
     try{
@@ -10197,7 +10289,7 @@ pushMsg(`${text}${body}`, "ai");
         try{
           const d=new Date(); d.setHours(0,0,0,0);
           d.setDate(d.getDate() + (dayObj.offset||0));
-          const key=d.toISOString().slice(0,10);
+          const key=mlgLocalISODate(d);
           (dayObj.points||[]).forEach(pt=>{
             const uid = pt.uid || (typeof uidForCity==='function'? uidForCity(pt.city): (pt.city||''));
             const o = (typeof getDailyOverrideV2==='function') ? getDailyOverrideV2(key, uid) : null;
@@ -10250,64 +10342,14 @@ pushMsg(`${text}${body}`, "ai");
 </script>
 <script id="mlg-datekey-fallback-v1">
 (function(){
-  // Fix urgente: chiavi giorno (YYYY-MM-DD) coerenti tra dispositivi/timezone.
-  // Se un device salva con una chiave diversa di 1 giorno (effetto toISOString/UTC),
-  // qui proviamo automaticamente anche ±1 giorno in lettura.
-  function shiftKey(key, delta){
-    try{
-      if(typeof key!=='string' || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
-      var p = key.split('-').map(function(x){ return parseInt(x,10); });
-      var dt = new Date(Date.UTC(p[0], p[1]-1, p[2], 12, 0, 0));
-      dt.setUTCDate(dt.getUTCDate() + (delta||0));
-      var y = dt.getUTCFullYear();
-      var m = String(dt.getUTCMonth()+1).padStart(2,'0');
-      var d = String(dt.getUTCDate()).padStart(2,'0');
-      return y + "-" + m + "-" + d;
-    }catch(e){ return null; }
-  }
-  function altKeys(key){
-    var out = [];
-    if(key) out.push(key);
-    var k1 = shiftKey(key, -1); if(k1 && out.indexOf(k1)===-1) out.push(k1);
-    var k2 = shiftKey(key,  1); if(k2 && out.indexOf(k2)===-1) out.push(k2);
-    return out;
-  }
-
-  // Wrap getDailyOverrideV2 (dopo eventuali wrapper precedenti)
+  // NOTE (fix 2025-12): rimosso il "fallback ±1 giorno" che poteva far “spillare” le icone
+  // del giorno precedente su quello corrente. Ora usiamo chiavi *locali* (YYYY-MM-DD) e
+  // facciamo solo una MIGRAZIONE dei dati salvati con la vecchia logica UTC.
   try{
-    if(typeof window.getDailyOverrideV2 === 'function' && !window.getDailyOverrideV2.__mlgKeyFallback){
-      var _get = window.getDailyOverrideV2;
-      window.getDailyOverrideV2 = function(key, uid){
-        var o = _get(key, uid);
-        if(o) return o;
-        var keys = altKeys(key);
-        for(var i=1;i<keys.length;i++){
-          o = _get(keys[i], uid);
-          if(o) return o;
-        }
-        return null;
-      };
-      window.getDailyOverrideV2.__mlgKeyFallback = true;
+    if(typeof window.mlgMigrateStoresDateKeys === "function"){
+      window.mlgMigrateStoresDateKeys();
     }
-  }catch(e){}
-
-  // Wrap getDailyIconOverrideV3
-  try{
-    if(typeof window.getDailyIconOverrideV3 === 'function' && !window.getDailyIconOverrideV3.__mlgKeyFallback){
-      var _g = window.getDailyIconOverrideV3;
-      window.getDailyIconOverrideV3 = function(key, uid, seg){
-        var o = _g(key, uid, seg);
-        if(o) return o;
-        var keys = altKeys(key);
-        for(var i=1;i<keys.length;i++){
-          o = _g(keys[i], uid, seg);
-          if(o) return o;
-        }
-        return null;
-      };
-      window.getDailyIconOverrideV3.__mlgKeyFallback = true;
-    }
-  }catch(e){}
+  }catch(e){ console.warn("datekey migration error", e); }
 
   // Re-applica override e ridisegna (per vedere subito le modifiche salvate su GitHub)
   try{ if(typeof window.applyDailyOverridesV2==='function') window.applyDailyOverridesV2(); }catch(e){}
@@ -10877,7 +10919,7 @@ document.addEventListener('DOMContentLoaded', function(){
   var LOG = (new URLSearchParams(location.search).get('debug')==='1');
   function log(){ try{ if(LOG) console.log.apply(console, ['[sector-pro v4]'].concat([].slice.call(arguments))); }catch(e){} }
   function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-  function todayISO(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
+  function todayISO(){ var d=new Date(); d.setHours(0,0,0,0); return mlgLocalISODate(d); }
   function loadStore(){ try{ var j=JSON.parse(localStorage.getItem(STORAGE_KEY))||{}; if(!j.grid) j.grid=Object.assign({},GRID_DEFAULT); if(!j.overrides) j.overrides={}; return j; }catch(e){ return {grid:Object.assign({},GRID_DEFAULT), overrides:{}}; } }
   function saveStore(s){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){} }
   function setGrid(r,c){ var s=loadStore(); s.grid.rows=clamp(+r||GRID_DEFAULT.rows,1,50); s.grid.cols=clamp(+c||GRID_DEFAULT.cols,1,50); saveStore(s); }
@@ -10964,7 +11006,7 @@ document.addEventListener('DOMContentLoaded', function(){
     ';
     document.body.appendChild(box);
 
-    function fillDaysFromToday(){ var sel=document.getElementById('proDay'); sel.innerHTML=''; for(var d=0; d<7; d++){ var base=new Date(); base.setHours(0,0,0,0); base.setDate(base.getDate()+d); var iso=base.toISOString().slice(0,10); var opt=document.createElement('option'); opt.value=iso; opt.textContent=(d===0?'Oggi ':'')+iso; sel.appendChild(opt);} }
+    function fillDaysFromToday(){ var sel=document.getElementById('proDay'); sel.innerHTML=''; for(var d=0; d<7; d++){ var base=new Date(); base.setHours(0,0,0,0); base.setDate(base.getDate()+d); var iso=mlgLocalISODate(base); var opt=document.createElement('option'); opt.value=iso; opt.textContent=(d===0?'Oggi ':'')+iso; sel.appendChild(opt);} }
     function fillDaysFromFc(){ try{ var sel=document.getElementById('proDay'); sel.innerHTML=''; var arr=(window.fc&&window.fc.daily&&window.fc.daily.time)||[]; if(arr.length){ for(var i=0;i<arr.length;i++){ var iso=arr[i]; var opt=document.createElement('option'); opt.value=iso; opt.textContent=iso; sel.appendChild(opt);} } else { fillDaysFromToday(); } }catch(e){ fillDaysFromToday(); } }
 
     function renderIcons(list){
@@ -15390,7 +15432,7 @@ try{
 <script id="hourly-skip-past-2025-09-11">
 (function(){
   function todayISO(){
-    try{ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }catch(_e){ return ""; }
+    try{ var d=new Date(); d.setHours(0,0,0,0); return mlgLocalISODate(d); }catch(_e){ return ""; }
   }
   function filterFutureToday(data, idx){
     try{
@@ -15451,7 +15493,7 @@ try{
   // NOTE 2025-12-22: disabilitato l'auto-selezione/auto-click di OGGI.
   // Manteniamo SOLO la classe .today per l'evidenza grafica.
   function todayMMDD(){
-    try{ return new Date().toISOString().slice(5,10); }catch(_e){ return ""; }
+    try{ return mlgLocalISODate(new Date()).slice(5,10); }catch(_e){ return ""; }
   }
   function markToday(strip){
     try{
@@ -15565,7 +15607,7 @@ try{
     txt = txt.replace(/\.+/g,' ').replace(/\s+/g,' ').trim();
     return /^(lun|mar|mer|gio|ven|sab|dom)\s+\d{1,2}$/.test(txt);
   }
-  function todayMMDD(){ try{ return new Date().toISOString().slice(5,10);}catch(_e){return "";} }
+  function todayMMDD(){ try{ return mlgLocalISODate(new Date()).slice(5,10);}catch(_e){return "";} }
 
   function pickLabelEl(dayEl){
     try{
@@ -16064,7 +16106,7 @@ try{
   function $all(s, root){ return Array.prototype.slice.call((root||document).querySelectorAll(s)); }
 
   function todayMMDD(){
-    try{ return new Date().toISOString().slice(5,10); }catch(e){ return ""; }
+    try{ return mlgLocalISODate(new Date()).slice(5,10); }catch(e){ return ""; }
   }
   function extractMMDDFromText(t){
     if(!t) return "";
@@ -17790,7 +17832,7 @@ function vaneHTML(kmh, wantKMH){
       try{
         const baseISO = (data && data.hourly && data.hourly.time && data.hourly.time[idx])
           ? String(data.hourly.time[idx]).slice(0,10)
-          : (new Date()).toISOString().slice(0,10);
+          : mlgLocalISODate(new Date());
         const g = window.__lastGeo;
         if(g && isFinite(g.lat) && isFinite(g.lon)){
           updateFor(g.lat, g.lon, baseISO);
@@ -17811,7 +17853,7 @@ function vaneHTML(kmh, wantKMH){
         const d = Number(window.curDay||0);
         const baseISO = (fc && fc.daily && fc.daily.time && fc.daily.time[d])
           ? String(fc.daily.time[d]).slice(0,10)
-          : (new Date()).toISOString().slice(0,10);
+          : mlgLocalISODate(new Date());
         const g = window.__lastGeo;
         if(g) updateFor(g.lat, g.lon, baseISO);
       }catch(e){}
@@ -17842,7 +17884,7 @@ function vaneHTML(kmh, wantKMH){
         }
       }catch(e){}
       var d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(idx|0));
-      return d.toISOString().slice(0,10);
+      return mlgLocalISODate(d);
     }
     function refreshMarineFromSelection(){
       if(typeof window.updateMarineForDay!=="function") return;
@@ -18571,7 +18613,7 @@ body #dayParts{ margin: 2px 0 4px !important; }        /* riduce lo spazio sopra
 <script id="force-daynight-parts">
 (function(){
   function addDaysISO(iso, d){
-    try{ var dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }
+    try{ var dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return mlgLocalISODate(dt); }
     catch(e){ return iso; }
   }
   function fix(){
@@ -18857,7 +18899,7 @@ body #dayParts{ margin: 2px 0 4px !important; }        /* riduce lo spazio sopra
   }
 
   function addDaysISO(iso, days){
-    try{ var d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }catch(e){ return iso; }
+    try{ var d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+days); return mlgLocalISODate(d); }catch(e){ return iso; }
   }
 
   function computeCode(full, iso, startHour, endHour){
@@ -18947,7 +18989,7 @@ body #dayParts{ margin: 2px 0 4px !important; }        /* riduce lo spazio sopra
   function pad(n){ return (n<10?'0':'')+n; }
   var M = {'gen':1,'feb':2,'mar':3,'apr':4,'mag':5,'giu':6,'lug':7,'ago':8,'set':9,'ott':10,'nov':11,'dic':12};
   function monthFromLabel(s){ if(!s) return null; s=String(s).trim().toLowerCase().slice(0,3); return M[s]||null; }
-  function addDaysISO(iso, d){ try{ var dt=new Date(iso+'T00:00:00'); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }catch(e){ return iso; } }
+  function addDaysISO(iso, d){ try{ var dt=new Date(iso+'T00:00:00'); dt.setDate(dt.getDate()+d); return mlgLocalISODate(dt); }catch(e){ return iso; } }
   function getSelectedISO(full){
     try{
       var el = document.getElementById('dayParts');
@@ -23349,7 +23391,7 @@ try{
     if(h && h.dataset && h.dataset.iso) return h.dataset.iso;
     var dp = document.getElementById('dayParts');
     if(dp && dp.dataset && dp.dataset.dayIso) return dp.dataset.dayIso;
-    var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10);
+    var d=new Date(); d.setHours(0,0,0,0); return mlgLocalISODate(d);
   }
   function getOverride(){
     try{
@@ -24613,7 +24655,7 @@ html body #widget.skin-night #mapArea{
   }
 
   function isFull(fc){ return fc && fc.daily && Array.isArray(fc.daily.time) && fc.daily.time.length > 1; }
-  function todayISO(){ var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
+  function todayISO(){ var d=new Date(); d.setHours(0,0,0,0); return mlgLocalISODate(d); }
 
   // Keep a copy of the last full forecast so the PRO panel can use real 7-day dates
   (function hookRender(){
@@ -26857,7 +26899,7 @@ const venti = (wmax>=60 || gmax>=70) ? "forti" : (wmax>=35 ? "moderati" : "debol
     return idx<=0;
   }
   function dayISOFromSelection(){
-    var d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10);
+    var d=new Date(); d.setHours(0,0,0,0); return mlgLocalISODate(d);
   }
   function toRangeIndices(dayISO,startHH,endHH){
     var fc=window.fc;
